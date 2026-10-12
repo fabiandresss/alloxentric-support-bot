@@ -19,7 +19,8 @@ creando un ticket en **Corestream**. Todo corre **100% en local** (sin nube).
 | Front: consola de soporte, panel de agentes, widget de prueba, usuarios y roles | Hecho |
 | Motor RAG (embeddings + pgvector + DeepSeek + clasificador) | **Provisorio** (palabras clave) |
 | Widget embebible `widget.min.js` y chat público `/chat/{slug}` | Hecho |
-| Corestream real · Celery · Analítica real | Pendiente |
+| Analítica real por empresa y rol; asignación de tickets a usuarios | Hecho |
+| Corestream real · Celery | Pendiente |
 
 ## Roles
 
@@ -74,7 +75,7 @@ esquema (`alembic upgrade head`). Para cambios de esquema: editar `app/models/mo
 
 ## Pruebas
 
-Pruebas de la API (pytest, 35 pruebas, incluye roles y permisos):
+Pruebas de la API (pytest, 41 pruebas, incluye roles y permisos):
 
 ```bash
 cd backend
@@ -104,6 +105,8 @@ en las respuestas de la empresa B, y una conversación de A no se puede usar con
 | `GET /publico/{slug}` · `POST /publico/{slug}/chat` | Chat público (página `/chat/{slug}` y widget embebible); sin login, solo con agente `activo` |
 | `POST /empresas/{slug}/probar` | Simulador del panel (sin key) |
 | `GET /metricas` | Tarjetas de la consola |
+| `GET /metricas/analitica?dias=` | Vista Analítica (superadmin: todas las empresas; resto: la suya) |
+| `GET /tickets/agentes` | Usuarios a los que se puede asignar un ticket (de la empresa) |
 
 Todas las rutas (salvo `/health`, `/auth/login`, `/chat` y `/publico/*`) exigen `Authorization: Bearer <token>` y un rol permitido; ver `docs/MATRIZ_PERMISOS.md`.
 
@@ -118,5 +121,4 @@ Las respuestas usan exactamente la forma de `frontend/src/types/index.ts` (camel
 | **Motor RAG real** (embeddings sentence-transformers + búsqueda pgvector + DeepSeek). Hoy `services/motor_rag.py` busca por palabras clave sobre los fragmentos; el contrato (`responder`, `sugerir_respuesta`) ya está fijo. | `backend/app/services/motor_rag.py`, `ingesta.py::generar_embeddings` | Vicente |
 | Procesar la ingesta con **Celery + Redis** (hoy usa `BackgroundTasks` de FastAPI) | `services/ingesta.py` | Vicente |
 | **Corestream real** (hoy `CORESTREAM_MOCK=true`: el ticket se crea solo en la BD local) | `services/derivacion.py` | Fabián |
-| Vista **Analítica**: sigue con datos de ejemplo del prototipo | `AnalyticsView.tsx` | Fabián |
 | Los documentos del seed no tienen archivo ni fragmentos reales: sube uno desde el panel para probar | — | — |

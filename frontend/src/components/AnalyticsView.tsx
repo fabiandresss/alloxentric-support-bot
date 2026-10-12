@@ -1,107 +1,70 @@
-import React, { useState } from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Bot, 
-  Clock, 
-  Building2, 
-  PieChart as PieIcon
+import React, { useEffect, useState } from 'react';
+import {
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Bot,
+  Clock,
+  Building2,
+  PieChart as PieIcon,
+  Loader2
 } from 'lucide-react';
-import { Company } from '../types';
+import { Analytics } from '../types';
+import { getAnalytics } from '../api/client';
 
-interface AnalyticsViewProps {
-  companies: Company[];
-}
+const RANGES = [
+  { days: 7, label: 'Últimos 7 días' },
+  { days: 14, label: 'Últimos 14 días' },
+  { days: 30, label: 'Últimos 30 días' },
+] as const;
 
-export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
-  const [timeRange, setTimeRange] = useState<'7d' | '14d' | '30d'>('14d');
+/** Datos reales (GET /metricas/analitica): el backend ya filtra por empresa según el rol. */
+export const AnalyticsView: React.FC = () => {
+  const [days, setDays] = useState<number>(14);
   const [activeBarIndex, setActiveBarIndex] = useState<number | null>(null);
+  const [data, setData] = useState<Analytics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Cross-company summary figures
-  const totalConversations = 34180;
-  const botResolvedCount = 30454;
-  const humanEscalatedCount = 3726;
-  const botRate = ((botResolvedCount / totalConversations) * 100).toFixed(1);
-  const escalationRate = ((humanEscalatedCount / totalConversations) * 100).toFixed(1);
+  useEffect(() => {
+    let vivo = true;
+    setLoading(true);
+    getAnalytics(days)
+      .then((d) => {
+        if (!vivo) return;
+        setData(d);
+        setError(null);
+      })
+      .catch((e) => vivo && setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => vivo && setLoading(false));
+    return () => {
+      vivo = false;
+    };
+  }, [days]);
 
-  // 14 days mock trend data
-  const dailyData = [
-    { date: '09 Sep', bot: 1820, human: 210, total: 2030 },
-    { date: '10 Sep', bot: 1940, human: 230, total: 2170 },
-    { date: '11 Sep', bot: 2100, human: 260, total: 2360 },
-    { date: '12 Sep', bot: 2050, human: 245, total: 2295 },
-    { date: '13 Sep', bot: 1680, human: 180, total: 1860 },
-    { date: '14 Sep', bot: 1450, human: 150, total: 1600 },
-    { date: '15 Sep', bot: 2240, human: 270, total: 2510 },
-    { date: '16 Sep', bot: 2310, human: 290, total: 2600 },
-    { date: '17 Sep', bot: 2420, human: 280, total: 2700 },
-    { date: '18 Sep', bot: 2390, human: 310, total: 2700 },
-    { date: '19 Sep', bot: 2510, human: 295, total: 2805 },
-    { date: '20 Sep', bot: 1780, human: 190, total: 1970 },
-    { date: '21 Sep', bot: 1620, human: 175, total: 1795 },
-    { date: 'Hoy', bot: 2640, human: 320, total: 2960 },
-  ];
+  if (!data) {
+    return (
+      <div className="py-24 text-center text-xs text-[#64748B]">
+        {error ? (
+          <span className="text-[#B91C1C]">No se pudo cargar la analítica: {error}</span>
+        ) : (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Cargando analítica…
+          </span>
+        )}
+      </div>
+    );
+  }
 
-  const maxDaily = Math.max(...dailyData.map((d) => d.total));
-
-  // Company comparative data
-  const companyAnalytics = [
-    {
-      id: 'wellq',
-      name: 'WellQ',
-      industry: 'Salud Digital',
-      brandColor: '#0284C7',
-      totalQueries: 8420,
-      botResolved: 7510,
-      botRate: 89.2,
-      escalated: 910,
-      escalationRate: 10.8,
-    },
-    {
-      id: 'alloxentric',
-      name: 'Alloxentric',
-      industry: 'Omnicanalidad & Voz',
-      brandColor: '#4F46E5',
-      totalQueries: 14210,
-      botResolved: 13002,
-      botRate: 91.5,
-      escalated: 1208,
-      escalationRate: 8.5,
-    },
-    {
-      id: 'dani-eth',
-      name: 'Dani ETH',
-      industry: 'Web3 & Fintech',
-      brandColor: '#7C3AED',
-      totalQueries: 3820,
-      botResolved: 3212,
-      botRate: 84.1,
-      escalated: 608,
-      escalationRate: 15.9,
-    },
-    {
-      id: 'dani27001',
-      name: 'Dani27001',
-      industry: 'Ciberseguridad ISO',
-      brandColor: '#0D9488',
-      totalQueries: 2610,
-      botResolved: 2297,
-      botRate: 88.0,
-      escalated: 313,
-      escalationRate: 12.0,
-    },
-    {
-      id: 'aprueba',
-      name: 'Aprueba',
-      industry: 'EdTech & PAES',
-      brandColor: '#EA580C',
-      totalQueries: 5120,
-      botResolved: 4424,
-      botRate: 86.4,
-      escalated: 696,
-      escalationRate: 13.6,
-    },
-  ];
+  const totalConversations = data.totalConversations;
+  const botRate = data.botRate.toFixed(1);
+  const escalationRate = data.escalationRate.toFixed(1);
+  const dailyData = data.daily;
+  const maxDaily = Math.max(1, ...dailyData.map((d) => d.total));
+  const companyAnalytics = data.companies;
+  const top = [...companyAnalytics].sort((a, b) => b.totalQueries - a.totalQueries)[0];
+  const delta = data.conversationsDelta;
+  const labelEvery = dailyData.length > 14 ? 3 : 1; // con 30 barras se muestra una etiqueta de cada 3
 
   return (
     <div className="space-y-6">
@@ -109,7 +72,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#1E1B4B]">
-            Analítica global de soporte
+            {companyAnalytics.length > 1 ? 'Analítica global de soporte' : `Analítica de soporte · ${companyAnalytics[0]?.name ?? ''}`}
           </h1>
           <p className="text-xs text-[#64748B] mt-1">
             Rendimiento del motor RAG, volumen de consultas automatizadas y derivaciones a la mesa de ayuda Corestream.
@@ -118,17 +81,18 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
 
         {/* Time period filter */}
         <div className="flex items-center gap-1 p-1 bg-[#F1F5F9] rounded-xl self-start">
-          {(['7d', '14d', '30d'] as const).map((range) => (
+          {RANGES.map((r) => (
             <button
-              key={range}
-              onClick={() => setTimeRange(range)}
+              key={r.days}
+              onClick={() => setDays(r.days)}
+              disabled={loading}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                timeRange === range
+                days === r.days
                   ? 'bg-white text-[#1E1B4B] shadow-xs'
                   : 'text-[#64748B] hover:text-[#1E1B4B]'
               }`}
             >
-              {range === '7d' ? 'Últimos 7 días' : range === '14d' ? 'Últimos 14 días' : 'Últimos 30 días'}
+              {r.label}
             </button>
           ))}
         </div>
@@ -148,13 +112,21 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
             <span className="text-2xl font-bold text-[#1E1B4B] tabular-nums">
               {totalConversations.toLocaleString()}
             </span>
-            <span className="text-xs font-semibold text-[#22C55E] flex items-center gap-0.5">
-              <TrendingUp className="w-3 h-3" />
-              +18.4%
-            </span>
+            {delta != null && (
+              <span
+                className={`text-xs font-semibold flex items-center gap-0.5 ${
+                  delta >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'
+                }`}
+              >
+                {delta >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {delta >= 0 ? '+' : ''}
+                {delta}%
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-[#64748B] mt-1">
-            En 5 empresas cliente conectadas
+            {companyAnalytics.length === 1 ? 'En tu empresa' : `En ${companyAnalytics.length} empresas cliente`}
+            {delta != null ? ' · vs periodo anterior' : ''}
           </p>
         </div>
 
@@ -190,11 +162,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-[#1E1B4B] tabular-nums">
-              3m 48s
+              {data.avgHumanResolution}
             </span>
-            <span className="text-xs text-[#64748B]">
-              (humano) / <strong className="text-[#0D9488]">1.6s</strong> (bot)
-            </span>
+            <span className="text-xs text-[#64748B]">(atención humana)</span>
           </div>
         </div>
 
@@ -208,10 +178,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-xl font-bold text-[#1E1B4B]">
-              Alloxentric
+              {top && top.totalQueries > 0 ? top.name : '—'}
             </span>
             <span className="text-xs font-semibold text-[#4F46E5] tabular-nums">
-              14,210 cons.
+              {top && top.totalQueries > 0 ? `${top.totalQueries.toLocaleString()} cons.` : 'sin consultas'}
             </span>
           </div>
         </div>
@@ -223,7 +193,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
           <div>
             <h3 className="text-sm font-bold text-[#1E1B4B] flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-[#4F46E5]" />
-              Volumen diario de conversaciones (Últimos 14 días)
+              Volumen diario de conversaciones (Últimos {data.days} días)
             </h3>
             <p className="text-xs text-[#64748B] mt-0.5">
               Comparativa entre respuestas resueltas por el bot RAG y casos derivados a agentes Corestream.
@@ -248,8 +218,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
           <div className="h-64 flex items-end justify-between gap-2 border-b border-[#E2E8F0] pb-2 relative">
             {dailyData.map((d, index) => {
               const totalHeightPercent = (d.total / maxDaily) * 100;
-              const botHeightPercent = (d.bot / d.total) * 100;
-              const humanHeightPercent = (d.human / d.total) * 100;
+              const botHeightPercent = d.total ? (d.bot / d.total) * 100 : 0;
+              const humanHeightPercent = d.total ? (d.human / d.total) * 100 : 0;
 
               return (
                 <div
@@ -295,8 +265,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
                   </div>
 
                   {/* X Axis Label */}
-                  <span className="text-[10px] text-[#64748B] mt-2 block font-medium group-hover:text-[#1E1B4B]">
-                    {d.date}
+                  <span className="text-[10px] text-[#64748B] mt-2 block font-medium group-hover:text-[#1E1B4B] whitespace-nowrap">
+                    {index % labelEvery === 0 || index === dailyData.length - 1 ? d.date : '\u00A0'}
                   </span>
                 </div>
               );
@@ -311,14 +281,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ companies }) => {
           <div>
             <h3 className="text-sm font-bold text-[#1E1B4B] flex items-center gap-2">
               <PieIcon className="w-4 h-4 text-[#14B8A6]" />
-              Comparativa de resolución por empresa (5 Tenants)
+              Comparativa de resolución por empresa ({companyAnalytics.length} {companyAnalytics.length === 1 ? 'tenant' : 'tenants'})
             </h3>
             <p className="text-xs text-[#64748B] mt-0.5">
               Desglose de eficiencia del chatbot con RAG en cada organización cliente.
             </p>
           </div>
           <span className="text-xs text-[#4F46E5] font-semibold bg-[#EEF2FF] px-2.5 py-1 rounded-lg">
-            Promedio: 88.2%
+            Promedio: {botRate}%
           </span>
         </div>
 

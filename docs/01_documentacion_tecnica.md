@@ -79,7 +79,7 @@ Decisiones:
   y desordenaba la transcripción (bug encontrado en las pruebas).
 - **Usuarios y roles:** `usuarios.rol` ∈ {`superadmin`, `admin_empresa`, `encargado_tickets`, `encargado_agente`}. `empresa_id` es nulo solo
   para el superadmin; dos `CHECK` en la BD lo garantizan. Las claves se guardan con PBKDF2-SHA256 + sal. Ver `MATRIZ_PERMISOS.md`.
-- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario).
+- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario; `0003` el agente asignado a un ticket pasa de texto libre a un usuario).
 
 ## 6. Flujos principales
 
@@ -123,6 +123,8 @@ Documentación interactiva: `http://localhost:8000/docs` (botón *Authorize* par
 | `POST /publico/{slug}/chat` | Chat público: página `/chat/{slug}` y widget embebible (exige agente `activo`) |
 | `POST /empresas/{slug}/probar` | Simulador del panel (sin API key) |
 | `GET /metricas` | Tickets abiertos/urgentes, conversaciones de hoy, tasa de resolución del bot |
+| `GET /metricas/analitica?dias=7\|14\|30` | Vista Analítica: totales, volumen diario y comparativa por empresa (cada rol ve solo lo suyo) |
+| `GET /tickets/agentes` | Usuarios activos (admin o encargado de tickets) a los que se puede asignar un ticket de la empresa |
 
 Ejemplo:
 
@@ -153,8 +155,8 @@ Ver `README.md` en la raíz del proyecto (pasos con Docker Compose, Alembic, see
 
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
-| API (pytest, Postgres real) | `backend/tests/test_api.py` (13) y `test_roles.py` (22) — 35 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
-| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 31 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen** |
+| API (pytest, Postgres real) | `backend/tests/test_api.py` (13) y `test_roles.py` (28) — 41 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
+| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 37 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta** |
 | Migración | manual | `alembic upgrade head`, `alembic check` (sin diferencias con los modelos) y `downgrade base` sobre un Postgres real |
 
 Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían las tablas.
@@ -188,7 +190,7 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | Widget embebible `widget.min.js` y página pública `/chat/{slug}` | Fabián | S9–S10 (hecho) |
 | Integración real con Corestream (depende de su documentación) | Fabián | S11–S12 |
 | Celery + Redis para la ingesta | Vicente | S10–S12 |
-| Vista Analítica con datos reales (hoy usa datos de ejemplo) | Fabián | por definir |
+| Vista Analítica con datos reales | Fabián | hecho (`GET /metricas/analitica`) |
 
 **Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de una sola persona y tiene 4 semanas para el motor.
 El contrato del motor (`responder` y `sugerir_respuesta` en `services/motor_rag.py`) ya está fijo, así que el front y la API no

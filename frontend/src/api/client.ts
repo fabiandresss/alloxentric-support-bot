@@ -12,6 +12,8 @@ import {
   Role,
   TokenResponse,
   PublicAgent,
+  AssignableAgent,
+  Analytics,
 } from '../types';
 
 export const API_URL: string =
@@ -126,13 +128,17 @@ export const getDocumentChunks = (docId: string) => request<ChunkOut[]>(`/docume
 
 // ---------- tickets ----------
 export const getTickets = () => request<Ticket[]>('/tickets');
-export const updateTicket = (id: string, p: { status?: TicketStatus; assignedAgent?: string }) =>
+/** assignedAgentId: id de un usuario de la empresa del ticket; null = dejar sin asignar. */
+export const updateTicket = (id: string, p: { status?: TicketStatus; assignedAgentId?: string | null }) =>
   request<Ticket>(`/tickets/${id}`, json('PATCH', p));
-export const replyTicket = (id: string, text: string, agentName?: string) =>
-  request<Ticket>(`/tickets/${id}/respuesta`, json('POST', { text, agentName }));
+/** El remitente lo pone el backend con el usuario autenticado. */
+export const replyTicket = (id: string, text: string) =>
+  request<Ticket>(`/tickets/${id}/respuesta`, json('POST', { text }));
+export const getAssignableAgents = () => request<AssignableAgent[]>('/tickets/agentes');
 
 // ---------- métricas ----------
 export const getMetrics = () => request<SystemMetrics>('/metricas');
+export const getAnalytics = (days: number) => request<Analytics>(`/metricas/analitica?dias=${days}`);
 
 // ---------- chat ----------
 export interface ChatPayload {

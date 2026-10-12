@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m, schemas as s
 from app.db import get_db
-from app.deps import (empresa_con_rol, hash_key, nueva_api_key, requiere_rol, SUPERADMIN,
-                      GESTION_AGENTE, TODOS)
+from app.deps import (empresa_con_rol, hash_key, nueva_api_key, requiere_rol, usuario_actual, SUPERADMIN,
+                      ADMIN, GESTION_AGENTE, TODOS)
 from app.mappers import empresa_out
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
@@ -59,12 +59,17 @@ def obtener(e: m.Empresa = Depends(empresa_con_rol(*TODOS)), db: Session = Depen
 
 @router.patch("/{slug}", response_model=s.Company, response_model_exclude_none=True)
 def actualizar(body: s.CompanyUpdate, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)),
-               db: Session = Depends(get_db)):
+               u: m.Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    # Los datos de la empresa (nombre, industria) los cambia solo su admin o el superadmin; el encargado
+    # del agente configura el agente. Reenviar el mismo valor no cuenta como cambio.
+    cambios = body.model_dump(exclude_unset=True)
+    if u.rol not in ADMIN and (cambios.get("name", e.nombre) != e.nombre
+                               or (cambios.get("industry", e.industria) or "") != (e.industria or "")):
+        raise HTTPException(403, "Solo el admin de la empresa puede cambiar su nombre o industria")
     mapa = {"name": "nombre", "industry": "industria", "agent_name": "nombre_agente",
             "agent_status": "estado_agente", "tone": "tono", "custom_instructions": "instrucciones",
             "rag_threshold": "umbral_rag", "brand_color": "color_marca", "brand_bg": "color_fondo",
             "logo_initials": "iniciales_logo"}
-    cambios = body.model_dump(exclude_unset=True)
     if "name" in cambios and cambios["name"] != e.nombre and db.scalar(
             select(m.Empresa).where(m.Empresa.nombre == cambios["name"])):
         raise HTTPException(409, "Ya existe una empresa con ese nombre")

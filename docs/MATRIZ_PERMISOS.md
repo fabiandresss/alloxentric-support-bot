@@ -15,12 +15,14 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 |---|:-:|:-:|:-:|:-:|
 | Crear empresas | ✔ | | | |
 | Ver empresas | todas | la suya | la suya | la suya |
-| Configurar agente (nombre, tono, instrucciones, umbral, estado) | ✔ | ✔ | | ✔ |
+| Configurar agente (nombre del agente, tono, instrucciones, umbral, estado) | ✔ | ✔ | | ✔ |
+| Cambiar nombre e industria de la empresa | ✔ | ✔ | | |
 | Subir / borrar documentos y ver fragmentos | ✔ | ✔ | | ✔ |
 | Generar o rotar la API key y obtener el widget | ✔ | ✔ | | ✔ |
 | Probar el agente (simulador) | ✔ | ✔ | | ✔ |
 | Ver y atender tickets (estado, asignar, responder) | todos | los de su empresa | los de su empresa | |
-| Ver métricas | globales | las de su empresa | las de su empresa | las de su empresa |
+| Asignar un ticket | a usuarios de la empresa del ticket (admin o encargado de tickets); nunca a otra empresa | | | |
+| Ver métricas y analítica | globales (todas las empresas) | las de su empresa | las de su empresa | las de su empresa |
 | Gestionar usuarios | todos | los de su empresa | | |
 | Crear superadmins | ✔ | | | |
 
@@ -34,5 +36,8 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 - **Base de datos:** la tabla `usuarios` tiene dos `CHECK`: el rol debe ser uno de los cuatro, y `empresa_id` es nulo **si y solo si** el rol es `superadmin`.
 - **Reglas anti-accidentes:** nadie puede desactivarse, eliminarse ni cambiarse el rol a sí mismo; un admin de empresa no puede crear ni tocar superadmins;
   un usuario desactivado pierde el acceso aunque su token no haya vencido.
+- **Remitente confiable:** quien responde un ticket queda registrado con el usuario autenticado; el cuerpo de la petición no puede cambiarlo.
+- **Asignación real:** `assignedAgentId` debe ser un usuario activo, de la empresa del ticket y con rol de atención (`admin_empresa` o `encargado_tickets`); si no, 422.
+- **Datos de empresa:** nombre e industria solo los cambia el admin de la empresa o el superadmin (403 al encargado del agente, salvo que reenvíe el mismo valor).
 - **El widget no usa JWT:** el chat público (`/publico/{slug}`, que usan la página `/chat/{slug}` y el widget embebible) no exige login; la empresa sale del slug de la ruta, solo responde con el agente `activo` y solo expone datos de marca. `POST /chat` sigue autenticándose con la API key (`X-API-Key`).
 - **En el front** el menú muestra solo las vistas del rol (`src/auth/permissions.ts`), pero es solo comodidad: la regla real está en el backend.

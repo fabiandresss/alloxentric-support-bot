@@ -91,8 +91,17 @@ class Ticket(CamelModel):
     customer_channel: str
     transcript: list[ChatMessage]
     ai_suggestion: AiSuggestion
-    assigned_agent: str | None = None
+    assigned_agent: str | None = None      # nombre para mostrar
+    assigned_agent_id: str | None = None   # id del usuario asignado
     is_live: bool | None = None
+
+
+class AssignableAgent(CamelModel):
+    """Usuario al que se puede asignar un ticket de su empresa."""
+    id: str
+    name: str
+    role: str
+    company_id: str
 
 
 class SystemMetrics(CamelModel):
@@ -145,12 +154,11 @@ class CompanyUpdate(CamelModel):
 
 class TicketUpdate(CamelModel):
     status: TicketStatus | None = None
-    assigned_agent: str | None = None
+    assigned_agent_id: str | None = None  # id de usuario; null explícito = dejar sin asignar
 
 
 class AgentReply(CamelModel):
-    text: str = Field(min_length=1)
-    agent_name: str | None = None
+    text: str = Field(min_length=1)  # el remitente sale del usuario autenticado, no del cuerpo
 
 
 class ChatRequest(CamelModel):
@@ -199,3 +207,36 @@ class UserUpdate(CamelModel):
     role: Role | None = None
     active: bool | None = None
     password: str | None = Field(default=None, min_length=8)
+
+
+# ---------- analítica (vista Analítica) ----------
+class AnalyticsDay(CamelModel):
+    date: str
+    bot: int
+    human: int
+    total: int
+
+
+class AnalyticsCompany(CamelModel):
+    id: str
+    name: str
+    industry: str
+    brand_color: str
+    total_queries: int
+    bot_resolved: int
+    bot_rate: float
+    escalated: int
+    escalation_rate: float
+
+
+class Analytics(CamelModel):
+    days: int
+    total_conversations: int
+    bot_resolved: int
+    human_escalated: int
+    bot_rate: float
+    escalation_rate: float
+    conversations_delta: float | None = None  # % vs el periodo anterior; null si no hay base
+    avg_human_resolution: str
+    daily: list[AnalyticsDay]
+    companies: list[AnalyticsCompany]

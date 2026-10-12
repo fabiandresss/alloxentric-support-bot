@@ -67,10 +67,15 @@ def ticket_out(t: m.Ticket) -> s.Ticket:
                                      source_doc=sug.get("sourceDoc", ""),
                                      summary=sug.get("summary", ""),
                                      draft_response=sug.get("draftResponse", "")),
-        assigned_agent=t.agente_asignado or "Sin asignar",
+        assigned_agent=nombre_usuario(t.agente) if t.agente else "Sin asignar",
+        assigned_agent_id=str(t.agente_asignado_id) if t.agente_asignado_id else None,
         is_live=(t.estado != "resuelto" and edad_min < 60))
 
 
+def nombre_usuario(u: m.Usuario) -> str:
+    return u.nombre or u.email.split("@")[0]
+
+
 def usuario_out(u):
-    return s.UserOut(id=str(u.id), email=u.email, name=u.nombre or u.email.split("@")[0], role=u.rol,
+    return s.UserOut(id=str(u.id), email=u.email, name=nombre_usuario(u), role=u.rol,
                      company_id=u.empresa.slug if u.empresa else None, active=u.activo)

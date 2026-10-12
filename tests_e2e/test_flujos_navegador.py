@@ -137,4 +137,34 @@ with sync_playwright() as p:
     fr.get_by_role('button', name='Cerrar chat').click(); pg.wait_for_timeout(500)
     ok(not pg.locator('iframe').is_visible(),'F8 el botón cerrar del iframe oculta el chat')
     srv.shutdown()
+
+    # G) roles afinados: analítica real por rol, asignación a usuarios reales, remitente autenticado, campos de empresa
+    login(SUPER, SUPER_PW)
+    pg.locator('aside').get_by_text('Analítica').first.click(); pg.wait_for_timeout(1500)
+    glob = api('/metricas/analitica?dias=14')
+    ok(pg.locator('text=Analítica global de soporte').count()>0 and pg.locator('text=34,180').count()==0 and pg.locator('text=88.2%').count()==0
+       and pg.locator('text=Promedio: '+format(glob['botRate'],'.1f')+'%').count()>0,'G1 la analítica del superadmin usa datos reales (no los del prototipo)')
+    pg.screenshot(path='shot_analitica_super.png')
+    login('tickets@wellq.demo', DEMO_PW)
+    pg.locator('aside').get_by_text('Analítica').first.click(); pg.wait_for_timeout(1500)
+    ok(pg.locator('text=Analítica de soporte · WellQ').count()>0 and pg.locator('text=Dani ETH').count()==0 and pg.locator('text=Aprueba').count()==0,'G2 el encargado de tickets ve la analítica solo de su empresa')
+    pg.screenshot(path='shot_analitica_empresa.png')
+    pg.locator('aside').get_by_text('Consola de soporte').first.click(); pg.wait_for_timeout(1000)
+    pg.locator('text=COR-8919').first.click(); pg.wait_for_timeout(600)
+    pg.locator('button:has(svg.lucide-user-check)').first.click(); pg.wait_for_timeout(300)
+    menu = pg.locator('div.absolute:has-text("Asignar agente Corestream")').last
+    ok(menu.get_by_text('Admin WellQ').count()==1 and menu.get_by_text('Tickets WellQ').count()==1 and menu.get_by_text('Felipe Armijo').count()==0 and menu.get_by_text('Admin Dani').count()==0,'G3 el desplegable lista solo usuarios reales de la empresa del ticket')
+    menu.get_by_text('Admin WellQ').click(); pg.wait_for_timeout(1000)
+    t = [x for x in api('/tickets') if x['ticketNumber']=='COR-8919'][0]
+    ok(t['assignedAgent']=='Admin WellQ' and t.get('assignedAgentId'),'G4 la asignación guarda el usuario real en la BD')
+    pg.locator('textarea').first.fill('Respuesta del encargado de tickets'); pg.get_by_text('Enviar respuesta').first.click(); pg.wait_for_timeout(1200)
+    t = [x for x in api('/tickets') if x['ticketNumber']=='COR-8919'][0]
+    ok(t['transcript'][-1]['sender']=='agent' and t['transcript'][-1]['senderName']=='Tickets WellQ','G5 el remitente de la respuesta es el usuario autenticado')
+    v0 = api('/empresas/wellq')
+    login('agente@wellq.demo', DEMO_PW)
+    pg.locator('aside').get_by_text('Empresas y agentes').first.click(); pg.wait_for_timeout(800)
+    pg.get_by_text('Configurar agente').first.click(); pg.wait_for_timeout(600)
+    pg.get_by_text('Publicar agente').first.click(); pg.wait_for_timeout(1500)
+    v1 = api('/empresas/wellq')
+    ok(int(v1['version'][1:].split('.')[0])==int(v0['version'][1:].split('.')[0])+1 and v1['name']==v0['name'] and pg.locator('text=No se pudo guardar').count()==0,'G6 el encargado del agente publica sin tocar nombre ni industria de la empresa')
     b.close()
