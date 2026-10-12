@@ -29,6 +29,7 @@ TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true
 EMBEDDINGS_BACKEND = os.getenv("EMBEDDINGS_BACKEND", "sentence-transformers")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
+EMBEDDINGS_WARMUP = os.getenv("EMBEDDINGS_WARMUP", "true").lower() == "true"   # precarga el modelo al arrancar
 # Dónde se calcula la similitud: pgvector (índice HNSW en la BD; lo normal, requiere pgvector bien compilado, p. ej. la imagen
 # pgvector/pgvector de docker-compose) | python (búsqueda exacta en el backend, para BD cuyo pgvector se cae al calcular
 # distancias, como el Postgres sin Docker de pixeltable-pgserver en CPUs sin AVX-512). Ver docs/01 §6.3

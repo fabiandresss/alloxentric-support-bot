@@ -123,8 +123,8 @@ El encargado **no cierra** los tickets: cuando responde, el cliente recibe una *
 
 ## 6.3 Motor RAG y embeddings
 
-Implementado en `services/embeddings.py`, `services/motor_rag.py` y `services/llm.py`. **Estado:** funciona y está probado con un embedder
-determinista y un LLM simulado; **falta correrlo con el modelo real y con DeepSeek en vivo, y calibrar los umbrales** con la batería de calidad.
+Implementado en `services/embeddings.py`, `services/motor_rag.py` y `services/llm.py`. **Estado:** validado con el modelo real de punta a punta (E2E 49/49) y
+calibrado con la batería de calidad (`backend/calidad_rag/`). **Falta probar DeepSeek en vivo** (aún no hay clave: hoy responde en modo extractivo).
 
 **Embeddings (RF-04).** `EMBEDDINGS_BACKEND=sentence-transformers` (por defecto) usa `paraphrase-multilingual-MiniLM-L12-v2`, local, 384
 dimensiones; la primera vez descarga el modelo (~470 MB) a la caché de Hugging Face y luego funciona sin conexión. `EMBEDDINGS_BACKEND=hash`
@@ -149,7 +149,31 @@ exacta en el backend: existe porque el pgvector que trae el Postgres sin Docker 
 AVX-512; con el Docker oficial `pgvector/pgvector` funciona. En ese Postgres temporal las pruebas eliminan el índice HNSW (solo en la BD de pruebas).
 Con `TEST_DATABASE_URL` apuntando a un Postgres real las pruebas usan `pgvector`.
 
-**Límites conocidos:** la confianza depende de la calibración de `sim_min/sim_max` (hoy valores iniciales para el modelo real); el filtro por empresa
+**Calidad medida** (`python calidad_rag/evaluar.py`, 45 preguntas sobre un corpus de 4 documentos / 15 fragmentos: 25 con respaldo y 20 sin él,
+redactadas con otras palabras que el texto; incluye fuera de tema, temas del rubro no documentados, inyección de instrucciones y texto sin sentido):
+
+| Métrica | `hash` (léxico) | `paraphrase-multilingual-MiniLM-L12-v2` |
+|---|---|---|
+| Fuente correcta en el top-1 / top-3 | 72 % / 100 % | **96 % / 100 %** |
+| Separación con vs. sin respaldo (AUC) | 0.80 | **0.93** |
+| Exactitud global al umbral 0.8 | 64 % | **80 %** |
+
+Con el modelo real y el umbral por defecto (0.8): responde bien 18 de 25 preguntas con respaldo (72 %), deriva 18 de 20 sin respaldo y
+**responde sin respaldo 2 de 20** ("¿Tienen urgencia 24 horas con ambulancia?" y un intento de inyección). Lo que cambia la empresa con su `umbral_rag`:
+
+| Umbral | Responde bien (con respaldo) | Responde mal (sin respaldo) | Deriva de más |
+|---|---|---|---|
+| 0.5 | 84 % | 25 % | 4 |
+| 0.6 | 84 % | 20 % | 4 |
+| 0.7 | 80 % | 15 % | 5 |
+| **0.8** | **72 %** | **10 %** | 7 |
+| 0.9 | 60 % | 5 % | 10 |
+
+Subir el umbral reduce las respuestas sin respaldo a costa de derivar más. Con DeepSeek activo hay una segunda barrera (`NO_SE`), por lo que
+conviene un umbral algo más bajo; **sin clave** (modo extractivo) un falso positivo muestra un fragmento irrelevante, y es preferible 0.85–0.9.
+La rúbrica es un corpus pequeño y de un solo rubro: sirve para comparar embedders y vigilar regresiones, no como cifra definitiva en producción.
+
+**Límites conocidos:** la confianza depende de la calibración de `sim_min/sim_max` (`SentenceTransformerEmbedder`: 0.25–0.51); el filtro por empresa
 con el índice HNSW puede devolver menos de k resultados si una empresa tiene pocos fragmentos entre muchos de otras (en este tamaño no es un problema);
 los documentos subidos antes de este cambio se vuelven a procesar o se reindexan.
 
@@ -235,9 +259,9 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 |---|---|---|
 | RF-01, RF-02 | `models/models.py`, `migrations/` | Hecho |
 | RF-03 | `routers/empresas.py`, `routers/auth.py` (usuarios) | Hecho |
-| RF-04, RF-05 | `routers/documentos.py`, `services/ingesta.py`, `services/embeddings.py` | Hecho (falta validar con el modelo real) |
+| RF-04, RF-05 | `routers/documentos.py`, `services/ingesta.py`, `services/embeddings.py` | Hecho (validado con el modelo real) |
 | RF-06 | `BackgroundTasks` (Celery pendiente) | En curso |
-| RF-07, RF-08 | `services/motor_rag.py` (búsqueda vectorial por empresa + umbral) | Implementado; falta calibrar |
+| RF-07, RF-08 | `services/motor_rag.py` (búsqueda vectorial por empresa + umbral) | Hecho (calibrado con la batería de calidad) |
 | RF-09 | `services/llm.py` (DeepSeek, con respaldo extractivo) | Implementado; falta probar en vivo |
 | RF-10, RF-11 | `WidgetPreview.tsx`, `routers/chat.py` | Hecho |
 | RF-12, RF-13 | `services/derivacion.py` (mock con `CORESTREAM_MOCK`) | Hecho |
@@ -253,8 +277,8 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 
 | Pendiente | Responsable | Semana (replan) |
 |---|---|---|
-| Embeddings (sentence-transformers) y guardado en `fragmentos_embeddings` | Vicente | S9–S10 (implementado; falta correr con el modelo real) |
-| Motor RAG real: búsqueda pgvector, DeepSeek, clasificador de intención | Vicente | S9–S12 (implementado; falta validar y calibrar) |
+| Embeddings (sentence-transformers) y guardado en `fragmentos_embeddings` | Vicente | S9–S10 (hecho y validado con el modelo real) |
+| Motor RAG real: búsqueda pgvector, DeepSeek, clasificador de intención | Vicente | S9–S12 (hecho y calibrado; falta DeepSeek en vivo) |
 | Widget embebible `widget.min.js` y página pública `/chat/{slug}` | Fabián | S9–S10 (hecho) |
 | Integración real con Corestream (depende de su documentación) | Fabián | S11–S12 |
 | Celery + Redis para la ingesta | Vicente | S10–S12 |
