@@ -1,0 +1,139 @@
+# CLAUDE.md — Chatbot de Soporte Genérico Alloxentric
+
+Contexto para Claude Code. Léelo completo antes de tocar código. Detalle ampliado en `README.md` y `docs/`.
+
+## 1. Qué es el proyecto
+
+Capstone **PTY4614 (Duoc UC, Ingeniería en Informática)** de Fabián Armijo y Vicente Balladares.
+Plataforma de soporte con IA, **multi-tenant**: varias empresas del ecosistema Alloxentric (WellQ, Alloxentric, Dani ETH,
+Dani27001, Aprueba) cargan su documentación; el chatbot responde con **RAG** sobre *esa* documentación y, cuando no puede
+resolver, **deriva a un humano** creando un ticket en **Corestream** (la ticketera genérica del ecosistema).
+
+- **Todo corre 100% en local, sin nube** (decisión del equipo: nada de AWS ni servicios cloud). El único gasto externo posible es la API de DeepSeek.
+- Fabián: front, plataforma base, derivación a Corestream, roles/login, documentación. Vicente: modelo de datos, ingesta, embeddings, motor RAG.
+- Estamos en la **semana 9 de 17** (6 oct 2026), con atraso respecto a la Carta Gantt original; ver sección 9.
+- El usuario escribe en español (Chile). Responde en español, tono directo y de estudiante, sin relleno. Código y nombres de variables en el idioma que ya usa cada archivo (backend en español: `empresa`, `fragmentos`, `ticket`).
+
+## 2. Stack
+
+| Capa | Tecnología |
+|---|---|
+| Backend | Python 3.11+ (probado en 3.13), FastAPI, Uvicorn, SQLAlchemy 2, Alembic, Pydantic v2 |
+| BD | PostgreSQL 16 + **pgvector** (HNSW, coseno, 384 dimensiones), driver psycopg3 |
+| Auth | PyJWT (HS256) + PBKDF2-SHA256 de la stdlib (`app/security.py`) |
+| Ingesta | pypdf, python-docx; `BackgroundTasks` de FastAPI (Celery + Redis **pendiente**) |
+| Embeddings (pendiente) | `paraphrase-multilingual-MiniLM-L12-v2` (sentence-transformers) |
+| LLM (pendiente) | DeepSeek vía API (`DEEPSEEK_API_KEY` en `.env`) |
+| Front | React 19 + TypeScript + Vite + Tailwind (prototipo de Google AI Studio, ya conectado a la API) |
+| Infra local | Docker Compose (Postgres+pgvector y Redis, puertos solo en 127.0.0.1) |
+| Pruebas | pytest sobre Postgres real, Playwright (navegador), `pixeltable-pgserver` como Postgres temporal |
+
+## 3. Comandos
+
+```bash
+cp .env.example .env && docker compose up -d                     # BD y Redis
+cd backend && python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+alembic upgrade head                                             # esquema + extensión vector
+python seed.py [--reset]                                         # 5 empresas, 8 tickets, usuarios demo (imprime keys)
+uvicorn app.main:app --reload                                    # http://localhost:8000/docs
+cd ../frontend && cp .env.example .env && npm install && npm run dev   # http://localhost:3000
+cd ../backend && pytest -q                                       # 33 pruebas (Postgres temporal automático)
+python ../tests_e2e/test_flujos_navegador.py                     # 23 verificaciones; BD recién sembrada y todo corriendo
+cd ../frontend && npx tsc --noEmit && npm run build              # verificación de tipos y build
+alembic revision --autogenerate -m "desc"                        # tras cambiar models.py; REVISAR el archivo generado
+```
+
+Usuarios del seed (solo desarrollo): `superadmin@alloxentric.local` / `Superadmin123!`; por empresa `admin@<slug>.demo`,
+`tickets@<slug>.demo`, `agente@<slug>.demo` con `Demo1234!` (slugs: `wellq`, `alloxentric`, `dani-eth`, `dani27001`, `aprueba`).
+Superadmin en una BD ya poblada: `python crear_superadmin.py correo@dominio.cl`.
+
+## 4. Mapa del repositorio
+
+```
+backend/app/
+  main.py            monta los routers
+  config.py          variables de entorno (DATABASE_URL, JWT_SECRET, CORESTREAM_MOCK, STORAGE_DIR…)
+  models/models.py   TODAS las tablas (empresas, usuarios, documentos, fragmentos_embeddings, conversaciones, mensajes, tickets)
+  schemas.py         schemas Pydantic en camelCase = forma EXACTA de frontend/src/types/index.ts
+  mappers.py         ORM → schemas (toda la traducción BD español ↔ front camelCase vive aquí)
+  deps.py            tenant por API key, login (JWT), requiere_rol(), verificar_tenant(), empresa_con_rol()
+  security.py        hash de claves y JWT
+  routers/           auth (login + usuarios), empresas, tickets, documentos, chat, metricas
+  services/          chat (orquesta), motor_rag (PROVISORIO), ingesta, derivacion (mock Corestream)
+backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario
+backend/seed.py · seed_data.json · crear_superadmin.py · tests/ (test_api.py, test_roles.py, conftest.py)
+frontend/src/api/client.ts     ÚNICO lugar con llamadas HTTP (+ sesión JWT en sessionStorage)
+frontend/src/auth/permissions.ts   vistas por rol (espejo de la matriz; la regla real está en el backend)
+frontend/src/App.tsx           Dashboard: carga por rol, polling de 15 s, handlers que llaman a la API
+docs/                          documentación técnica, manual, MATRIZ_PERMISOS.md, MAPEO_FRONTEND.md, diagramas Mermaid, capturas
+```
+
+## 5. Reglas que NO se rompen
+
+1. **Multi-tenant (RNF-01):** toda tabla salvo `empresas` lleva `empresa_id`, y **toda consulta de datos de una empresa filtra por él**.
+   El tenant sale de la API key (`X-API-Key`, widget) o del usuario autenticado, **nunca** del cuerpo/parámetros del cliente.
+   Una conversación de la empresa A no se puede continuar con la key de B (404). Cada cambio que toque datos necesita su prueba de aislamiento.
+2. **Roles (RF-28/RF-30):** 4 roles — `superadmin` (sin empresa), `admin_empresa`, `encargado_tickets`, `encargado_agente`.
+   Cada endpoint nuevo declara explícitamente qué roles acepta (`requiere_rol(...)` o `empresa_con_rol(...)`) y, si accede por id,
+   llama a `verificar_tenant`. Matriz en `docs/MATRIZ_PERMISOS.md`; si la cambias, actualiza la matriz, `tests/test_roles.py` y `frontend/src/auth/permissions.ts`.
+3. **Contrato del motor RAG (no cambiar firmas):** `responder(db, empresa, texto, forzar_derivacion) -> Resultado` y
+   `sugerir_respuesta(db, empresa, texto, motivo, nombre_cliente) -> dict` en `services/motor_rag.py`. `services/chat.py` y el front dependen de ellas.
+4. **Forma de la API = tipos del front.** Los schemas están en camelCase con alias; si cambias un campo, cambia `schemas.py`, `mappers.py`,
+   `frontend/src/types/index.ts` y `docs/MAPEO_FRONTEND.md` juntos.
+5. **API keys:** se guardan solo como hash SHA-256; el texto plano se muestra una vez. **Contraseñas:** PBKDF2 con sal. Nada de secretos en el código ni en git (`.env`, `seed_keys.txt`, `storage/` están ignorados).
+6. **Sin nube:** no agregar dependencias de AWS/GCP/Azure ni servicios externos salvo DeepSeek.
+7. **Esquema:** cualquier cambio en `models.py` va con migración Alembic revisada a mano (el autogenerate no importa `pgvector` ni crea la extensión; ya está corregido en `0001`). Verifica `upgrade`, `alembic check` y `downgrade`.
+8. **Subidas:** validar extensión (`pdf, docx, txt, faq, csv`), tamaño (`MAX_UPLOAD_MB`) y sanear el nombre; un directorio por empresa en `storage/`.
+
+## 6. Convenciones y trampas ya encontradas
+
+- `mensajes.creado_en` se asigna **en Python** (no `now()`): dentro de una transacción `now()` repite la hora y desordena la transcripción.
+- Tras escribir en una conversación y releer un ticket, usar `db.expire_all()` o la transcripción sale vieja.
+- `tickets.numero` = `COR-xxxx`, siguiente = máximo + 1 (el seed arranca en COR-8922).
+- `empresas.slug` es el id público (el front lo usa como `id`); el UUID es interno.
+- Los tests **vacían las tablas**: nunca apuntarlos a la BD de desarrollo (usar el Postgres temporal o `TEST_DATABASE_URL` de una BD aparte). El fixture `client` entra como superadmin; `usuario_como(slug, rol)` da un cliente con ese rol.
+- `seed.py --reset` borra también los usuarios (el superadmin del seed se recrea).
+- No hay Docker en el entorno de nube de Claude: allí se prueba con `pixeltable-pgserver`. En el notebook de Fabián sí hay Docker.
+- Evitar `pkill -f` con un patrón que coincida con el propio comando (mata la shell); usa `[v]ite` o el PID.
+- Front: `npm install` falló una vez por un `esbuild` fijado contra Vite 8; ya se quitó de `devDependencies`.
+- Los embeddings son de **384** dimensiones (el prototipo decía 768 y se corrigió). Si cambias de modelo, cambia `EMBED_DIM` y haz migración.
+
+## 7. Estado actual (semana 9)
+
+**Hecho y probado:** modelo de datos + migraciones; API de empresas, usuarios, documentos, tickets, chat y métricas; ingesta de TXT/PDF/DOCX
+(extracción + fragmentación); chat con derivación a ticket; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios;
+documentación técnica, manual y diagramas.
+
+**Provisorio:** `motor_rag.py` (búsqueda por palabras clave sobre los fragmentos, sin embeddings ni LLM); Corestream es un mock (`CORESTREAM_MOCK=true`);
+la ingesta usa `BackgroundTasks`; la vista **Analítica** usa datos de ejemplo del prototipo; los documentos del seed no tienen archivo ni fragmentos reales.
+
+## 8. Pendiente (en orden de dependencia)
+
+| # | Tarea | Dónde | Quién |
+|---|---|---|---|
+| 1 | Embeddings con sentence-transformers y guardado en `fragmentos_embeddings` (hoy se guardan fragmentos sin vector) | `services/ingesta.py::generar_embeddings` | Vicente |
+| 2 | Motor RAG real: búsqueda pgvector filtrada por `empresa_id`, umbral `empresas.umbral_rag`, DeepSeek, clasificador de intención (responder vs. derivar), sugerencia IA del ticket | `services/motor_rag.py` | Vicente |
+| 3 | Celery + Redis para la ingesta | `services/ingesta.py`, `docker-compose.yml` | Vicente |
+| 4 | Widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29); el snippet del panel apunta a un script que aún no existe | front / nuevo | Fabián |
+| 5 | Corestream real (`httpx`) cuando exista su documentación; mantener el mock | `services/derivacion.py` | Fabián |
+| 6 | Analítica con datos reales (por empresa, según rol) | `AnalyticsView.tsx` + endpoint | Fabián |
+| 7 | Validar el entorno en ambas notebooks (RF-18…23) | README | Ambos |
+| 8 | Pruebas de calidad del RAG (preguntas con/sin respaldo), pruebas integrales, ajustes y documentación final | `tests/`, `docs/` | Ambos |
+
+Al terminar una tarea: actualizar `README.md` (sección "Qué es provisorio"), `docs/01_documentacion_tecnica.md` (trazabilidad y pendientes) y avisar a Fabián para actualizar los Excel de Requerimientos y la Carta Gantt (RF-xx: Hecho / En curso / Pendiente).
+
+## 9. Contexto académico y de planificación
+
+- Requerimientos (Excel, ciclo en cascada): 30 RF — 11 hechos, 11 en curso, 8 pendientes (a la semana 9). Fases: Análisis, Diseño, Configuración del entorno local, Desarrollo, Pruebas, Implementación y cierre.
+- Carta Gantt: 17 semanas, 10 actividades. Van atrasadas carga/vectorización, motor RAG y derivación real. Pruebas S11–S14 y ajustes/documentación S14–S17 son lo que queda después.
+- **Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de Vicente y deja poco margen para el cierre.
+- Competencias del perfil de egreso: gestión de proyectos, desarrollo de software, QA, bases de datos, IA. Entregables extra por ser Capstone: Abstract (ES/EN), conclusiones y reflexión individuales (en inglés).
+
+## 10. Cómo trabajar aquí
+
+- Antes de implementar algo no trivial, lee el archivo y sus tests; respeta el estilo existente (español en el backend, camelCase en la API).
+- Cambios de comportamiento van con prueba (pytest) y, si tocan flujos de pantalla, con una verificación en `tests_e2e/`.
+- Verifica antes de dar algo por terminado: `pytest -q`, `npx tsc --noEmit`, y la migración si tocaste modelos.
+- No hagas commits ni push sin que Fabián lo pida. No agregues archivos con secretos.
+- Prefiere cambios pequeños y revisables; explica brevemente qué cambió y qué quedó pendiente.

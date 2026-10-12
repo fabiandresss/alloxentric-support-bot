@@ -1,0 +1,49 @@
+flowchart LR
+  subgraph NAV["Navegador (localhost:3000)"]
+    direction TB
+    L["Login · JWT<br/>4 roles"]
+    P["Panel de administración<br/>empresas · agentes · documentos · usuarios"]
+    C["Consola de soporte<br/>tickets Corestream"]
+    W["Widget de chat<br/>usuario final"]
+  end
+
+  subgraph API["Backend FastAPI (localhost:8000)"]
+    direction TB
+    AU["auth + roles<br/>JWT · permisos · tenant"]
+    R["Routers REST<br/>auth · usuarios · empresas · tickets<br/>documentos · chat · métricas"]
+    AU --> R
+    S1["services/chat<br/>orquesta la conversación"]
+    S2["services/motor_rag<br/>recupera + responde (provisorio)"]
+    S3["services/ingesta<br/>extrae texto · fragmenta"]
+    S4["services/derivacion<br/>crea ticket (mock)"]
+    R --> S1
+    S1 --> S2
+    S1 --> S4
+    R --> S3
+  end
+
+  subgraph LOC["Docker Compose (solo 127.0.0.1)"]
+    direction TB
+    DB[("PostgreSQL 16 + pgvector<br/>empresas · usuarios · documentos<br/>fragmentos · conversaciones · mensajes · tickets")]
+    RD[("Redis<br/>Celery (pendiente)")]
+  end
+
+  FS[["storage por empresa<br/>archivos originales"]]
+  LLM["DeepSeek API<br/>(pendiente)"]
+  COR["Corestream<br/>(mock · API real pendiente)"]
+
+  L -- "login" --> AU
+  P -- "HTTP JSON · Bearer" --> R
+  C -- "HTTP JSON · Bearer" --> R
+  W -- "HTTP JSON · X-API-Key" --> R
+  S1 --> DB
+  S2 --> DB
+  S3 --> DB
+  S3 --> FS
+  S4 --> DB
+  S2 -.-> LLM
+  S4 -.-> COR
+  S3 -.-> RD
+
+  classDef pend stroke-dasharray: 5 5,fill:#fff7ed,stroke:#d68a1f
+  class LLM,COR,RD pend

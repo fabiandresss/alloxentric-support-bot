@@ -1,0 +1,29 @@
+sequenceDiagram
+  autonumber
+  actor U as Usuario final
+  participant W as Widget
+  participant A as API FastAPI
+  participant M as Motor RAG
+  participant DB as PostgreSQL
+  participant T as Corestream (mock)
+  actor G as Agente humano
+
+  U->>W: escribe una consulta
+  W->>A: POST /chat (X-API-Key)
+  A->>DB: empresa = buscar por hash de la API key
+  A->>DB: guarda mensaje del usuario
+  A->>M: responder(empresa, texto)
+  M->>DB: busca fragmentos WHERE empresa_id = tenant
+  alt confianza >= umbral de la empresa
+    M-->>A: respuesta + fuentes + confianza
+    A->>DB: guarda mensaje del bot
+    A-->>W: respuesta con fuente RAG
+  else confianza baja o pide un humano
+    M-->>A: derivar = true + motivo
+    A->>T: crear ticket COR-xxxx (mock)
+    A->>DB: guarda ticket, sugerencia IA y marca la conversación como derivada
+    A-->>W: aviso de derivación + número de ticket
+    G->>A: consola: GET /tickets
+    G->>A: POST /tickets/{id}/respuesta
+    A->>DB: guarda respuesta del agente, ticket = resuelto
+  end

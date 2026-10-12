@@ -1,0 +1,6 @@
+{
+  "name": "Alloxentric SupportHub",
+  "description": "Panel de control multi-tenant de soporte conversacional con IA y derivación a Corestream para empresas SaaS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

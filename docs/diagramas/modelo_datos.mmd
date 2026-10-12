@@ -1,0 +1,78 @@
+erDiagram
+  EMPRESAS |o--o{ USUARIOS : "agrupan (superadmin sin empresa)"
+  EMPRESAS ||--o{ DOCUMENTOS : "suben"
+  EMPRESAS ||--o{ FRAGMENTOS_EMBEDDINGS : "poseen"
+  EMPRESAS ||--o{ CONVERSACIONES : "atienden"
+  EMPRESAS ||--o{ MENSAJES : "registran"
+  EMPRESAS ||--o{ TICKETS : "derivan"
+  DOCUMENTOS ||--o{ FRAGMENTOS_EMBEDDINGS : "se dividen en"
+  CONVERSACIONES ||--o{ MENSAJES : "contiene"
+  CONVERSACIONES ||--o| TICKETS : "puede originar"
+
+  EMPRESAS {
+    uuid id PK
+    string nombre UK
+    string slug UK
+    string api_key_hash UK
+    string nombre_agente
+    string estado_agente "activo | en_configuracion | inactivo"
+    string tono "formal | cercano | tecnico"
+    text instrucciones
+    float umbral_rag
+    int version
+  }
+  USUARIOS {
+    uuid id PK
+    uuid empresa_id FK
+    string email UK
+    string password_hash
+    string nombre
+    string rol "superadmin | admin_empresa | encargado_tickets | encargado_agente"
+    bool activo
+  }
+  DOCUMENTOS {
+    uuid id PK
+    uuid empresa_id FK
+    string nombre
+    string tipo "pdf docx txt faq csv"
+    int tamano_bytes
+    string ruta_local
+    string estado "procesando | procesado | error"
+    int num_fragmentos
+  }
+  FRAGMENTOS_EMBEDDINGS {
+    uuid id PK
+    uuid empresa_id FK
+    uuid documento_id FK
+    int orden
+    text texto
+    vector embedding "384 dims, HNSW coseno"
+  }
+  CONVERSACIONES {
+    uuid id PK
+    uuid empresa_id FK
+    string nombre_cliente
+    string email_cliente
+    string canal
+    bool derivada
+  }
+  MENSAJES {
+    uuid id PK
+    uuid empresa_id FK
+    uuid conversacion_id FK
+    string rol "usuario | bot | agente"
+    text contenido
+    json fuentes
+    float confianza
+    bool es_aviso_derivacion
+  }
+  TICKETS {
+    uuid id PK
+    uuid empresa_id FK
+    uuid conversacion_id FK
+    string numero UK "COR-8921"
+    string estado "pendiente | urgente | resuelto"
+    text motivo_derivacion
+    json sugerencia_ia
+    string agente_asignado
+  }
