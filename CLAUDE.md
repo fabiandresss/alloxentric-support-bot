@@ -38,8 +38,8 @@ alembic upgrade head                                             # esquema + ext
 python seed.py [--reset]                                         # 5 empresas, 8 tickets, usuarios demo (imprime keys)
 uvicorn app.main:app --reload                                    # http://localhost:8000/docs
 cd ../frontend && cp .env.example .env && npm install && npm run dev   # http://localhost:3000
-cd ../backend && pytest -q                                       # 43 pruebas (Postgres temporal automático)
-python ../tests_e2e/test_flujos_navegador.py                     # 43 verificaciones; BD recién sembrada y todo corriendo
+cd ../backend && pytest -q                                       # 52 pruebas (Postgres temporal automático)
+python ../tests_e2e/test_flujos_navegador.py                     # 49 verificaciones; BD recién sembrada y todo corriendo
 cd ../frontend && npx tsc --noEmit && npm run build              # verificación de tipos y build
 alembic revision --autogenerate -m "desc"                        # tras cambiar models.py; REVISAR el archivo generado
 ```
@@ -61,7 +61,7 @@ backend/app/
   security.py        hash de claves y JWT
   routers/           auth (login + usuarios), empresas, tickets, documentos, chat, publico (chat por slug), metricas
   services/          chat (orquesta), motor_rag (PROVISORIO), ingesta, derivacion (mock Corestream)
-backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario
+backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario, 0004 ciclo del ticket con encuesta
 backend/seed.py · seed_data.json · crear_superadmin.py · tests/ (test_api.py, test_roles.py, conftest.py)
 frontend/src/api/client.ts     ÚNICO lugar con llamadas HTTP (+ sesión JWT en sessionStorage)
 frontend/src/auth/permissions.ts   vistas por rol (espejo de la matriz; la regla real está en el backend)
@@ -91,6 +91,10 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 7. **Esquema:** cualquier cambio en `models.py` va con migración Alembic revisada a mano (el autogenerate no importa `pgvector` ni crea la extensión; ya está corregido en `0001`). Verifica `upgrade`, `alembic check` y `downgrade`.
 8. **Subidas:** validar extensión (`pdf, docx, txt, faq, csv`), tamaño (`MAX_UPLOAD_MB`) y sanear el nombre; un directorio por empresa en `storage/`.
 
+### Definición de negocio: ciclo del ticket (no cambiar sin acordarlo)
+
+El encargado de tickets responde y se envía una **encuesta** al cliente; **el cliente cierra**. Estados: `pendiente`/`urgente` → `esperando_cliente` → `cerrado` (Sí; final, no se reabre) o `escalado` (No; gestión fuera del chat por `admin_empresa`/`superadmin`, el encargado ya no lo ve). Sin respuesta en `ENCUESTA_HORAS` (72 h) se cierra solo. Detalle y tabla de transiciones en `services/ciclo_ticket.py` y `docs/01_documentacion_tecnica.md` §6.1.
+
 ## 6. Convenciones y trampas ya encontradas
 
 - `mensajes.creado_en` se asigna **en Python** (no `now()`): dentro de una transacción `now()` repite la hora y desordena la transcripción.
@@ -107,7 +111,7 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 ## 7. Estado actual (semana 9)
 
 **Hecho y probado:** modelo de datos + migraciones; API de empresas, usuarios, documentos, tickets, chat y métricas; ingesta de TXT/PDF/DOCX
-(extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**;
+(extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**; **ciclo del ticket con encuesta de resolución (Sí cierra, No escala, 72 h cierra)**;
 documentación técnica, manual y diagramas.
 
 **Provisorio:** `motor_rag.py` (búsqueda por palabras clave sobre los fragmentos, sin embeddings ni LLM); Corestream es un mock (`CORESTREAM_MOCK=true`);

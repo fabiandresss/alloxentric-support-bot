@@ -130,12 +130,18 @@ class Mensaje(Base):
 
 class Ticket(Base):
     __tablename__ = "tickets"
+    __table_args__ = (Index("ix_tickets_estado_encuesta", "estado", "encuesta_enviada_en"),)  # barrido de encuestas vencidas
     id: Mapped[uuid.UUID] = _id()
     empresa_id: Mapped[uuid.UUID] = _empresa_fk()
     conversacion_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("conversaciones.id", ondelete="CASCADE"), index=True)
     numero: Mapped[str] = mapped_column(String(20), unique=True)  # COR-8921 (de Corestream o del mock)
-    estado: Mapped[str] = mapped_column(String(20), default="pendiente")  # pendiente|urgente|resuelto
+    # pendiente|urgente (en la cola del encargado) -> esperando_cliente (respondido, con encuesta) ->
+    # cerrado (el cliente confirmó o no contestó en ENCUESTA_HORAS; final) | escalado (el cliente dijo que NO;
+    # se gestiona fuera del chat por el admin de la empresa). Ver services/ciclo_ticket.py
+    estado: Mapped[str] = mapped_column(String(20), default="pendiente")
+    encuesta_enviada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cierre_motivo: Mapped[str | None] = mapped_column(String(30))  # confirmado_cliente|sin_respuesta|gestion_manual|migrado
     motivo_derivacion: Mapped[str | None] = mapped_column(Text)
     sugerencia_ia: Mapped[dict | None] = mapped_column(JSONB)  # {confidence, sourceDoc, summary, draftResponse}
     # agente humano responsable: usuario real de la MISMA empresa (se valida en el router)

@@ -75,7 +75,9 @@ Registro local de la derivación, además de lo que se crea en Corestream.
 | conversacion_id | UUID / FK → conversaciones | |
 | corestream_ticket_id | text / nullable | id devuelto por la API de Corestream (o mock) |
 | motivo | text | por qué se derivó |
-| estado | text | `creado`, `en_progreso`, `resuelto` |
+| estado | text | `pendiente`, `urgente`, `esperando_cliente`, `cerrado`, `escalado` (ver ciclo en `01_documentacion_tecnica.md` §6.1) |
+| encuesta_enviada_en | timestamptz / nullable | cuándo se envió la encuesta de resolución (base del cierre a las 72 h) |
+| cierre_motivo | text / nullable | `confirmado_cliente`, `sin_respuesta`, `gestion_manual`, `migrado` |
 | creado_en | timestamp | |
 
 ## Relaciones (resumen)

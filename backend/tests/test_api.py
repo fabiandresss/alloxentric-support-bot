@@ -94,9 +94,9 @@ def test_flujo_ticket_agente(client, crear_empresa, usuario_como):
     assert p["status"] == "urgente" and p["assignedAgentId"] == ag["id"] and p["assignedAgent"] == ag["name"]
     assert client.patch(f"/tickets/{t['id']}", json={"status": "inventado"}).status_code == 422
     done = client.post(f"/tickets/{t['id']}/respuesta", json={"text": "Listo, resuelto."}).json()
-    assert done["status"] == "resuelto" and done["transcript"][-1]["sender"] == "agent"
+    assert done["status"] == "esperando_cliente" and done["transcript"][-1]["sender"] == "agent"   # va con encuesta
     assert done["transcript"][-1]["senderName"] == "Root"   # el usuario autenticado (superadmin del fixture)
-    assert client.get("/tickets?status=resuelto").json()[0]["id"] == t["id"]
+    assert client.get("/tickets?status=esperando_cliente").json()[0]["id"] == t["id"]
     assert client.get("/tickets?status=pendiente").json() == []
     assert client.get("/tickets/no-es-uuid").status_code == 404
 
@@ -139,7 +139,8 @@ def test_metricas(client, crear_empresa):
     t = client.get("/tickets").json()[0]
     client.post(f"/tickets/{t['id']}/respuesta", json={"text": "ok"})
     m = client.get("/metricas").json()
-    assert m["openTickets"] == 0 and m["avgResolutionTime"] != "—"
+    # respondido y con encuesta enviada: sale de la cola; el tiempo de resolución cuenta solo tickets cerrados
+    assert m["openTickets"] == 0 and m["avgResolutionTime"] == "—"
 
 
 def test_seed_carga_el_mock_del_front(client):
@@ -243,7 +244,7 @@ def test_chat_publico_el_cliente_ve_la_respuesta_del_agente(anon, client, crear_
     t = client.get("/tickets").json()[0]
     client.post(f"/tickets/{t['id']}/respuesta", json={"text": "Ya bloqueamos tu tarjeta."})
     c = anon.get(f"/publico/acme/conversaciones/{cid}").json()
-    assert c["ticketStatus"] == "resuelto"
+    assert c["ticketStatus"] == "esperando_cliente"   # el cliente tiene una encuesta por responder
     assert c["messages"][-1]["sender"] == "agent" and c["messages"][-1]["message"] == "Ya bloqueamos tu tarjeta."
     # no se filtra al agente asignado ni datos internos del ticket
     assert set(c) == {"conversationId", "messages", "derived", "ticketNumber", "ticketStatus"}

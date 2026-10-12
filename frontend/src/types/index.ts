@@ -1,6 +1,10 @@
 export type TenantId = 'wellq' | 'alloxentric' | 'dani-eth' | 'dani27001' | 'aprueba' | string;
 
-export type TicketStatus = 'pendiente' | 'urgente' | 'resuelto';
+/**
+ * Ciclo del ticket: pendiente/urgente (cola del encargado) -> esperando_cliente (respondido, con encuesta) ->
+ * cerrado (el cliente confirmó o no contestó en 72 h; final) | escalado (el cliente dijo que NO; gestión fuera del chat).
+ */
+export type TicketStatus = 'pendiente' | 'urgente' | 'esperando_cliente' | 'cerrado' | 'escalado';
 
 export type AgentStatus = 'activo' | 'en_configuracion' | 'inactivo';
 
@@ -76,6 +80,7 @@ export interface Ticket {
   aiSuggestion: AiSuggestion;
   assignedAgent?: string; // nombre para mostrar
   assignedAgentId?: string; // id del usuario asignado (GET /tickets/agentes)
+  closeReason?: 'confirmado_cliente' | 'sin_respuesta' | 'gestion_manual' | 'migrado';
   isLive?: boolean;
 }
 

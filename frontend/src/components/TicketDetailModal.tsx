@@ -20,6 +20,8 @@ import { Ticket, ChatMessage, AssignableAgent } from '../types';
 interface TicketDetailModalProps {
   ticket: Ticket;
   agents: AssignableAgent[]; // usuarios de la empresa del ticket
+  currentUserName: string;
+  canManageEscalated: boolean;
   onClose: () => void;
   onStatusChange: (ticketId: string, newStatus: Ticket['status']) => void;
   onSendMessage: (ticketId: string, text: string) => void;
@@ -29,6 +31,8 @@ interface TicketDetailModalProps {
 export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   ticket,
   agents,
+  currentUserName,
+  canManageEscalated,
   onClose,
   onStatusChange,
   onSendMessage,
@@ -50,8 +54,19 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
     setReplyText('');
   };
 
+  const abierto = ticket.status === 'pendiente' || ticket.status === 'urgente' || ticket.status === 'esperando_cliente';
+  const puedeResponder = abierto;
+  const motivoCierre = {
+    confirmado_cliente: 'el cliente confirmó que se resolvió',
+    sin_respuesta: 'el cliente no respondió la encuesta en 72 h',
+    gestion_manual: 'cerrado por la gestión de la empresa tras escalarlo',
+    migrado: 'cerrado antes de la encuesta de resolución',
+  }[ticket.closeReason ?? 'migrado'];
+
   const statusBadge = {
-    resuelto: { bg: 'bg-[#22C55E]/10', text: 'text-[#22C55E]', border: 'border-[#22C55E]/30', label: 'Resuelto' },
+    cerrado: { bg: 'bg-[#22C55E]/10', text: 'text-[#22C55E]', border: 'border-[#22C55E]/30', label: 'Cerrado' },
+    esperando_cliente: { bg: 'bg-[#4F46E5]/10', text: 'text-[#4F46E5]', border: 'border-[#4F46E5]/30', label: 'Esperando cliente' },
+    escalado: { bg: 'bg-[#7C3AED]/10', text: 'text-[#7C3AED]', border: 'border-[#7C3AED]/30', label: 'Escalado a gestión' },
     pendiente: { bg: 'bg-[#F59E0B]/10', text: 'text-[#F59E0B]', border: 'border-[#F59E0B]/30', label: 'Pendiente' },
     urgente: { bg: 'bg-[#EF4444]/10', text: 'text-[#EF4444]', border: 'border-[#EF4444]/30', label: 'Urgente' },
   }[ticket.status];
@@ -81,18 +96,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
           <div className="flex items-center gap-2">
             {/* Quick Actions */}
-            <button
-              onClick={() => onStatusChange(ticket.id, 'resuelto')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                ticket.status === 'resuelto'
-                  ? 'bg-[#22C55E] text-white'
-                  : 'bg-[#F0FDF4] text-[#22C55E] border border-[#22C55E]/30 hover:bg-[#22C55E] hover:text-white'
-              }`}
-            >
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span>{ticket.status === 'resuelto' ? 'Resuelto' : 'Marcar como resuelto'}</span>
-            </button>
-
+            {abierto && (
             <button
               onClick={() => onStatusChange(ticket.id, 'urgente')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
@@ -102,8 +106,9 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Escalar</span>
+              <span>Marcar urgente</span>
             </button>
+            )}
 
             <div className="relative">
               <button
@@ -321,7 +326,35 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Editable Response Area */}
+              {ticket.status === 'esperando_cliente' && (
+                <div className="rounded-xl border border-[#C7D2FE] bg-[#EEF2FF] p-3 text-xs text-[#3730A3]">
+                  <strong>Encuesta enviada.</strong> Esperando que el cliente confirme si se resolvió. Si dice que sí, el ticket se cierra
+                  y no se reabre; si dice que no, se escala a gestión; si no responde en 72 h, se cierra solo.
+                </div>
+              )}
+              {ticket.status === 'cerrado' && (
+                <div className="rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] p-3 text-xs text-[#166534]">
+                  <strong>Ticket cerrado:</strong> {motivoCierre}. No se puede reabrir; si el cliente vuelve a escribir, se crea un ticket nuevo.
+                </div>
+              )}
+              {ticket.status === 'escalado' && (
+                <div className="rounded-xl border border-[#DDD6FE] bg-[#F5F3FF] p-3 text-xs text-[#5B21B6] space-y-2">
+                  <p>
+                    <strong>Escalado a gestión:</strong> el cliente indicó que su consulta no se resolvió. Ya no lo atienden el bot ni el
+                    encargado de tickets; se gestiona fuera del chat (contacto directo con el cliente).
+                  </p>
+                  {canManageEscalated && (
+                    <button
+                      onClick={() => onStatusChange(ticket.id, 'cerrado')}
+                      className="px-3 py-1.5 rounded-lg bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-semibold"
+                    >
+                      Cerrar ticket (ya gestionado)
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {puedeResponder && (
               <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-[#1E1B4B]">
                   <span>Respuesta del agente humano</span>
@@ -340,7 +373,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-[11px] text-[#64748B]">
-                    Se enviará como <strong className="text-[#1E1B4B]">Felipe Armijo (Agente Corestream)</strong>
+                    Se enviará como <strong className="text-[#1E1B4B]">{currentUserName}</strong> junto con la encuesta «¿se resolvió tu consulta?»
                   </span>
 
                   <button
@@ -349,10 +382,11 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#4F46E5] hover:bg-[#4338CA] disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-all shadow-xs"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Enviar respuesta</span>
+                    <span>Enviar respuesta y encuesta</span>
                   </button>
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>

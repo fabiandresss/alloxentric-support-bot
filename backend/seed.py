@@ -103,9 +103,12 @@ def main(reset: bool):
                 fuentes=msg.get("ragSources"), confianza=msg.get("confidenceScore"),
                 creado_en=creado - timedelta(minutes=n - 1 - j)))
         tk = m.Ticket(
-            empresa_id=e.id, conversacion_id=conv.id, numero=t["ticketNumber"], estado=t["status"],
+            empresa_id=e.id, conversacion_id=conv.id, numero=t["ticketNumber"],
+            estado="cerrado" if t["status"] == "resuelto" else t["status"],   # el mock decía "resuelto"
             motivo_derivacion=t["escalationReason"], sugerencia_ia=t["aiSuggestion"],
             creado_en=creado, actualizado_en=creado)
+        if t["status"] == "resuelto":
+            tk.cierre_motivo, tk.encuesta_enviada_en = "confirmado_cliente", creado + timedelta(minutes=5)
         db.add(tk)
         if t.get("assignedAgent") not in (None, "Sin asignar"):
             con_agente.append((tk, e.slug))   # se asigna al usuario demo de la empresa (abajo)

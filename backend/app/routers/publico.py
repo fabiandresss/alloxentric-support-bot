@@ -11,6 +11,7 @@ from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import empresa_por_slug
 from app.mappers import mensaje_out
+from app.services import ciclo_ticket
 from app.services.chat import procesar_mensaje
 
 router = APIRouter(prefix="/publico", tags=["publico"])
@@ -34,6 +35,30 @@ def chat_publico(body: s.ChatRequest, e: m.Empresa = Depends(empresa_por_slug),
     return procesar_mensaje(db, e, body)
 
 
+def _conversacion(db: Session, e: m.Empresa, conversation_id: str) -> tuple[m.Conversacion, m.Ticket | None]:
+    """Conversación del tenant (404 si el id no existe o es de otra empresa) y su ticket, ya con el barrido de
+    encuestas vencidas aplicado."""
+    try:
+        cid = uuid.UUID(conversation_id)
+    except ValueError:
+        raise HTTPException(404, "Conversación no encontrada")
+    ciclo_ticket.cerrar_vencidos(db, e.id)
+    conv = db.scalar(select(m.Conversacion).where(
+        m.Conversacion.id == cid, m.Conversacion.empresa_id == e.id))  # <- tenant
+    if not conv:
+        raise HTTPException(404, "Conversación no encontrada")
+    ticket = db.scalar(select(m.Ticket).where(
+        m.Ticket.conversacion_id == conv.id, m.Ticket.empresa_id == e.id))
+    return conv, ticket
+
+
+def _salida(conv: m.Conversacion, ticket: m.Ticket | None) -> s.PublicConversation:
+    return s.PublicConversation(
+        conversation_id=str(conv.id), messages=[mensaje_out(x) for x in conv.mensajes],
+        derived=conv.derivada, ticket_number=ticket.numero if ticket else None,
+        ticket_status=ticket.estado if ticket else None)
+
+
 @router.get("/{slug}/conversaciones/{conversation_id}", response_model=s.PublicConversation,
             response_model_exclude_none=True)
 def conversacion_publica(conversation_id: str, e: m.Empresa = Depends(empresa_por_slug),
@@ -42,19 +67,25 @@ def conversacion_publica(conversation_id: str, e: m.Empresa = Depends(empresa_po
 
     El id (UUID aleatorio) es la credencial de la conversación, igual que en POST /chat; además se exige que
     pertenezca a la empresa del slug (la de otra empresa responde 404). No expone al agente asignado ni
-    datos internos del ticket: solo su número y estado.
+    datos internos del ticket: solo su número y estado (`esperando_cliente` = hay una encuesta por responder).
     """
-    try:
-        cid = uuid.UUID(conversation_id)
-    except ValueError:
-        raise HTTPException(404, "Conversación no encontrada")
-    conv = db.scalar(select(m.Conversacion).where(
-        m.Conversacion.id == cid, m.Conversacion.empresa_id == e.id))  # <- tenant
-    if not conv:
-        raise HTTPException(404, "Conversación no encontrada")
-    ticket = db.scalar(select(m.Ticket).where(
-        m.Ticket.conversacion_id == conv.id, m.Ticket.empresa_id == e.id))
-    return s.PublicConversation(
-        conversation_id=str(conv.id), messages=[mensaje_out(x) for x in conv.mensajes],
-        derived=conv.derivada, ticket_number=ticket.numero if ticket else None,
-        ticket_status=ticket.estado if ticket else None)
+    conv, ticket = _conversacion(db, e, conversation_id)
+    return _salida(conv, ticket)
+
+
+@router.post("/{slug}/conversaciones/{conversation_id}/encuesta", response_model=s.PublicConversation,
+             response_model_exclude_none=True)
+def responder_encuesta(conversation_id: str, body: s.SurveyAnswer, e: m.Empresa = Depends(empresa_por_slug),
+                       db: Session = Depends(get_db)):
+    """El cliente responde la encuesta de resolución que envió el agente.
+
+    Sí → el ticket se cierra y no se reabre. No → se escala a gestión (sale de la cola del encargado y el
+    chat deja de responder). Solo vale mientras el ticket está `esperando_cliente`.
+    """
+    conv, ticket = _conversacion(db, e, conversation_id)
+    if not ticket or ticket.estado != "esperando_cliente":
+        raise HTTPException(409, "No hay una encuesta pendiente en esta conversación")
+    ciclo_ticket.responder_encuesta(db, e, conv, ticket, body.resolved)
+    db.expire_all()  # recargar la transcripción con los mensajes nuevos
+    conv, ticket = _conversacion(db, e, conversation_id)
+    return _salida(conv, ticket)

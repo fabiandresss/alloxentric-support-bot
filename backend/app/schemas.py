@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-TicketStatus = Literal["pendiente", "urgente", "resuelto"]
+TicketStatus = Literal["pendiente", "urgente", "esperando_cliente", "cerrado", "escalado"]
 AgentStatus = Literal["activo", "en_configuracion", "inactivo"]
 Tone = Literal["formal", "cercano", "tecnico"]
 
@@ -91,6 +91,7 @@ class Ticket(CamelModel):
     customer_channel: str
     transcript: list[ChatMessage]
     ai_suggestion: AiSuggestion
+    close_reason: str | None = None        # confirmado_cliente | sin_respuesta | gestion_manual | migrado
     assigned_agent: str | None = None      # nombre para mostrar
     assigned_agent_id: str | None = None   # id del usuario asignado
     is_live: bool | None = None
@@ -164,6 +165,10 @@ class CompanyUpdate(CamelModel):
 class TicketUpdate(CamelModel):
     status: TicketStatus | None = None
     assigned_agent_id: str | None = None  # id de usuario; null explícito = dejar sin asignar
+
+
+class SurveyAnswer(CamelModel):
+    resolved: bool  # el cliente responde la encuesta: ¿se resolvió tu consulta?
 
 
 class AgentReply(CamelModel):
