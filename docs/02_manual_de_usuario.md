@@ -124,8 +124,9 @@ Dentro de **Configurar agente**, pulsa **Ver código del widget embebible**.
 Pulsa **Generar API key**: se muestra **una sola vez**; cópiala. Si la pierdes o la expones, usa **Regenerar** (la anterior deja
 de funcionar). El script se copia con **Copiar script**.
 
-> El script `widget.min.js` todavía no está implementado (requisito RF-29). Mientras tanto, la forma de ver el chat es la
-> **Vista previa del widget**.
+Pega el script antes de `</body>` en tu sitio: aparece un botón flotante que abre el chat de tu empresa (el agente debe estar
+**activo**). El mismo chat está disponible como página pública en el **enlace de chat** (`/chat/{slug}`). La API key del widget ya
+no es necesaria; sirve solo para integraciones propias vía `POST /chat`.
 
 ---
 

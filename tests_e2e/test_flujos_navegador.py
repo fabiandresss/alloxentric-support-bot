@@ -104,4 +104,37 @@ with sync_playwright() as p:
     ok(nav('Consola de soporte')==1 and nav('Usuarios y roles')==0,'E8 el usuario nuevo entra con su rol')
     pg.get_by_test_id('user-name').first.click(); pg.get_by_test_id('logout').click(); pg.wait_for_timeout(800)
     ok(pg.get_by_test_id('login-submit').count()==1,'E9 cerrar sesión vuelve al login')
+
+    # F) chat público /chat/{slug} y widget embebible (RF-29); WellQ ya quedó activo en B3
+    pg.goto('http://localhost:3000/chat/wellq'); pg.wait_for_timeout(1500)
+    ok(pg.locator('text=Asistente de WellQ').count()>0 and pg.get_by_placeholder('Escribe tu consulta…').count()==1,'F1 /chat/{slug} muestra el chat de la empresa sin login')
+    q=pg.get_by_placeholder('Escribe tu consulta…')
+    q.fill('Cuanto tardan los reembolsos de consultas de telemedicina?'); q.press('Enter'); pg.wait_for_timeout(1800)
+    ok(pg.locator('text=cinco dias habiles').count()>0 and pg.locator('text=Fuente: doc_demo.txt').count()>0,'F2 chat público responde con RAG y muestra la fuente')
+    q.fill('Mi tarjeta fue clonada en el extranjero'); q.press('Enter'); pg.wait_for_timeout(1800)
+    ok(pg.locator('text=Derivamos tu consulta').count()>0 and len(api('/tickets'))==10,'F3 chat público deriva y crea el ticket')
+    pg.screenshot(path='shot_chat_publico.png')
+    pg.goto('http://localhost:3000/chat/no-existe'); pg.wait_for_timeout(1200)
+    ok(pg.locator('text=Este chat no existe').count()>0,'F4 slug inexistente muestra mensaje')
+    HOST = '<!doctype html><html><body><h1>Sitio del cliente</h1><script src="http://localhost:3000/widget.min.js" data-tenant-id="wellq" data-primary-color="#0D9488" defer></script></body></html>'
+    # el sitio del cliente: servidor real en otro puerto (otro origen, también loopback)
+    import http.server, threading
+    class Host(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.end_headers(); self.wfile.write(HOST.encode())
+        def log_message(self, *a): pass
+    srv = http.server.HTTPServer(('127.0.0.1', 3100), Host); threading.Thread(target=srv.serve_forever, daemon=True).start()
+    pg.goto('http://127.0.0.1:3100/'); pg.wait_for_timeout(1000)
+    launcher = pg.get_by_role('button', name='Abrir chat con Soporte')
+    ok(launcher.count()==1 and pg.locator('iframe').count()==0,'F5 widget.min.js inyecta el botón flotante (iframe aún no cargado)')
+    launcher.click(); pg.wait_for_timeout(1500)
+    fr = pg.frame_locator('iframe[title="Chat de soporte"]')
+    ok(fr.locator('text=Asistente de WellQ').count()==1,'F6 al abrir, el iframe carga /chat/{slug}')
+    fr.get_by_placeholder('Escribe tu consulta…').fill('Cuanto tardan los reembolsos de consultas de telemedicina?')
+    fr.get_by_role('button', name='Enviar').click(); pg.wait_for_timeout(1800)
+    ok(fr.locator('text=cinco dias habiles').count()>0,'F7 el widget embebido responde con el documento')
+    pg.screenshot(path='shot_widget_embebido.png')
+    fr.get_by_role('button', name='Cerrar chat').click(); pg.wait_for_timeout(500)
+    ok(not pg.locator('iframe').is_visible(),'F8 el botón cerrar del iframe oculta el chat')
+    srv.shutdown()
     b.close()

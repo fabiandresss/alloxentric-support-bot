@@ -89,6 +89,16 @@ export interface SystemMetrics {
 }
 
 // ---- Tipos de la API (backend FastAPI) que no existían en el prototipo ----
+/** Lo que expone GET /publico/{slug}: solo marca y disponibilidad del agente. */
+export interface PublicAgent {
+  name: string;
+  agentName: string;
+  logoInitials: string;
+  brandColor: string;
+  brandBg: string;
+  agentStatus: AgentStatus;
+}
+
 export interface ChatResponse {
   conversationId: string;
   messages: ChatMessage[];

@@ -11,6 +11,7 @@ import {
   AuthUser,
   Role,
   TokenResponse,
+  PublicAgent,
 } from '../types';
 
 export const API_URL: string =
@@ -50,7 +51,7 @@ export const setToken = (t: string | null) => {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   const headers = new Headers(init.headers);
-  if (token && !headers.has('X-API-Key')) headers.set('Authorization', `Bearer ${token}`);
+  if (token && !headers.has('X-API-Key') && !path.startsWith('/publico/')) headers.set('Authorization', `Bearer ${token}`);
   try {
     res = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
@@ -151,6 +152,12 @@ export const sendChat = (apiKey: string, p: ChatPayload) =>
     ...json('POST', p),
     headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
   });
+
+/** Chat público por slug (página /chat/{slug} y iframe del widget). Sin autenticación. */
+export const getPublicAgent = (slug: string) =>
+  request<PublicAgent>(`/publico/${encodeURIComponent(slug)}`);
+export const sendPublicChat = (slug: string, p: ChatPayload) =>
+  request<ChatResponse>(`/publico/${encodeURIComponent(slug)}/chat`, json('POST', p));
 
 // ---------- autenticación y usuarios ----------
 export const login = async (email: string, password: string) => {
