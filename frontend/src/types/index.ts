@@ -129,6 +129,15 @@ export interface Analytics {
   companies: AnalyticsCompany[];
 }
 
+/** GET /publico/{slug}/conversaciones/{id}: transcripción para que el cliente vea la respuesta del agente. */
+export interface PublicConversation {
+  conversationId: string;
+  messages: ChatMessage[];
+  derived: boolean;
+  ticketNumber?: string;
+  ticketStatus?: TicketStatus;
+}
+
 /** Lo que expone GET /publico/{slug}: solo marca y disponibilidad del agente. */
 export interface PublicAgent {
   name: string;

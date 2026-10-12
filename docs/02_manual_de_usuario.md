@@ -149,6 +149,12 @@ deriva el caso y se crea un ticket automáticamente.
 
 ![Derivación](img/09_widget_derivacion.png)
 
+### Ver la respuesta del agente
+
+En el chat público (`/chat/{slug}`) y en el widget embebido, el cliente **ve la respuesta del agente humano en la misma ventana**, sin
+recargar: tras la derivación la conversación se actualiza sola cada pocos segundos y, cuando el caso se resuelve, lo indica. Si recarga la
+página, recupera la conversación. Con el widget cerrado, un **punto rojo** sobre el botón avisa que hay una respuesta nueva.
+
 El botón **Ver este ticket en la Consola de Soporte** lleva a la consola de los agentes, donde el caso ya aparece.
 
 ![Ticket nuevo en la consola](img/10_consola_ticket_nuevo.png)

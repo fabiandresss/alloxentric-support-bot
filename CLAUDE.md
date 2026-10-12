@@ -38,8 +38,8 @@ alembic upgrade head                                             # esquema + ext
 python seed.py [--reset]                                         # 5 empresas, 8 tickets, usuarios demo (imprime keys)
 uvicorn app.main:app --reload                                    # http://localhost:8000/docs
 cd ../frontend && cp .env.example .env && npm install && npm run dev   # http://localhost:3000
-cd ../backend && pytest -q                                       # 41 pruebas (Postgres temporal automático)
-python ../tests_e2e/test_flujos_navegador.py                     # 37 verificaciones; BD recién sembrada y todo corriendo
+cd ../backend && pytest -q                                       # 43 pruebas (Postgres temporal automático)
+python ../tests_e2e/test_flujos_navegador.py                     # 43 verificaciones; BD recién sembrada y todo corriendo
 cd ../frontend && npx tsc --noEmit && npm run build              # verificación de tipos y build
 alembic revision --autogenerate -m "desc"                        # tras cambiar models.py; REVISAR el archivo generado
 ```
@@ -75,8 +75,9 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 
 1. **Multi-tenant (RNF-01):** toda tabla salvo `empresas` lleva `empresa_id`, y **toda consulta de datos de una empresa filtra por él**.
    El tenant sale de la API key (`X-API-Key`, `POST /chat`) o del usuario autenticado, **nunca** del cuerpo/parámetros del cliente.
-   Única excepción (RF-29): el chat público `GET /publico/{slug}` y `POST /publico/{slug}/chat` toma el tenant del slug de la ruta
-   (es el mismo que expone `webChatUrl`), responde solo con el agente `activo` y solo expone datos de marca.
+   Única excepción (RF-29): el chat público (`GET /publico/{slug}`, `POST /publico/{slug}/chat` y `GET /publico/{slug}/conversaciones/{id}`)
+   toma el tenant del slug de la ruta (es el mismo que expone `webChatUrl`), responde solo con el agente `activo`, solo expone
+   datos de marca y la transcripción de una conversación exige su UUID y que sea de esa empresa.
    Una conversación de la empresa A no se puede continuar con la key de B ni por el slug de B (404). Cada cambio que toque datos necesita su prueba de aislamiento.
 2. **Roles (RF-28/RF-30):** 4 roles — `superadmin` (sin empresa), `admin_empresa`, `encargado_tickets`, `encargado_agente`.
    Cada endpoint nuevo declara explícitamente qué roles acepta (`requiere_rol(...)` o `empresa_con_rol(...)`) y, si accede por id,
@@ -106,7 +107,7 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 ## 7. Estado actual (semana 9)
 
 **Hecho y probado:** modelo de datos + migraciones; API de empresas, usuarios, documentos, tickets, chat y métricas; ingesta de TXT/PDF/DOCX
-(extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`);
+(extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**;
 documentación técnica, manual y diagramas.
 
 **Provisorio:** `motor_rag.py` (búsqueda por palabras clave sobre los fragmentos, sin embeddings ni LLM); Corestream es un mock (`CORESTREAM_MOCK=true`);

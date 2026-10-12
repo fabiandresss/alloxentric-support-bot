@@ -46,7 +46,7 @@ No tienen tabla: se calculan con COUNT/AVG sobre tickets y mensajes (endpoint GE
 3. POST /empresas/{slug}/documentos (multipart), DELETE /documentos/{id}, GET /documentos/{id}/fragmentos -> AgentConfigModal, DocumentDetailModal
 4. POST /chat  (X-API-Key de la empresa) -> WidgetPreview, TestAgentModal
 5. GET  /metricas -> MetricCards; GET /metricas/analitica?dias= -> AnalyticsView (tipo Analytics)
-6. GET  /publico/{slug}, POST /publico/{slug}/chat (sin autenticación) -> PublicChat (página /chat/{slug} e iframe de widget.min.js); tipo PublicAgent
+6. GET  /publico/{slug}, POST /publico/{slug}/chat, GET /publico/{slug}/conversaciones/{id} (sin autenticación) -> PublicChat (página /chat/{slug} e iframe de widget.min.js); tipos PublicAgent y PublicConversation
 
 ## Cambios en el front (YA HECHOS en frontend/)
 - Reemplazar INITIAL_COMPANIES/TICKETS/METRICS de App.tsx por fetch al backend (src/api/client.ts, VITE_API_URL).
