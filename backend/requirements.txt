@@ -2,6 +2,7 @@ sqlalchemy>=2.0
 alembic
 psycopg[binary]
 pgvector
+sentence-transformers   # embeddings locales (arrastra torch; ~1 GB instalado, CPU basta)
 python-dotenv
 fastapi
 uvicorn[standard]
