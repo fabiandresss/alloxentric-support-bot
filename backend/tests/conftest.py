@@ -33,6 +33,8 @@ SUPER_EMAIL, SUPER_PW = "root@alloxentric.test", "SuperSecreta1"
 
 @pytest.fixture(autouse=True)
 def limpiar():
+    from app.ratelimit import reset
+    reset()   # cada prueba parte con los contadores del rate limiting en cero
     with engine.begin() as c:
         c.execute(text("TRUNCATE empresas, usuarios CASCADE"))
     yield
