@@ -20,5 +20,9 @@ except Exception:  # sin tzdata
 # Horas que se espera la respuesta a la encuesta de resolución; vencido el plazo el ticket se cierra solo
 ENCUESTA_HORAS = int(os.getenv("ENCUESTA_HORAS", "72"))
 
+# Límite de peticiones de los endpoints sin sesión (chat público, widget, login). Ver app/ratelimit.py
+RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true"  # solo tras un proxy de confianza
+
 JWT_SECRET = os.getenv("JWT_SECRET", "cambia-este-secreto-largo-en-el-archivo-env-32+")
 JWT_HORAS = int(os.getenv("JWT_HORAS", "8"))

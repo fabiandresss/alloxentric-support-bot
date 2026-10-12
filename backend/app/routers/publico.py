@@ -4,20 +4,21 @@ No lleva autenticación: el slug de la ruta identifica a la empresa (es el mismo
 Solo responde si el agente está `activo` y solo devuelve datos de marca, nunca documentos ni API keys.
 """
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import empresa_por_slug
 from app.mappers import mensaje_out
+from app.ratelimit import limite, verificar
 from app.services import ciclo_ticket
 from app.services.chat import procesar_mensaje
 
 router = APIRouter(prefix="/publico", tags=["publico"])
 
 
-@router.get("/{slug}", response_model=s.PublicAgent)
+@router.get("/{slug}", response_model=s.PublicAgent, dependencies=[Depends(limite("agente", 60, 60, por=("slug",)))])
 def agente_publico(e: m.Empresa = Depends(empresa_por_slug)):
     """Datos mínimos para pintar el chat (nombre, marca y si el agente está disponible)."""
     return s.PublicAgent(
@@ -27,9 +28,13 @@ def agente_publico(e: m.Empresa = Depends(empresa_por_slug)):
         agent_status=e.estado_agente)
 
 
-@router.post("/{slug}/chat", response_model=s.ChatResponse, response_model_exclude_none=True)
-def chat_publico(body: s.ChatRequest, e: m.Empresa = Depends(empresa_por_slug),
+# 20 mensajes/min por IP y empresa; además, como máximo 6 conversaciones nuevas/min (cada derivación crea un ticket)
+@router.post("/{slug}/chat", response_model=s.ChatResponse, response_model_exclude_none=True,
+             dependencies=[Depends(limite("chat", 20, 60, por=("slug",)))])
+def chat_publico(request: Request, body: s.ChatRequest, e: m.Empresa = Depends(empresa_por_slug),
                  db: Session = Depends(get_db)):
+    if not body.conversation_id:
+        verificar(request, "nueva_conv", 6, 60, extra=e.slug)
     if e.estado_agente != "activo":
         raise HTTPException(403, "El agente de esta empresa no está activo")
     return procesar_mensaje(db, e, body)
@@ -59,8 +64,10 @@ def _salida(conv: m.Conversacion, ticket: m.Ticket | None) -> s.PublicConversati
         ticket_status=ticket.estado if ticket else None)
 
 
+# el widget consulta cada 5 s (12/min); 30/min deja margen para recargas
 @router.get("/{slug}/conversaciones/{conversation_id}", response_model=s.PublicConversation,
-            response_model_exclude_none=True)
+            response_model_exclude_none=True,
+            dependencies=[Depends(limite("conversacion", 30, 60, por=("slug", "conversation_id")))])
 def conversacion_publica(conversation_id: str, e: m.Empresa = Depends(empresa_por_slug),
                          db: Session = Depends(get_db)):
     """Transcripción de una conversación para que el cliente vea la respuesta del agente humano.
@@ -74,7 +81,8 @@ def conversacion_publica(conversation_id: str, e: m.Empresa = Depends(empresa_po
 
 
 @router.post("/{slug}/conversaciones/{conversation_id}/encuesta", response_model=s.PublicConversation,
-             response_model_exclude_none=True)
+             response_model_exclude_none=True,
+             dependencies=[Depends(limite("encuesta", 10, 60, por=("slug", "conversation_id")))])
 def responder_encuesta(conversation_id: str, body: s.SurveyAnswer, e: m.Empresa = Depends(empresa_por_slug),
                        db: Session = Depends(get_db)):
     """El cliente responde la encuesta de resolución que envió el agente.
