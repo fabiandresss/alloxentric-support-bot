@@ -24,7 +24,7 @@ un ticket en Corestream. El sistema corre **100% en local** (sin nube).
 | PostgreSQL + pgvector | Guarda empresas, documentos, fragmentos con embeddings, conversaciones, mensajes y tickets | `docker-compose.yml`, `backend/app/models/` |
 | Redis | Reservado para Celery (ingesta en segundo plano) | `docker-compose.yml` — **pendiente** |
 | Carpeta `storage/` | Archivos originales subidos, una subcarpeta por empresa | `STORAGE_DIR` en `.env` |
-| DeepSeek / Corestream | Modelo de lenguaje y ticketera | **pendientes** (hoy: motor provisorio y mock) |
+| DeepSeek / Corestream | Modelo de lenguaje y ticketera | DeepSeek integrado (modo extractivo sin clave); Corestream es un mock |
 
 El front **nunca** habla con la base de datos: todo pasa por la API.
 
@@ -79,7 +79,7 @@ Decisiones:
   y desordenaba la transcripción (bug encontrado en las pruebas).
 - **Usuarios y roles:** `usuarios.rol` ∈ {`superadmin`, `admin_empresa`, `encargado_tickets`, `encargado_agente`}. `empresa_id` es nulo solo
   para el superadmin; dos `CHECK` en la BD lo garantizan. Las claves se guardan con PBKDF2-SHA256 + sal. Ver `MATRIZ_PERMISOS.md`.
-- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario; `0003` el agente asignado a un ticket pasa de texto libre a un usuario; `0004` ciclo del ticket con encuesta de resolución).
+- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario; `0003` el agente asignado a un ticket pasa de texto libre a un usuario; `0004` ciclo del ticket con encuesta de resolución; `0005` modelo del embedding por fragmento).
 
 ## 6. Flujos principales
 
@@ -120,6 +120,38 @@ El encargado **no cierra** los tickets: cuando responde, el cliente recibe una *
 `storage/<empresa_id>/` → crea el documento en estado `procesando` → en segundo plano extrae el texto, lo divide en fragmentos de
 ~800 caracteres por párrafos y los guarda → estado `procesado` (o `error` si el archivo está corrupto). El panel consulta cada
 1,5 s hasta que termina.
+
+## 6.3 Motor RAG y embeddings
+
+Implementado en `services/embeddings.py`, `services/motor_rag.py` y `services/llm.py`. **Estado:** funciona y está probado con un embedder
+determinista y un LLM simulado; **falta correrlo con el modelo real y con DeepSeek en vivo, y calibrar los umbrales** con la batería de calidad.
+
+**Embeddings (RF-04).** `EMBEDDINGS_BACKEND=sentence-transformers` (por defecto) usa `paraphrase-multilingual-MiniLM-L12-v2`, local, 384
+dimensiones; la primera vez descarga el modelo (~470 MB) a la caché de Hugging Face y luego funciona sin conexión. `EMBEDDINGS_BACKEND=hash`
+es un embedder por palabras sin descargas (pruebas, CI y respaldo si el modelo no carga: se avisa en el log y en `/health`).
+Cada fragmento guarda el **id del embedder** que lo generó (`fragmentos_embeddings.modelo`) y la búsqueda solo usa los del embedder activo;
+tras cambiar de modelo se regeneran con `python reindexar.py`.
+
+**Fragmentación (RF-05).** Un fragmento por párrafo (los muy cortos se unen al siguiente; los de más de 700 caracteres se cortan por oraciones).
+Juntar párrafos diluye la similitud y baja la confianza.
+
+**Flujo de `responder`:**
+1. *Intención* (reglas, sin LLM): pide un humano → deriva; saludo / gracias / despedida → respuesta fija sin derivar ni crear ticket; el resto es consulta.
+2. *Recuperación:* embedding de la pregunta y búsqueda por coseno **solo en fragmentos de la empresa**, de documentos `procesado` y del embedder activo (top-4).
+3. *Decisión:* la mejor similitud se convierte en **confianza 0..1** (rango `sim_min..sim_max` de cada embedder) y se compara con el `umbral_rag` de la empresa.
+   Bajo el umbral → se deriva a un humano y se crea el ticket.
+4. *Generación:* con `DEEPSEEK_API_KEY`, DeepSeek redacta la respuesta usando **solo los fragmentos de esa empresa**, con su tono e instrucciones;
+   si contesta `NO_SE`, se deriva. Sin clave, o ante cualquier falla de red/API, responde de forma extractiva con el fragmento más relevante (el chat no se cae).
+5. *Sugerencia para el agente humano* (`sugerir_respuesta`): borrador generado con los mismos fragmentos (o plantilla si no hay clave).
+
+**Dónde se calcula la similitud (`RAG_SEARCH`).** `pgvector` (por defecto) usa la distancia coseno en la BD con el índice HNSW. `python` hace la búsqueda
+exacta en el backend: existe porque el pgvector que trae el Postgres sin Docker (`pixeltable-pgserver`) se **cae al calcular distancias** en CPUs sin
+AVX-512; con el Docker oficial `pgvector/pgvector` funciona. En ese Postgres temporal las pruebas eliminan el índice HNSW (solo en la BD de pruebas).
+Con `TEST_DATABASE_URL` apuntando a un Postgres real las pruebas usan `pgvector`.
+
+**Límites conocidos:** la confianza depende de la calibración de `sim_min/sim_max` (hoy valores iniciales para el modelo real); el filtro por empresa
+con el índice HNSW puede devolver menos de k resultados si una empresa tiene pocos fragmentos entre muchos de otras (en este tamaño no es un problema);
+los documentos subidos antes de este cambio se vuelven a procesar o se reindexan.
 
 ## 7. API
 
@@ -191,7 +223,7 @@ Ver `README.md` en la raíz del proyecto (pasos con Docker Compose, Alembic, see
 
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
-| API (pytest, Postgres real) | `backend/tests/test_api.py` (15), `test_roles.py` (28), `test_ciclo_ticket.py` (9) y `test_ratelimit.py` (7) — 59 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
+| API (pytest, Postgres real) | `backend/tests/test_api.py` (15), `test_roles.py` (28), `test_ciclo_ticket.py` (9) y `test_ratelimit.py` (7) y `test_rag.py` (31) — 90 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
 | Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 49 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta; el cliente ve la respuesta del agente (sin recargar y tras recargar) y el widget cerrado avisa** |
 | Migración | manual | `alembic upgrade head`, `alembic check` (sin diferencias con los modelos) y `downgrade base` sobre un Postgres real |
 
@@ -203,10 +235,10 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 |---|---|---|
 | RF-01, RF-02 | `models/models.py`, `migrations/` | Hecho |
 | RF-03 | `routers/empresas.py`, `routers/auth.py` (usuarios) | Hecho |
-| RF-04, RF-05 | `routers/documentos.py`, `services/ingesta.py` (faltan embeddings) | En curso |
+| RF-04, RF-05 | `routers/documentos.py`, `services/ingesta.py`, `services/embeddings.py` | Hecho (falta validar con el modelo real) |
 | RF-06 | `BackgroundTasks` (Celery pendiente) | En curso |
-| RF-07, RF-08 | `services/motor_rag.py` (provisorio por palabras clave) | En curso |
-| RF-09 | DeepSeek | Pendiente |
+| RF-07, RF-08 | `services/motor_rag.py` (búsqueda vectorial por empresa + umbral) | Implementado; falta calibrar |
+| RF-09 | `services/llm.py` (DeepSeek, con respaldo extractivo) | Implementado; falta probar en vivo |
 | RF-10, RF-11 | `WidgetPreview.tsx`, `routers/chat.py` | Hecho |
 | RF-12, RF-13 | `services/derivacion.py` (mock con `CORESTREAM_MOCK`) | Hecho |
 | RF-14, RF-15 | `CorestreamConsole.tsx`, `routers/tickets.py` (sugerencia IA provisoria) | Hecho / En curso |
@@ -221,8 +253,8 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 
 | Pendiente | Responsable | Semana (replan) |
 |---|---|---|
-| Embeddings (sentence-transformers) y guardado en `fragmentos_embeddings` | Vicente | S9–S10 |
-| Motor RAG real: búsqueda pgvector, DeepSeek, clasificador de intención | Vicente | S9–S12 |
+| Embeddings (sentence-transformers) y guardado en `fragmentos_embeddings` | Vicente | S9–S10 (implementado; falta correr con el modelo real) |
+| Motor RAG real: búsqueda pgvector, DeepSeek, clasificador de intención | Vicente | S9–S12 (implementado; falta validar y calibrar) |
 | Widget embebible `widget.min.js` y página pública `/chat/{slug}` | Fabián | S9–S10 (hecho) |
 | Integración real con Corestream (depende de su documentación) | Fabián | S11–S12 |
 | Celery + Redis para la ingesta | Vicente | S10–S12 |

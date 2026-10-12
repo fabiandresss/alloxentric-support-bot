@@ -92,6 +92,9 @@ class FragmentoEmbedding(Base):
     orden: Mapped[int]
     texto: Mapped[str] = mapped_column(Text)
     embedding = mapped_column(Vector(EMBED_DIM))
+    # id del embedder que generó el vector (p. ej. st:paraphrase-multilingual-MiniLM-L12-v2 o hash-v1): la búsqueda solo
+    # usa fragmentos del embedder activo, porque vectores de modelos distintos no se pueden comparar
+    modelo: Mapped[str | None] = mapped_column(String(80))
     __table_args__ = (
         Index("ix_fragmentos_embedding_hnsw", "embedding",
               postgresql_using="hnsw",

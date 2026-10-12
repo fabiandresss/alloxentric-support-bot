@@ -15,6 +15,11 @@ if not url:
     url = _srv.get_uri().replace("postgresql://", "postgresql+psycopg://")
 os.environ["DATABASE_URL"] = url
 os.environ["CORESTREAM_MOCK"] = "true"
+os.environ["EMBEDDINGS_BACKEND"] = "hash"   # sin descargar modelos; el motor RAG se prueba con el embedder léxico
+os.environ["DEEPSEEK_API_KEY"] = ""         # nunca llamar a la API real desde las pruebas
+# Con una BD real (TEST_DATABASE_URL, p. ej. el Docker de pgvector) se prueba la búsqueda por pgvector. Con el Postgres
+# temporal sin Docker, el pgvector que trae se cae al calcular distancias en algunas CPUs: búsqueda exacta en Python.
+os.environ.setdefault("RAG_SEARCH", "pgvector" if os.getenv("TEST_DATABASE_URL") else "python")
 os.environ["STORAGE_DIR"] = tempfile.mkdtemp()
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -26,6 +31,10 @@ from app.main import app  # noqa: E402
 with engine.begin() as c:
     c.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 Base.metadata.create_all(engine)
+if os.environ["RAG_SEARCH"] == "python":
+    # el índice HNSW calcula distancias al insertar: con ese pgvector tumba el servidor. Solo en la BD temporal de pruebas.
+    with engine.begin() as c:
+        c.execute(text("DROP INDEX IF EXISTS ix_fragmentos_embedding_hnsw"))
 
 
 SUPER_EMAIL, SUPER_PW = "root@alloxentric.test", "SuperSecreta1"
