@@ -75,7 +75,7 @@ esquema (`alembic upgrade head`). Para cambios de esquema: editar `app/models/mo
 
 ## Pruebas
 
-Pruebas de la API (pytest, 52 pruebas, incluye roles y permisos):
+Pruebas de la API (pytest, 59 pruebas, incluye roles y permisos):
 
 ```bash
 cd backend

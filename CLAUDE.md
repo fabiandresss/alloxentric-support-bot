@@ -38,7 +38,7 @@ alembic upgrade head                                             # esquema + ext
 python seed.py [--reset]                                         # 5 empresas, 8 tickets, usuarios demo (imprime keys)
 uvicorn app.main:app --reload                                    # http://localhost:8000/docs
 cd ../frontend && cp .env.example .env && npm install && npm run dev   # http://localhost:3000
-cd ../backend && pytest -q                                       # 52 pruebas (Postgres temporal automático)
+cd ../backend && pytest -q                                       # 59 pruebas (Postgres temporal automático)
 python ../tests_e2e/test_flujos_navegador.py                     # 49 verificaciones; BD recién sembrada y todo corriendo
 cd ../frontend && npx tsc --noEmit && npm run build              # verificación de tipos y build
 alembic revision --autogenerate -m "desc"                        # tras cambiar models.py; REVISAR el archivo generado
@@ -90,6 +90,7 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 6. **Sin nube:** no agregar dependencias de AWS/GCP/Azure ni servicios externos salvo DeepSeek.
 7. **Esquema:** cualquier cambio en `models.py` va con migración Alembic revisada a mano (el autogenerate no importa `pgvector` ni crea la extensión; ya está corregido en `0001`). Verifica `upgrade`, `alembic check` y `downgrade`.
 8. **Subidas:** validar extensión (`pdf, docx, txt, faq, csv`), tamaño (`MAX_UPLOAD_MB`) y sanear el nombre; un directorio por empresa en `storage/`.
+9. **Endpoints sin sesión** (chat público, widget, login): llevan límite de peticiones con `app/ratelimit.py` (`limite(...)` o `verificar(...)`); uno nuevo sin límite es un hueco. Tabla de límites en `docs/01_documentacion_tecnica.md` §8.
 
 ### Definición de negocio: ciclo del ticket (no cambiar sin acordarlo)
 
@@ -111,7 +112,7 @@ El encargado de tickets responde y se envía una **encuesta** al cliente; **el c
 ## 7. Estado actual (semana 9)
 
 **Hecho y probado:** modelo de datos + migraciones; API de empresas, usuarios, documentos, tickets, chat y métricas; ingesta de TXT/PDF/DOCX
-(extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**; **ciclo del ticket con encuesta de resolución (Sí cierra, No escala, 72 h cierra)**;
+(extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**; **ciclo del ticket con encuesta de resolución (Sí cierra, No escala, 72 h cierra)**; **rate limiting de los endpoints sin sesión**;
 documentación técnica, manual y diagramas.
 
 **Provisorio:** `motor_rag.py` (búsqueda por palabras clave sobre los fragmentos, sin embeddings ni LLM); Corestream es un mock (`CORESTREAM_MOCK=true`);
