@@ -74,7 +74,8 @@ export interface Ticket {
   customerChannel: 'Web Chat' | 'WhatsApp API' | 'Portal Clientes';
   transcript: ChatMessage[];
   aiSuggestion: AiSuggestion;
-  assignedAgent?: string;
+  assignedAgent?: string; // nombre para mostrar
+  assignedAgentId?: string; // id del usuario asignado (GET /tickets/agentes)
   isLive?: boolean;
 }
 
@@ -89,6 +90,45 @@ export interface SystemMetrics {
 }
 
 // ---- Tipos de la API (backend FastAPI) que no existían en el prototipo ----
+/** Usuario al que se puede asignar un ticket (GET /tickets/agentes). */
+export interface AssignableAgent {
+  id: string;
+  name: string;
+  role: Role;
+  companyId: string;
+}
+
+/** GET /metricas/analitica: datos reales de la vista Analítica, por empresa según el rol. */
+export interface AnalyticsDay {
+  date: string;
+  bot: number;
+  human: number;
+  total: number;
+}
+export interface AnalyticsCompany {
+  id: string;
+  name: string;
+  industry: string;
+  brandColor: string;
+  totalQueries: number;
+  botResolved: number;
+  botRate: number;
+  escalated: number;
+  escalationRate: number;
+}
+export interface Analytics {
+  days: number;
+  totalConversations: number;
+  botResolved: number;
+  humanEscalated: number;
+  botRate: number;
+  escalationRate: number;
+  conversationsDelta?: number | null; // % vs el periodo anterior; null si no hay base
+  avgHumanResolution: string;
+  daily: AnalyticsDay[];
+  companies: AnalyticsCompany[];
+}
+
 /** Lo que expone GET /publico/{slug}: solo marca y disponibilidad del agente. */
 export interface PublicAgent {
   name: string;

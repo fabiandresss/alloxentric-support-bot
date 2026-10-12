@@ -11,7 +11,7 @@ import * as api from './api/client';
 import { LoginScreen } from './components/LoginScreen';
 import { UsersView } from './components/UsersView';
 import { allowedViews, canViewTickets, canCreateCompanies, View } from './auth/permissions';
-import { AuthUser, Company, Ticket, SystemMetrics } from './types';
+import { AuthUser, AssignableAgent, Company, Ticket, SystemMetrics } from './types';
 
 const EMPTY_METRICS: SystemMetrics = {
   openTickets: 0,
@@ -47,6 +47,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   const [companies, setCompanies] = useState<Company[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [metrics, setMetrics] = useState<SystemMetrics>(EMPTY_METRICS);
+  const [agents, setAgents] = useState<AssignableAgent[]>([]);
   const [selectedTenantFilter, setSelectedTenantFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -71,13 +72,16 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   const refreshAll = useCallback(async (silent = false) => {
     try {
       // cada rol pide solo lo que puede ver (el backend igual lo valida)
-      const [c, t, m] = await Promise.all([
+      const puedeTickets = canViewTickets(user.role);
+      const [c, t, m, a] = await Promise.all([
         api.getCompanies(),
-        canViewTickets(user.role) ? api.getTickets() : Promise.resolve([] as Ticket[]),
+        puedeTickets ? api.getTickets() : Promise.resolve([] as Ticket[]),
         api.getMetrics(),
+        puedeTickets ? api.getAssignableAgents() : Promise.resolve([] as AssignableAgent[]),
       ]);
       setCompanies(c);
       setTickets(t);
+      setAgents(a);
       setMetrics(m);
       setPreviewCompanyId((prev) => prev || c[0]?.id || '');
       setBackendError(null);
@@ -130,7 +134,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   // Agent reply sender
   const handleSendAgentReply = async (ticketId: string, text: string) => {
     try {
-      const updated = await api.replyTicket(ticketId, text, `${user.name} (${user.role === 'encargado_tickets' ? 'Soporte' : 'Agente'})`);
+      const updated = await api.replyTicket(ticketId, text);
       replaceTicket(updated);
       addToast(
         'success',
@@ -144,10 +148,10 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   };
 
   // Reassign agent
-  const handleReassignAgent = async (ticketId: string, agentName: string) => {
+  const handleReassignAgent = async (ticketId: string, agentId: string | null, agentName: string) => {
     try {
-      replaceTicket(await api.updateTicket(ticketId, { assignedAgent: agentName }));
-      addToast('info', `Ticket reasignado a ${agentName}`);
+      replaceTicket(await api.updateTicket(ticketId, { assignedAgentId: agentId }));
+      addToast('info', agentId ? `Ticket reasignado a ${agentName}` : 'Ticket sin asignar');
     } catch (e) {
       addToast('warning', 'No se pudo reasignar el ticket', errMsg(e));
     }
@@ -156,9 +160,10 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   // Company management
   const handleUpdateCompany = async (updatedCompany: Company) => {
     try {
+      // nombre e industria de la empresa solo los cambia su admin o el superadmin (el backend responde 403 al resto)
+      const editaEmpresa = user.role === 'superadmin' || user.role === 'admin_empresa';
       const saved = await api.updateCompany(updatedCompany.id, {
-        name: updatedCompany.name,
-        industry: updatedCompany.industry,
+        ...(editaEmpresa ? { name: updatedCompany.name, industry: updatedCompany.industry } : {}),
         agentName: updatedCompany.agentName,
         agentStatus: updatedCompany.agentStatus,
         tone: updatedCompany.tone,
@@ -259,6 +264,8 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
           {!loading && currentView === 'console' && (
             <CorestreamConsole
               tickets={tickets}
+              agents={agents}
+              currentUserName={user.name}
               metrics={metrics}
               onUpdateTicketStatus={handleUpdateTicketStatus}
               onSendAgentReply={handleSendAgentReply}
@@ -314,7 +321,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
           )}
 
           {!loading && currentView === 'analytics' && (
-            <AnalyticsView companies={companies} />
+            <AnalyticsView />
           )}
         </main>
       </div>

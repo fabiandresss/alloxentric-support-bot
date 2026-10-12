@@ -12,15 +12,17 @@ import {
   Search,
   MessageSquare
 } from 'lucide-react';
-import { Ticket, SystemMetrics } from '../types';
+import { Ticket, SystemMetrics, AssignableAgent } from '../types';
 import { TicketDetailModal } from './TicketDetailModal';
 
 interface CorestreamConsoleProps {
   tickets: Ticket[];
+  agents: AssignableAgent[];
+  currentUserName: string;
   metrics?: SystemMetrics;
   onUpdateTicketStatus: (ticketId: string, status: Ticket['status']) => void;
   onSendAgentReply: (ticketId: string, text: string) => void;
-  onReassignAgent: (ticketId: string, agentName: string) => void;
+  onReassignAgent: (ticketId: string, agentId: string | null, agentName: string) => void;
   selectedTenantFilter: string;
   searchQuery: string;
   onResetFilters: () => void;
@@ -28,6 +30,8 @@ interface CorestreamConsoleProps {
 
 export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
   tickets,
+  agents,
+  currentUserName,
   onUpdateTicketStatus,
   onSendAgentReply,
   onReassignAgent,
@@ -254,6 +258,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
       {selectedTicket && (
         <TicketDetailModal
           ticket={selectedTicket}
+          agents={agents.filter((a) => a.companyId === selectedTicket.companyId)}
           onClose={() => setSelectedTicket(null)}
           onStatusChange={(id, newStatus) => {
             onUpdateTicketStatus(id, newStatus);
@@ -267,7 +272,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
               const newMsg = {
                 id: `msg-${Date.now()}`,
                 sender: 'agent' as const,
-                senderName: 'Agente de soporte',
+                senderName: currentUserName,
                 message: text,
                 timestamp: 'Ahora',
               };
@@ -277,9 +282,13 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
               };
             });
           }}
-          onReassign={(id, agentName) => {
-            onReassignAgent(id, agentName);
-            setSelectedTicket((prev) => (prev && prev.id === id ? { ...prev, assignedAgent: agentName } : prev));
+          onReassign={(id, agentId, agentName) => {
+            onReassignAgent(id, agentId, agentName);
+            setSelectedTicket((prev) =>
+              prev && prev.id === id
+                ? { ...prev, assignedAgent: agentId ? agentName : 'Sin asignar', assignedAgentId: agentId ?? undefined }
+                : prev
+            );
           }}
         />
       )}

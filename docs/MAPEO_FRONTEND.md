@@ -27,7 +27,7 @@ status=estado (procesando|procesado|error) · chunkCount=COUNT(fragmentos_embedd
 
 ## Ticket  <-  tickets + conversaciones + empresas
 ticketNumber=numero · companyId=empresas.slug · companyName/Color/Bg=empresas.*
-status=estado · escalationReason=motivo_derivacion · assignedAgent=agente_asignado
+status=estado · escalationReason=motivo_derivacion · assignedAgent=nombre del usuario en agente_asignado_id · assignedAgentId=agente_asignado_id
 customerName/Email/Channel=conversaciones.nombre_cliente/email_cliente/canal
 userQueryExcerpt=primer mensaje rol=usuario · exactTimestamp/relativeTime=creado_en
 aiSuggestion=sugerencia_ia (JSONB, mismas llaves que el front)
@@ -42,10 +42,10 @@ No tienen tabla: se calculan con COUNT/AVG sobre tickets y mensajes (endpoint GE
 
 ## Endpoints (en el orden que conviene construirlos)
 1. GET  /empresas, POST /empresas, PATCH /empresas/{slug}          -> AgentDeploymentPanel, AddCompanyModal, AgentConfigModal
-2. GET  /tickets, GET /tickets/{id}, PATCH /tickets/{id} (estado, agente_asignado), POST /tickets/{id}/respuesta -> CorestreamConsole, TicketDetailModal
+2. GET  /tickets, GET /tickets/{id}, PATCH /tickets/{id} (status, assignedAgentId), POST /tickets/{id}/respuesta (el remitente sale del usuario autenticado), GET /tickets/agentes -> CorestreamConsole, TicketDetailModal
 3. POST /empresas/{slug}/documentos (multipart), DELETE /documentos/{id}, GET /documentos/{id}/fragmentos -> AgentConfigModal, DocumentDetailModal
 4. POST /chat  (X-API-Key de la empresa) -> WidgetPreview, TestAgentModal
-5. GET  /metricas -> MetricCards, AnalyticsView
+5. GET  /metricas -> MetricCards; GET /metricas/analitica?dias= -> AnalyticsView (tipo Analytics)
 6. GET  /publico/{slug}, POST /publico/{slug}/chat (sin autenticación) -> PublicChat (página /chat/{slug} e iframe de widget.min.js); tipo PublicAgent
 
 ## Cambios en el front (YA HECHOS en frontend/)

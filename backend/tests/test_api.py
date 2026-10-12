@@ -84,16 +84,18 @@ def test_pedir_humano_deriva(client, crear_empresa):
     assert r["derived"] is True and r["ticketNumber"]
 
 
-def test_flujo_ticket_agente(client, crear_empresa):
+def test_flujo_ticket_agente(client, crear_empresa, usuario_como):
     crear_empresa("Acme")
+    usuario_como("acme", "encargado_tickets")
     client.post("/empresas/acme/probar", json={"message": "ayuda", "escalate": True})
     t = client.get("/tickets").json()[0]
-    p = client.patch(f"/tickets/{t['id']}", json={"status": "urgente", "assignedAgent": "Felipe"}).json()
-    assert p["status"] == "urgente" and p["assignedAgent"] == "Felipe"
+    ag = client.get("/tickets/agentes").json()[0]
+    p = client.patch(f"/tickets/{t['id']}", json={"status": "urgente", "assignedAgentId": ag["id"]}).json()
+    assert p["status"] == "urgente" and p["assignedAgentId"] == ag["id"] and p["assignedAgent"] == ag["name"]
     assert client.patch(f"/tickets/{t['id']}", json={"status": "inventado"}).status_code == 422
     done = client.post(f"/tickets/{t['id']}/respuesta", json={"text": "Listo, resuelto."}).json()
     assert done["status"] == "resuelto" and done["transcript"][-1]["sender"] == "agent"
-    assert done["transcript"][-1]["senderName"] == "Felipe"
+    assert done["transcript"][-1]["senderName"] == "Root"   # el usuario autenticado (superadmin del fixture)
     assert client.get("/tickets?status=resuelto").json()[0]["id"] == t["id"]
     assert client.get("/tickets?status=pendiente").json() == []
     assert client.get("/tickets/no-es-uuid").status_code == 404
