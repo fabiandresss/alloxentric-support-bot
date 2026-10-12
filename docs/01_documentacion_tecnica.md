@@ -164,6 +164,20 @@ curl -X POST http://localhost:8000/chat \
 - **RNF-02:** no hay credenciales en el código; todo va en `.env`, que está en `.gitignore`.
 - **RNF-03:** PostgreSQL y Redis publican sus puertos solo en `127.0.0.1`.
 - **RNF-04:** los documentos originales viven en `storage/`, excluida del repositorio; solo el backend la lee.
+- **Límite de peticiones (rate limiting):** los endpoints sin sesión se limitan por IP (ventana deslizante en memoria, `app/ratelimit.py`).
+  Superado el límite responden **429** con `Retry-After`.
+
+  | Endpoint | Límite (por minuto) |
+  |---|---|
+  | `POST /publico/{slug}/chat` | 20 mensajes por IP y empresa; **6 conversaciones nuevas** (cada derivación crea un ticket) |
+  | `GET /publico/{slug}/conversaciones/{id}` | 30 (el widget consulta 12 por minuto) |
+  | `POST /publico/{slug}/conversaciones/{id}/encuesta` | 10 |
+  | `GET /publico/{slug}` | 60 |
+  | `POST /chat` (API key) | 120 |
+  | `POST /auth/login` | 8 por IP y correo (fuerza bruta) y 30 por IP |
+
+  Es **por proceso**: con un solo uvicorn local basta; si se despliega con varios workers hay que mover los contadores a Redis. Se desactiva con
+  `RATE_LIMIT_ENABLED=false`; tras un proxy de confianza, `TRUST_PROXY_HEADERS=true` usa `X-Forwarded-For`.
 - Subidas: se valida extensión y tamaño y se sanitiza el nombre del archivo.
 - **RF-28 / RF-30:** login con JWT y cuatro roles (superadmin, admin de empresa, encargado de tickets, encargado del agente IA), con
   autorización por rol y aislamiento por empresa en cada endpoint. Matriz completa en `MATRIZ_PERMISOS.md`.
@@ -177,7 +191,7 @@ Ver `README.md` en la raíz del proyecto (pasos con Docker Compose, Alembic, see
 
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
-| API (pytest, Postgres real) | `backend/tests/test_api.py` (15), `test_roles.py` (28) y `test_ciclo_ticket.py` (9) — 52 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
+| API (pytest, Postgres real) | `backend/tests/test_api.py` (15), `test_roles.py` (28), `test_ciclo_ticket.py` (9) y `test_ratelimit.py` (7) — 59 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
 | Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 49 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta; el cliente ve la respuesta del agente (sin recargar y tras recargar) y el widget cerrado avisa** |
 | Migración | manual | `alembic upgrade head`, `alembic check` (sin diferencias con los modelos) y `downgrade base` sobre un Postgres real |
 
@@ -213,7 +227,7 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | Integración real con Corestream (depende de su documentación) | Fabián | S11–S12 |
 | Celery + Redis para la ingesta | Vicente | S10–S12 |
 | Vista Analítica con datos reales | Fabián | hecho (`GET /metricas/analitica`) |
-| Límite de peticiones (rate limiting) en los endpoints públicos | Fabián | por definir |
+| Mover los contadores del rate limiting a Redis (hoy en memoria, por proceso) si se despliega con varios workers | Fabián | solo si se escala |
 | Cierre a las 72 h con un planificador real (hoy se aplica al leer; con Celery pasa a tarea periódica) | Vicente / Fabián | con Celery |
 
 **Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de una sola persona y tiene 4 semanas para el motor.

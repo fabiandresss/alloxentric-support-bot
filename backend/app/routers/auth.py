@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -7,13 +7,17 @@ from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import usuario_actual, requiere_rol, ADMIN, SUPERADMIN
 from app.mappers import usuario_out
+from app.ratelimit import verificar
 from app.security import hash_password, verificar_password, crear_token
 
 router = APIRouter(tags=["auth y usuarios"])
 
 
 @router.post("/auth/login", response_model=s.TokenOut)
-def login(body: s.LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, body: s.LoginRequest, db: Session = Depends(get_db)):
+    # fuerza bruta: 8 intentos/min por IP y correo, y 30/min por IP en total
+    verificar(request, "login", 8, 60, extra=body.email.strip().lower())
+    verificar(request, "login_ip", 30, 60)
     u = db.scalar(select(m.Usuario).where(m.Usuario.email == body.email.strip().lower()))
     # mismo mensaje para email inexistente / clave mala / usuario desactivado (no filtra información)
     if not u or not u.activo or not verificar_password(body.password, u.password_hash):
