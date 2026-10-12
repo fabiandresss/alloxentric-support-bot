@@ -42,11 +42,12 @@ No tienen tabla: se calculan con COUNT/AVG sobre tickets y mensajes (endpoint GE
 
 ## Endpoints (en el orden que conviene construirlos)
 1. GET  /empresas, POST /empresas, PATCH /empresas/{slug}          -> AgentDeploymentPanel, AddCompanyModal, AgentConfigModal
-2. GET  /tickets, GET /tickets/{id}, PATCH /tickets/{id} (status, assignedAgentId), POST /tickets/{id}/respuesta (el remitente sale del usuario autenticado), GET /tickets/agentes -> CorestreamConsole, TicketDetailModal
+2. GET  /tickets, GET /tickets/{id}, PATCH /tickets/{id} (status solo `pendiente`/`urgente`; `cerrado` solo para cerrar un escalado; assignedAgentId), POST /tickets/{id}/respuesta (el remitente sale del usuario autenticado; envía la encuesta), GET /tickets/agentes -> CorestreamConsole, TicketDetailModal.
+   Estados de `status`: pendiente | urgente | esperando_cliente | cerrado | escalado (+ `closeReason`).
 3. POST /empresas/{slug}/documentos (multipart), DELETE /documentos/{id}, GET /documentos/{id}/fragmentos -> AgentConfigModal, DocumentDetailModal
 4. POST /chat  (X-API-Key de la empresa) -> WidgetPreview, TestAgentModal
 5. GET  /metricas -> MetricCards; GET /metricas/analitica?dias= -> AnalyticsView (tipo Analytics)
-6. GET  /publico/{slug}, POST /publico/{slug}/chat (sin autenticación) -> PublicChat (página /chat/{slug} e iframe de widget.min.js); tipo PublicAgent
+6. GET  /publico/{slug}, POST /publico/{slug}/chat, GET /publico/{slug}/conversaciones/{id} (sin autenticación) -> PublicChat (página /chat/{slug} e iframe de widget.min.js); POST /publico/{slug}/conversaciones/{id}/encuesta; tipos PublicAgent y PublicConversation
 
 ## Cambios en el front (YA HECHOS en frontend/)
 - Reemplazar INITIAL_COMPANIES/TICKETS/METRICS de App.tsx por fetch al backend (src/api/client.ts, VITE_API_URL).

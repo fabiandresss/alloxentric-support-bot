@@ -109,7 +109,7 @@ def test_nadie_cruza_de_empresa(dos_empresas, client):
     assert {x["companyId"] for x in t.get("/tickets").json()} == {"acme"}
     assert t.get("/tickets", params={"company_id": "beta"}).json()[0]["companyId"] == "acme"  # filtro ignorado
     assert t.get(f"/tickets/{beta_ticket}").status_code == 403
-    assert t.patch(f"/tickets/{beta_ticket}", json={"status": "resuelto"}).status_code == 403
+    assert t.patch(f"/tickets/{beta_ticket}", json={"status": "urgente"}).status_code == 403
     assert t.post(f"/tickets/{beta_ticket}/respuesta", json={"text": "hola"}).status_code == 403
     a = dos_empresas["acme"]["encargado_agente"]
     assert a.get("/empresas/beta/documentos").status_code == 403

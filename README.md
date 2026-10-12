@@ -75,7 +75,7 @@ esquema (`alembic upgrade head`). Para cambios de esquema: editar `app/models/mo
 
 ## Pruebas
 
-Pruebas de la API (pytest, 41 pruebas, incluye roles y permisos):
+Pruebas de la API (pytest, 52 pruebas, incluye roles y permisos):
 
 ```bash
 cd backend
@@ -103,6 +103,8 @@ en las respuestas de la empresa B, y una conversación de A no se puede usar con
 | `GET /tickets`, `GET/PATCH /tickets/{id}`, `POST /tickets/{id}/respuesta` | Consola Corestream |
 | `POST /chat` (header `X-API-Key`) | Integraciones propias: el tenant sale de la key |
 | `GET /publico/{slug}` · `POST /publico/{slug}/chat` | Chat público (página `/chat/{slug}` y widget embebible); sin login, solo con agente `activo` |
+| `GET /publico/{slug}/conversaciones/{id}` | Transcripción para que el cliente vea la respuesta del agente humano (el widget la consulta cada 5 s tras derivar) |
+| `POST /publico/{slug}/conversaciones/{id}/encuesta` | El cliente responde la encuesta de resolución: sí cierra el ticket, no lo escala a gestión |
 | `POST /empresas/{slug}/probar` | Simulador del panel (sin key) |
 | `GET /metricas` | Tarjetas de la consola |
 | `GET /metricas/analitica?dias=` | Vista Analítica (superadmin: todas las empresas; resto: la suya) |

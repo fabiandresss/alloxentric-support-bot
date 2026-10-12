@@ -69,7 +69,8 @@ def ticket_out(t: m.Ticket) -> s.Ticket:
                                      draft_response=sug.get("draftResponse", "")),
         assigned_agent=nombre_usuario(t.agente) if t.agente else "Sin asignar",
         assigned_agent_id=str(t.agente_asignado_id) if t.agente_asignado_id else None,
-        is_live=(t.estado != "resuelto" and edad_min < 60))
+        close_reason=t.cierre_motivo,
+        is_live=(t.estado in ("pendiente", "urgente") and edad_min < 60))
 
 
 def nombre_usuario(u: m.Usuario) -> str:

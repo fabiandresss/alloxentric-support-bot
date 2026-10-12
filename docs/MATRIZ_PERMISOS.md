@@ -20,7 +20,9 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 | Subir / borrar documentos y ver fragmentos | ✔ | ✔ | | ✔ |
 | Generar o rotar la API key y obtener el widget | ✔ | ✔ | | ✔ |
 | Probar el agente (simulador) | ✔ | ✔ | | ✔ |
-| Ver y atender tickets (estado, asignar, responder) | todos | los de su empresa | los de su empresa | |
+| Ver y atender tickets (urgente/pendiente, asignar, responder con encuesta) | todos | los de su empresa | los de su empresa (menos los escalados) | |
+| Ver y cerrar tickets **escalados** (el cliente dijo que no se resolvió) | todos | los de su empresa | | |
+| Cerrar un ticket sin encuesta | no existe: lo cierra el cliente (o las 72 h) | | | |
 | Asignar un ticket | a usuarios de la empresa del ticket (admin o encargado de tickets); nunca a otra empresa | | | |
 | Ver métricas y analítica | globales (todas las empresas) | las de su empresa | las de su empresa | las de su empresa |
 | Gestionar usuarios | todos | los de su empresa | | |
@@ -39,5 +41,5 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 - **Remitente confiable:** quien responde un ticket queda registrado con el usuario autenticado; el cuerpo de la petición no puede cambiarlo.
 - **Asignación real:** `assignedAgentId` debe ser un usuario activo, de la empresa del ticket y con rol de atención (`admin_empresa` o `encargado_tickets`); si no, 422.
 - **Datos de empresa:** nombre e industria solo los cambia el admin de la empresa o el superadmin (403 al encargado del agente, salvo que reenvíe el mismo valor).
-- **El widget no usa JWT:** el chat público (`/publico/{slug}`, que usan la página `/chat/{slug}` y el widget embebible) no exige login; la empresa sale del slug de la ruta, solo responde con el agente `activo` y solo expone datos de marca. `POST /chat` sigue autenticándose con la API key (`X-API-Key`).
+- **El widget no usa JWT:** el chat público (`/publico/{slug}`, que usan la página `/chat/{slug}` y el widget embebible) no exige login; la empresa sale del slug de la ruta, solo responde con el agente `activo` y solo expone datos de marca. Leer una conversación (`/publico/{slug}/conversaciones/{id}`) exige su UUID y que sea de la empresa del slug (404 si no); no expone al agente asignado. `POST /chat` sigue autenticándose con la API key (`X-API-Key`).
 - **En el front** el menú muestra solo las vistas del rol (`src/auth/permissions.ts`), pero es solo comodidad: la regla real está en el backend.

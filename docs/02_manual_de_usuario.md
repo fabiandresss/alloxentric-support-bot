@@ -46,7 +46,7 @@ Vista de un **encargado del agente IA** (empresas y agentes, sin consola ni usua
 Cada tarjeta es un caso que el bot derivó: empresa, número de ticket (`COR-xxxx`), estado, la consulta del cliente, el motivo de la
 derivación y el tiempo transcurrido.
 
-- Filtra por estado (**Urgente**, **Pendiente**, **Resuelto**) con los botones de arriba.
+- Filtra por estado (**Urgente**, **Pendiente**, **Esperando cliente**, **Cerrado** y, para el admin, **Escalado**) con los botones de arriba.
 - Filtra por empresa con el selector **Filtro** de la barra superior.
 - Busca por número de ticket, cliente o texto en el buscador.
 - La pantalla se actualiza sola cada 15 segundos.
@@ -60,9 +60,15 @@ Pulsa **Atender** en la tarjeta.
 1. A la izquierda lees la **transcripción completa** de la conversación con el bot, incluidas las fuentes que usó.
 2. A la derecha hay una **sugerencia de respuesta** con su nivel de confianza y el documento base.
    Con **Usar esta respuesta** la copias al cuadro de respuesta.
-3. Edita el texto si hace falta y pulsa **Enviar respuesta**: el mensaje queda en la transcripción y el ticket pasa a **Resuelto**.
-4. Otras acciones de la parte superior: **Marcar como resuelto** (sin escribir respuesta), **Escalar** (sube el caso a Urgente)
-   y el botón de agente para **reasignar** el caso a otra persona.
+3. Edita el texto si hace falta y pulsa **Enviar respuesta y encuesta**: el mensaje queda en la transcripción, el cliente recibe la
+   pregunta **«¿se resolvió tu consulta?»** y el ticket pasa a **Esperando cliente**.
+4. **El encargado no cierra el ticket; lo cierra el cliente:**
+   - Si responde **Sí**, el ticket queda **Cerrado** y no se vuelve a abrir (si escribe de nuevo, se crea uno nuevo).
+   - Si responde **No**, el ticket pasa a **Escalado**: sale de tu cola y lo gestiona el admin de la empresa fuera del chat.
+   - Si no responde en 72 horas, se cierra solo.
+   - Si escribe en vez de contestar la encuesta, el ticket vuelve a tu cola como **Pendiente**.
+5. Otras acciones de la parte superior: **Marcar urgente** (sube el caso a Urgente) y el botón de agente para **reasignar** el caso
+   a un usuario de la empresa. Un ticket **Escalado** lo ve y lo cierra el admin con **Cerrar ticket (ya gestionado)**.
 
 > La sugerencia de respuesta es un borrador provisorio; cuando el motor RAG real esté integrado la generará DeepSeek.
 
@@ -148,6 +154,13 @@ Si no encuentra información suficiente, o si el usuario lo pide con **¿Prefier
 deriva el caso y se crea un ticket automáticamente.
 
 ![Derivación](img/09_widget_derivacion.png)
+
+### Ver la respuesta del agente
+
+En el chat público (`/chat/{slug}`) y en el widget embebido, el cliente **ve la respuesta del agente humano en la misma ventana**, sin
+recargar: tras la derivación la conversación se actualiza sola cada pocos segundos. Junto a la respuesta aparece la **encuesta**
+«¿Se resolvió tu consulta?» con **Sí, se resolvió** (cierra el caso) y **No, sigue sin resolverse** (lo escala a la gestión de la empresa).
+Con el caso terminado, el chat se desactiva y ofrece **Iniciar una nueva consulta**. Si recarga la página, recupera la conversación. Con el widget cerrado, un **punto rojo** sobre el botón avisa que hay una respuesta nueva.
 
 El botón **Ver este ticket en la Consola de Soporte** lleva a la consola de los agentes, donde el caso ya aparece.
 

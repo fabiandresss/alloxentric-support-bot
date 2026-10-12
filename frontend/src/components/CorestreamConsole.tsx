@@ -19,6 +19,7 @@ interface CorestreamConsoleProps {
   tickets: Ticket[];
   agents: AssignableAgent[];
   currentUserName: string;
+  canManageEscalated: boolean; // admin de la empresa / superadmin: ven y cierran los tickets escalados
   metrics?: SystemMetrics;
   onUpdateTicketStatus: (ticketId: string, status: Ticket['status']) => void;
   onSendAgentReply: (ticketId: string, text: string) => void;
@@ -32,6 +33,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
   tickets,
   agents,
   currentUserName,
+  canManageEscalated,
   onUpdateTicketStatus,
   onSendAgentReply,
   onReassignAgent,
@@ -39,7 +41,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
   searchQuery,
   onResetFilters,
 }) => {
-  const [statusFilter, setStatusFilter] = useState<'all' | 'urgente' | 'pendiente' | 'resuelto'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'urgente' | 'pendiente' | 'esperando_cliente' | 'cerrado' | 'escalado'>('all');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
 
   // Filter logic
@@ -72,11 +74,25 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
 
   const getStatusBadge = (status: Ticket['status']) => {
     switch (status) {
-      case 'resuelto':
+      case 'cerrado':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30">
             <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]"></span>
-            Resuelto
+            Cerrado
+          </span>
+        );
+      case 'esperando_cliente':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#4F46E5]/10 text-[#4F46E5] border border-[#4F46E5]/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4F46E5]"></span>
+            Esperando cliente
+          </span>
+        );
+      case 'escalado':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#7C3AED]"></span>
+            Escalado a gestión
           </span>
         );
       case 'urgente':
@@ -129,7 +145,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
             <Filter className="w-3.5 h-3.5 text-[#4F46E5]" />
             Estado:
           </span>
-          {(['all', 'urgente', 'pendiente', 'resuelto'] as const).map((st) => (
+          {(['all', 'urgente', 'pendiente', 'esperando_cliente', 'cerrado', ...(canManageEscalated ? (['escalado'] as const) : [])] as const).map((st) => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
@@ -139,7 +155,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
                   : 'bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E2E8F0] hover:text-[#1E1B4B]'
               }`}
             >
-              {st === 'all' ? 'Todos' : st.charAt(0).toUpperCase() + st.slice(1)}
+              {st === 'all' ? 'Todos' : st === 'esperando_cliente' ? 'Esperando cliente' : st.charAt(0).toUpperCase() + st.slice(1)}
               {st === 'urgente' && (
                 <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-[#EF4444]/20 text-[#EF4444] font-bold">
                   {tickets.filter((t) => t.status === 'urgente').length}
@@ -259,6 +275,8 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
         <TicketDetailModal
           ticket={selectedTicket}
           agents={agents.filter((a) => a.companyId === selectedTicket.companyId)}
+          currentUserName={currentUserName}
+          canManageEscalated={canManageEscalated}
           onClose={() => setSelectedTicket(null)}
           onStatusChange={(id, newStatus) => {
             onUpdateTicketStatus(id, newStatus);

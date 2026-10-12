@@ -12,6 +12,7 @@ import {
   Role,
   TokenResponse,
   PublicAgent,
+  PublicConversation,
   AssignableAgent,
   Analytics,
 } from '../types';
@@ -164,6 +165,17 @@ export const getPublicAgent = (slug: string) =>
   request<PublicAgent>(`/publico/${encodeURIComponent(slug)}`);
 export const sendPublicChat = (slug: string, p: ChatPayload) =>
   request<ChatResponse>(`/publico/${encodeURIComponent(slug)}/chat`, json('POST', p));
+
+/** El cliente responde la encuesta de resolución: true = se resolvió (cierra), false = no (escala a gestión). */
+export const answerSurvey = (slug: string, conversationId: string, resolved: boolean) =>
+  request<PublicConversation>(
+    `/publico/${encodeURIComponent(slug)}/conversaciones/${encodeURIComponent(conversationId)}/encuesta`,
+    json('POST', { resolved })
+  );
+export const getPublicConversation = (slug: string, conversationId: string) =>
+  request<PublicConversation>(
+    `/publico/${encodeURIComponent(slug)}/conversaciones/${encodeURIComponent(conversationId)}`
+  );
 
 // ---------- autenticación y usuarios ----------
 export const login = async (email: string, password: string) => {
