@@ -17,5 +17,8 @@ except Exception:  # sin tzdata
     from datetime import timezone
     TZ = timezone.utc
 
+# Horas que se espera la respuesta a la encuesta de resolución; vencido el plazo el ticket se cierra solo
+ENCUESTA_HORAS = int(os.getenv("ENCUESTA_HORAS", "72"))
+
 JWT_SECRET = os.getenv("JWT_SECRET", "cambia-este-secreto-largo-en-el-archivo-env-32+")
 JWT_HORAS = int(os.getenv("JWT_HORAS", "8"))

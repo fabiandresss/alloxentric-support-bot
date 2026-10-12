@@ -7,6 +7,7 @@ from app import models as m, schemas as s
 from app.config import TZ
 from app.db import get_db
 from app.deps import requiere_rol, SUPERADMIN, TODOS
+from app.services import ciclo_ticket
 from app.utils import MESES
 
 router = APIRouter(tags=["metricas"])
@@ -17,6 +18,7 @@ def metricas(u: m.Usuario = Depends(requiere_rol(*TODOS)), db: Session = Depends
     """Superadmin: métricas globales. Resto: solo las de su empresa."""
     def sc(col):  # filtro de tenant
         return [col == u.empresa_id] if u.rol != SUPERADMIN else []
+    ciclo_ticket.cerrar_vencidos(db, None if u.rol == SUPERADMIN else u.empresa_id)
     inicio_hoy = datetime.now(TZ).replace(hour=0, minute=0, second=0, microsecond=0)
     T, C = m.Ticket, m.Conversacion
     abiertos = db.scalar(select(func.count()).select_from(T).where(T.estado.in_(["pendiente", "urgente"]), *sc(T.empresa_id))) or 0
@@ -24,8 +26,9 @@ def metricas(u: m.Usuario = Depends(requiere_rol(*TODOS)), db: Session = Depends
     total = db.scalar(select(func.count()).select_from(C).where(C.iniciada_en >= inicio_hoy, *sc(C.empresa_id))) or 0
     derivadas = db.scalar(select(func.count()).select_from(C).where(
         C.iniciada_en >= inicio_hoy, C.derivada.is_(True), *sc(C.empresa_id))) or 0
-    seg = db.scalar(select(func.avg(func.extract("epoch", T.actualizado_en - T.creado_en)))
-                    .where(T.estado == "resuelto", *sc(T.empresa_id)))
+    # tiempo hasta la respuesta que resolvió (envío de la encuesta), solo de tickets cerrados
+    seg = db.scalar(select(func.avg(func.extract("epoch", T.encuesta_enviada_en - T.creado_en)))
+                    .where(T.estado == "cerrado", T.encuesta_enviada_en.is_not(None), *sc(T.empresa_id)))
     prom = "—" if seg is None else f"{int(seg) // 60}m {int(seg) % 60:02d}s"
     resueltas = total - derivadas
     return s.SystemMetrics(
@@ -51,6 +54,7 @@ def analitica(dias: int = Query(14, ge=1, le=90), u: m.Usuario = Depends(requier
     Una conversación cuenta como derivada si generó ticket; el resto la resolvió el bot.
     Se agrega en Python (no en SQL) para agrupar por día en la zona horaria local.
     """
+    ciclo_ticket.cerrar_vencidos(db, None if u.rol == SUPERADMIN else u.empresa_id)
     q = select(m.Empresa).order_by(m.Empresa.creada_en)
     if u.rol != SUPERADMIN:
         q = q.where(m.Empresa.id == u.empresa_id)             # <- aislamiento por tenant
@@ -93,9 +97,9 @@ def analitica(dias: int = Query(14, ge=1, le=90), u: m.Usuario = Depends(requier
     bot = sum(c.bot_resolved for c in companies)
     hum = sum(c.escalated for c in companies)
     total = bot + hum
-    seg = db.scalar(select(func.avg(func.extract("epoch", m.Ticket.actualizado_en - m.Ticket.creado_en)))
-                    .where(m.Ticket.empresa_id.in_(ids), m.Ticket.estado == "resuelto",
-                           m.Ticket.creado_en >= inicio))
+    seg = db.scalar(select(func.avg(func.extract("epoch", m.Ticket.encuesta_enviada_en - m.Ticket.creado_en)))
+                    .where(m.Ticket.empresa_id.in_(ids), m.Ticket.estado == "cerrado",
+                           m.Ticket.encuesta_enviada_en.is_not(None), m.Ticket.creado_en >= inicio))
     return s.Analytics(
         days=dias, total_conversations=total, bot_resolved=bot, human_escalated=hum,
         bot_rate=_pct(bot, total), escalation_rate=_pct(hum, total),
