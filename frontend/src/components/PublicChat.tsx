@@ -1,7 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Send, Bot, User, Headphones, X, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
-import { ChatMessage, PublicAgent } from '../types';
-import { getPublicAgent, sendPublicChat } from '../api/client';
+import { ChatMessage, PublicAgent, TicketStatus } from '../types';
+import { getPublicAgent, getPublicConversation, sendPublicChat } from '../api/client';
+
+const POLL_MS = 5000; // cada cuánto se consulta si el agente humano respondió
+const storeKey = (slug: string) => `alloxentric_chat_${slug}`;
+
+/** La conversación se recuerda en este navegador para que el cliente vuelva y vea la respuesta. */
+const readStored = (slug: string): string | null => {
+  try {
+    return localStorage.getItem(storeKey(slug));
+  } catch {
+    return null;
+  }
+};
+const writeStored = (slug: string, id: string | null) => {
+  try {
+    if (id) localStorage.setItem(storeKey(slug), id);
+    else localStorage.removeItem(storeKey(slug));
+  } catch {
+    /* almacenamiento no disponible: la conversación vive solo en memoria */
+  }
+};
 
 /**
  * Página pública de chat (RF-29). Se abre en /chat/{slug} y también es lo que carga el iframe
@@ -14,6 +34,8 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [ticketNumber, setTicketNumber] = useState<string | undefined>();
+  const [ticketStatus, setTicketStatus] = useState<TicketStatus | undefined>();
+  const agentMsgs = useRef(0); // respuestas del agente ya vistas, para avisar solo las nuevas
   const [derived, setDerived] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -30,6 +52,49 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
+  // Mezcla lo que dice el servidor con lo que ya se ve (por id) y avisa al widget si llegó algo del agente.
+  const applyServer = (c: { messages: ChatMessage[]; derived: boolean; ticketNumber?: string; ticketStatus?: TicketStatus }) => {
+    setMessages((prev) => {
+      const vistos = new Set(prev.map((m) => m.id));
+      const nuevos = c.messages.filter((m) => !vistos.has(m.id));
+      return nuevos.length ? [...prev, ...nuevos] : prev;
+    });
+    if (c.derived) setDerived(true);
+    if (c.ticketNumber) setTicketNumber(c.ticketNumber);
+    setTicketStatus(c.ticketStatus);
+    const delAgente = c.messages.filter((m) => m.sender === 'agent').length;
+    if (delAgente > agentMsgs.current) {
+      if (embed) window.parent.postMessage({ type: 'alloxentric:unread' }, '*'); // el widget muestra un punto si está cerrado
+      agentMsgs.current = delAgente;
+    }
+  };
+
+  // Al volver a la página: recupera la conversación guardada (si la hay)
+  useEffect(() => {
+    const id = readStored(slug);
+    if (!id) return;
+    getPublicConversation(slug, id)
+      .then((c) => {
+        setConversationId(c.conversationId);
+        agentMsgs.current = c.messages.filter((m) => m.sender === 'agent').length;
+        setMessages(c.messages);
+        applyServer(c);
+      })
+      .catch(() => writeStored(slug, null)); // ya no existe: se empieza de cero
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  // Con el caso derivado, se consulta periódicamente si el agente respondió (solo con la pestaña visible)
+  useEffect(() => {
+    if (!conversationId || !derived) return;
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      getPublicConversation(slug, conversationId).then(applyServer).catch(() => undefined);
+    }, POLL_MS);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, conversationId, derived, embed]);
+
   const send = async (message: string, escalate = false) => {
     if (!message.trim() || sending) return;
     setError(null);
@@ -37,6 +102,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
     try {
       const res = await sendPublicChat(slug, { message, conversationId, escalate, customerName: 'Visitante web' });
       setConversationId(res.conversationId);
+      writeStored(slug, res.conversationId);
       setMessages((prev) => [...prev, ...res.messages]);
       if (res.derived) {
         setDerived(true);
@@ -122,8 +188,10 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
           <div className="p-3 rounded-xl bg-[#F0FDFA] border border-[#CCFBF1] text-xs text-[#0F766E] flex gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
-              Derivamos tu consulta a un agente humano{ticketNumber ? <> (ticket <b>{ticketNumber}</b>)</> : null}.
-              Te responderán a la brevedad.
+              Derivamos tu consulta a un agente humano{ticketNumber ? <> (ticket <b>{ticketNumber}</b>)</> : null}.{' '}
+              {ticketStatus === 'resuelto'
+                ? 'Caso resuelto: revisa la respuesta del agente más arriba.'
+                : 'Te responderán aquí mismo; esta ventana se actualiza sola.'}
             </p>
           </div>
         )}

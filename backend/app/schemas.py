@@ -127,6 +127,15 @@ class ChatResponse(CamelModel):
     ticket_number: str | None = None
 
 
+class PublicConversation(CamelModel):
+    """Estado de una conversación pública: el cliente la usa para ver las respuestas del agente humano."""
+    conversation_id: str
+    messages: list[ChatMessage]
+    derived: bool
+    ticket_number: str | None = None
+    ticket_status: TicketStatus | None = None
+
+
 # ---------- entrada ----------
 class CompanyCreate(CamelModel):
     name: str = Field(min_length=1, max_length=120)

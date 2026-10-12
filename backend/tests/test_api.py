@@ -226,3 +226,35 @@ def test_chat_publico_aislamiento(anon, client, crear_empresa):
     assert "ZETA9999" not in str(rb) and rb["derived"] is True
     r = anon.post("/publico/empresa-b/chat", json={"message": "hola", "conversationId": ra["conversationId"]})
     assert r.status_code == 404
+
+
+def test_chat_publico_el_cliente_ve_la_respuesta_del_agente(anon, client, crear_empresa):
+    """Tras la derivación, el cliente puede leer la respuesta del agente humano con su conversationId."""
+    crear_empresa("Acme"), crear_empresa("Beta")
+    activar(client, "acme")
+    r = anon.post("/publico/acme/chat", json={"message": "mi tarjeta fue clonada en el extranjero"}).json()
+    cid = r["conversationId"]
+    assert r["derived"] is True
+    # antes de que el agente responda: solo el mensaje del usuario y el aviso del bot
+    c = anon.get(f"/publico/acme/conversaciones/{cid}").json()
+    assert c["derived"] is True and c["ticketNumber"] == r["ticketNumber"] and c["ticketStatus"] == "pendiente"
+    assert [x["sender"] for x in c["messages"]] == ["user", "bot"]
+    # el agente responde desde la consola
+    t = client.get("/tickets").json()[0]
+    client.post(f"/tickets/{t['id']}/respuesta", json={"text": "Ya bloqueamos tu tarjeta."})
+    c = anon.get(f"/publico/acme/conversaciones/{cid}").json()
+    assert c["ticketStatus"] == "resuelto"
+    assert c["messages"][-1]["sender"] == "agent" and c["messages"][-1]["message"] == "Ya bloqueamos tu tarjeta."
+    # no se filtra al agente asignado ni datos internos del ticket
+    assert set(c) == {"conversationId", "messages", "derived", "ticketNumber", "ticketStatus"}
+
+
+def test_chat_publico_conversacion_aislada_por_empresa(anon, client, crear_empresa):
+    crear_empresa("Acme"), crear_empresa("Beta")
+    activar(client, "acme")
+    cid = anon.post("/publico/acme/chat", json={"message": "ayuda humano"}).json()["conversationId"]
+    assert anon.get(f"/publico/acme/conversaciones/{cid}").status_code == 200
+    assert anon.get(f"/publico/beta/conversaciones/{cid}").status_code == 404      # otra empresa
+    assert anon.get("/publico/acme/conversaciones/no-es-uuid").status_code == 404
+    assert anon.get("/publico/acme/conversaciones/00000000-0000-0000-0000-000000000000").status_code == 404
+    assert anon.get(f"/publico/no-existe/conversaciones/{cid}").status_code == 404

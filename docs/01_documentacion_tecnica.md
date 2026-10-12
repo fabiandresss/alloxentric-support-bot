@@ -93,6 +93,9 @@ Decisiones:
 3. Si la confianza supera el **umbral de la empresa** (`umbral_rag`) responde con la fuente; si no, o si el usuario pide un humano,
    se crea el ticket, se guarda una sugerencia de respuesta y la conversación queda marcada como derivada.
 4. Una vez derivada, los mensajes siguientes del usuario se guardan pero el bot ya no responde: responde el agente humano desde la consola.
+5. El cliente ve esa respuesta en el mismo chat: la página `/chat/{slug}` (y el iframe del widget) consulta `GET /publico/{slug}/conversaciones/{id}`
+   cada 5 s mientras la pestaña está visible. El `conversationId` se guarda en el navegador para recuperar la conversación al recargar,
+   y el widget cerrado muestra un punto rojo cuando llega una respuesta.
 
 ### 6.2 Ingesta de documentos
 
@@ -121,6 +124,7 @@ Documentación interactiva: `http://localhost:8000/docs` (botón *Authorize* par
 | `POST /chat` (header `X-API-Key`) | Integraciones propias (exige agente `activo`) |
 | `GET /publico/{slug}` | Marca y estado del agente para pintar el chat público (sin documentos ni claves) |
 | `POST /publico/{slug}/chat` | Chat público: página `/chat/{slug}` y widget embebible (exige agente `activo`) |
+| `GET /publico/{slug}/conversaciones/{id}` | Transcripción y estado del ticket de una conversación (el cliente ve la respuesta del agente); 404 si no es de esa empresa |
 | `POST /empresas/{slug}/probar` | Simulador del panel (sin API key) |
 | `GET /metricas` | Tickets abiertos/urgentes, conversaciones de hoy, tasa de resolución del bot |
 | `GET /metricas/analitica?dias=7\|14\|30` | Vista Analítica: totales, volumen diario y comparativa por empresa (cada rol ve solo lo suyo) |
@@ -155,8 +159,8 @@ Ver `README.md` en la raíz del proyecto (pasos con Docker Compose, Alembic, see
 
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
-| API (pytest, Postgres real) | `backend/tests/test_api.py` (13) y `test_roles.py` (28) — 41 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
-| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 37 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta** |
+| API (pytest, Postgres real) | `backend/tests/test_api.py` (15) y `test_roles.py` (28) — 43 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
+| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 43 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta; el cliente ve la respuesta del agente (sin recargar y tras recargar) y el widget cerrado avisa** |
 | Migración | manual | `alembic upgrade head`, `alembic check` (sin diferencias con los modelos) y `downgrade base` sobre un Postgres real |
 
 Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían las tablas.
@@ -191,6 +195,8 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | Integración real con Corestream (depende de su documentación) | Fabián | S11–S12 |
 | Celery + Redis para la ingesta | Vicente | S10–S12 |
 | Vista Analítica con datos reales | Fabián | hecho (`GET /metricas/analitica`) |
+| Límite de peticiones (rate limiting) en los endpoints públicos | Fabián | por definir |
+| Reabrir el ticket si el cliente escribe después de que fue resuelto (hoy el mensaje se guarda pero el ticket sigue `resuelto`) | Fabián | por definir |
 
 **Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de una sola persona y tiene 4 semanas para el motor.
 El contrato del motor (`responder` y `sugerir_respuesta` en `services/motor_rag.py`) ya está fijo, así que el front y la API no

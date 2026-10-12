@@ -136,7 +136,7 @@ with sync_playwright() as p:
     pg.screenshot(path='shot_widget_embebido.png')
     fr.get_by_role('button', name='Cerrar chat').click(); pg.wait_for_timeout(500)
     ok(not pg.locator('iframe').is_visible(),'F8 el botón cerrar del iframe oculta el chat')
-    srv.shutdown()
+    srv.shutdown(); srv.server_close()
 
     # G) roles afinados: analítica real por rol, asignación a usuarios reales, remitente autenticado, campos de empresa
     login(SUPER, SUPER_PW)
@@ -167,4 +167,43 @@ with sync_playwright() as p:
     pg.get_by_text('Publicar agente').first.click(); pg.wait_for_timeout(1500)
     v1 = api('/empresas/wellq')
     ok(int(v1['version'][1:].split('.')[0])==int(v0['version'][1:].split('.')[0])+1 and v1['name']==v0['name'] and pg.locator('text=No se pudo guardar').count()==0,'G6 el encargado del agente publica sin tocar nombre ni industria de la empresa')
+
+    # H) el cliente ve la respuesta del agente humano en el chat público (sin recargar), la conversación
+    #    se recupera al recargar y el widget cerrado avisa con un punto
+    def responder_como_agente(marca, texto):
+        t = [x for x in api('/tickets') if marca in x['userQueryExcerpt']][0]
+        rq = urllib.request.Request('http://localhost:8000/tickets/%s/respuesta' % t['id'], json.dumps({'text': texto}).encode(),
+                                    {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN})
+        urllib.request.urlopen(rq).read()
+        return t
+    pg.goto('http://localhost:3000/chat/wellq'); pg.evaluate('localStorage.clear()'); pg.reload(); pg.wait_for_timeout(1200)
+    q = pg.get_by_placeholder('Escribe tu consulta…')
+    q.fill('Perdi mi tarjeta H-prueba urgente'); q.press('Enter'); pg.wait_for_timeout(1800)
+    ok(pg.locator('text=Derivamos tu consulta').count()>0 and pg.locator('text=esta ventana se actualiza sola').count()>0,'H1 tras derivar, avisa que la respuesta llegará a esta ventana')
+    responder_como_agente('H-prueba', 'Ya revisamos tu caso H-respuesta')
+    try:
+        pg.wait_for_selector('text=Ya revisamos tu caso H-respuesta', timeout=12000); visto = True
+    except Exception:
+        visto = False
+    ok(visto and pg.locator('text=Caso resuelto').count()>0,'H2 el cliente ve la respuesta del agente sin recargar y el caso figura resuelto')
+    pg.screenshot(path='shot_respuesta_agente.png')
+    pg.reload(); pg.wait_for_timeout(1500)
+    ok(pg.locator('text=Ya revisamos tu caso H-respuesta').count()>0 and pg.locator('text=Perdi mi tarjeta H-prueba').count()>0,'H3 al recargar se recupera la conversación completa')
+    pg.evaluate("localStorage.setItem('alloxentric_chat_wellq','00000000-0000-0000-0000-000000000000')"); pg.reload(); pg.wait_for_timeout(1500)
+    ok(pg.locator('text=Ya revisamos tu caso').count()==0 and pg.evaluate("localStorage.getItem('alloxentric_chat_wellq')") is None,'H4 una conversación inexistente se descarta y el chat empieza limpio')
+    srv2 = http.server.HTTPServer(('127.0.0.1', 3100), Host); threading.Thread(target=srv2.serve_forever, daemon=True).start()
+    pg.goto('http://127.0.0.1:3100/'); pg.wait_for_timeout(1000)
+    pg.get_by_role('button', name='Abrir chat con Soporte').click(); pg.wait_for_timeout(1500)
+    fr = pg.frame_locator('iframe[title="Chat de soporte"]')
+    fr.get_by_placeholder('Escribe tu consulta…').fill('Perdi mi tarjeta H-badge urgente'); fr.get_by_role('button', name='Enviar').click(); pg.wait_for_timeout(1800)
+    fr.get_by_role('button', name='Cerrar chat').click(); pg.wait_for_timeout(500)
+    responder_como_agente('H-badge', 'Respuesta para el badge')
+    try:
+        pg.wait_for_selector('button[data-unread="1"]', timeout=12000); badge = True
+    except Exception:
+        badge = False
+    ok(badge,'H5 el widget cerrado muestra un aviso cuando el agente responde')
+    pg.locator('button[data-unread="1"]').click(); pg.wait_for_timeout(800)
+    ok(fr.locator('text=Respuesta para el badge').count()>0 and pg.locator('button[data-unread="1"]').count()==0,'H6 al abrir el widget el aviso desaparece y se ve la respuesta')
+    srv2.shutdown(); srv2.server_close()
     b.close()
