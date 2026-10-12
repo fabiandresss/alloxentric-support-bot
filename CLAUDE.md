@@ -38,8 +38,8 @@ alembic upgrade head                                             # esquema + ext
 python seed.py [--reset]                                         # 5 empresas, 8 tickets, usuarios demo (imprime keys)
 uvicorn app.main:app --reload                                    # http://localhost:8000/docs
 cd ../frontend && cp .env.example .env && npm install && npm run dev   # http://localhost:3000
-cd ../backend && pytest -q                                       # 33 pruebas (Postgres temporal automático)
-python ../tests_e2e/test_flujos_navegador.py                     # 23 verificaciones; BD recién sembrada y todo corriendo
+cd ../backend && pytest -q                                       # 41 pruebas (Postgres temporal automático)
+python ../tests_e2e/test_flujos_navegador.py                     # 37 verificaciones; BD recién sembrada y todo corriendo
 cd ../frontend && npx tsc --noEmit && npm run build              # verificación de tipos y build
 alembic revision --autogenerate -m "desc"                        # tras cambiar models.py; REVISAR el archivo generado
 ```
@@ -59,12 +59,14 @@ backend/app/
   mappers.py         ORM → schemas (toda la traducción BD español ↔ front camelCase vive aquí)
   deps.py            tenant por API key, login (JWT), requiere_rol(), verificar_tenant(), empresa_con_rol()
   security.py        hash de claves y JWT
-  routers/           auth (login + usuarios), empresas, tickets, documentos, chat, metricas
+  routers/           auth (login + usuarios), empresas, tickets, documentos, chat, publico (chat por slug), metricas
   services/          chat (orquesta), motor_rag (PROVISORIO), ingesta, derivacion (mock Corestream)
-backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario
+backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario
 backend/seed.py · seed_data.json · crear_superadmin.py · tests/ (test_api.py, test_roles.py, conftest.py)
 frontend/src/api/client.ts     ÚNICO lugar con llamadas HTTP (+ sesión JWT en sessionStorage)
 frontend/src/auth/permissions.ts   vistas por rol (espejo de la matriz; la regla real está en el backend)
+frontend/public/widget.min.js    widget embebible (botón + iframe a /chat/{slug}?embed=1)
+frontend/src/components/PublicChat.tsx   página pública /chat/{slug} (la enruta main.tsx)
 frontend/src/App.tsx           Dashboard: carga por rol, polling de 15 s, handlers que llaman a la API
 docs/                          documentación técnica, manual, MATRIZ_PERMISOS.md, MAPEO_FRONTEND.md, diagramas Mermaid, capturas
 ```
@@ -72,8 +74,10 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 ## 5. Reglas que NO se rompen
 
 1. **Multi-tenant (RNF-01):** toda tabla salvo `empresas` lleva `empresa_id`, y **toda consulta de datos de una empresa filtra por él**.
-   El tenant sale de la API key (`X-API-Key`, widget) o del usuario autenticado, **nunca** del cuerpo/parámetros del cliente.
-   Una conversación de la empresa A no se puede continuar con la key de B (404). Cada cambio que toque datos necesita su prueba de aislamiento.
+   El tenant sale de la API key (`X-API-Key`, `POST /chat`) o del usuario autenticado, **nunca** del cuerpo/parámetros del cliente.
+   Única excepción (RF-29): el chat público `GET /publico/{slug}` y `POST /publico/{slug}/chat` toma el tenant del slug de la ruta
+   (es el mismo que expone `webChatUrl`), responde solo con el agente `activo` y solo expone datos de marca.
+   Una conversación de la empresa A no se puede continuar con la key de B ni por el slug de B (404). Cada cambio que toque datos necesita su prueba de aislamiento.
 2. **Roles (RF-28/RF-30):** 4 roles — `superadmin` (sin empresa), `admin_empresa`, `encargado_tickets`, `encargado_agente`.
    Cada endpoint nuevo declara explícitamente qué roles acepta (`requiere_rol(...)` o `empresa_con_rol(...)`) y, si accede por id,
    llama a `verificar_tenant`. Matriz en `docs/MATRIZ_PERMISOS.md`; si la cambias, actualiza la matriz, `tests/test_roles.py` y `frontend/src/auth/permissions.ts`.
@@ -102,11 +106,11 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 ## 7. Estado actual (semana 9)
 
 **Hecho y probado:** modelo de datos + migraciones; API de empresas, usuarios, documentos, tickets, chat y métricas; ingesta de TXT/PDF/DOCX
-(extracción + fragmentación); chat con derivación a ticket; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios;
+(extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`);
 documentación técnica, manual y diagramas.
 
 **Provisorio:** `motor_rag.py` (búsqueda por palabras clave sobre los fragmentos, sin embeddings ni LLM); Corestream es un mock (`CORESTREAM_MOCK=true`);
-la ingesta usa `BackgroundTasks`; la vista **Analítica** usa datos de ejemplo del prototipo; los documentos del seed no tienen archivo ni fragmentos reales.
+la ingesta usa `BackgroundTasks`; los documentos del seed no tienen archivo ni fragmentos reales.
 
 ## 8. Pendiente (en orden de dependencia)
 
@@ -115,11 +119,9 @@ la ingesta usa `BackgroundTasks`; la vista **Analítica** usa datos de ejemplo d
 | 1 | Embeddings con sentence-transformers y guardado en `fragmentos_embeddings` (hoy se guardan fragmentos sin vector) | `services/ingesta.py::generar_embeddings` | Vicente |
 | 2 | Motor RAG real: búsqueda pgvector filtrada por `empresa_id`, umbral `empresas.umbral_rag`, DeepSeek, clasificador de intención (responder vs. derivar), sugerencia IA del ticket | `services/motor_rag.py` | Vicente |
 | 3 | Celery + Redis para la ingesta | `services/ingesta.py`, `docker-compose.yml` | Vicente |
-| 4 | Widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29); el snippet del panel apunta a un script que aún no existe | front / nuevo | Fabián |
-| 5 | Corestream real (`httpx`) cuando exista su documentación; mantener el mock | `services/derivacion.py` | Fabián |
-| 6 | Analítica con datos reales (por empresa, según rol) | `AnalyticsView.tsx` + endpoint | Fabián |
-| 7 | Validar el entorno en ambas notebooks (RF-18…23) | README | Ambos |
-| 8 | Pruebas de calidad del RAG (preguntas con/sin respaldo), pruebas integrales, ajustes y documentación final | `tests/`, `docs/` | Ambos |
+| 4 | Corestream real (`httpx`) cuando exista su documentación; mantener el mock | `services/derivacion.py` | Fabián |
+| 5 | Validar el entorno en ambas notebooks (RF-18…23) | README | Ambos |
+| 6 | Pruebas de calidad del RAG (preguntas con/sin respaldo), pruebas integrales, ajustes y documentación final | `tests/`, `docs/` | Ambos |
 
 Al terminar una tarea: actualizar `README.md` (sección "Qué es provisorio"), `docs/01_documentacion_tecnica.md` (trazabilidad y pendientes) y avisar a Fabián para actualizar los Excel de Requerimientos y la Carta Gantt (RF-xx: Hecho / En curso / Pendiente).
 

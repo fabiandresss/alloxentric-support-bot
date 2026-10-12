@@ -79,7 +79,7 @@ Decisiones:
   y desordenaba la transcripción (bug encontrado en las pruebas).
 - **Usuarios y roles:** `usuarios.rol` ∈ {`superadmin`, `admin_empresa`, `encargado_tickets`, `encargado_agente`}. `empresa_id` es nulo solo
   para el superadmin; dos `CHECK` en la BD lo garantizan. Las claves se guardan con PBKDF2-SHA256 + sal. Ver `MATRIZ_PERMISOS.md`.
-- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario).
+- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario; `0003` el agente asignado a un ticket pasa de texto libre a un usuario).
 
 ## 6. Flujos principales
 
@@ -87,7 +87,8 @@ Decisiones:
 
 ![Flujo de chat](diagramas/flujo_chat.png)
 
-1. El widget envía `POST /chat` con la API key de la empresa; la empresa se deduce de la key (el cliente nunca manda `empresa_id`).
+1. El widget (un iframe a `/chat/{slug}`) envía `POST /publico/{slug}/chat`; la empresa se deduce del slug de la ruta (el cliente nunca manda `empresa_id`).
+   Las integraciones propias pueden usar `POST /chat` con la API key de la empresa.
 2. El motor busca fragmentos **solo de esa empresa** y calcula una confianza.
 3. Si la confianza supera el **umbral de la empresa** (`umbral_rag`) responde con la fuente; si no, o si el usuario pide un humano,
    se crea el ticket, se guarda una sugerencia de respuesta y la conversación queda marcada como derivada.
@@ -103,7 +104,7 @@ Decisiones:
 ## 7. API
 
 Documentación interactiva: `http://localhost:8000/docs` (botón *Authorize* para probar con un token). Todas las rutas, salvo `/health`,
-`/auth/login` y `/chat` (que usa API key), exigen `Authorization: Bearer <token>` y un rol permitido (ver `MATRIZ_PERMISOS.md`). Las respuestas usan camelCase y la misma forma que
+`/auth/login`, `/chat` (API key) y `/publico/*` (chat público por slug), exigen `Authorization: Bearer <token>` y un rol permitido (ver `MATRIZ_PERMISOS.md`). Las respuestas usan camelCase y la misma forma que
 `frontend/src/types/index.ts`.
 
 | Método y ruta | Descripción |
@@ -117,9 +118,13 @@ Documentación interactiva: `http://localhost:8000/docs` (botón *Authorize* par
 | `DELETE /documentos/{id}` · `GET /documentos/{id}/fragmentos` | Borrar / ver fragmentos |
 | `GET /tickets?company_id=&status=` · `GET/PATCH /tickets/{id}` | Cola de la consola; cambiar estado o asignar agente |
 | `POST /tickets/{id}/respuesta` | El agente responde; el ticket pasa a `resuelto` |
-| `POST /chat` (header `X-API-Key`) | Widget embebido (exige agente `activo`) |
+| `POST /chat` (header `X-API-Key`) | Integraciones propias (exige agente `activo`) |
+| `GET /publico/{slug}` | Marca y estado del agente para pintar el chat público (sin documentos ni claves) |
+| `POST /publico/{slug}/chat` | Chat público: página `/chat/{slug}` y widget embebible (exige agente `activo`) |
 | `POST /empresas/{slug}/probar` | Simulador del panel (sin API key) |
 | `GET /metricas` | Tickets abiertos/urgentes, conversaciones de hoy, tasa de resolución del bot |
+| `GET /metricas/analitica?dias=7\|14\|30` | Vista Analítica: totales, volumen diario y comparativa por empresa (cada rol ve solo lo suyo) |
+| `GET /tickets/agentes` | Usuarios activos (admin o encargado de tickets) a los que se puede asignar un ticket de la empresa |
 
 Ejemplo:
 
@@ -131,8 +136,9 @@ curl -X POST http://localhost:8000/chat \
 
 ## 8. Seguridad y aislamiento multi-tenant
 
-- **RNF-01:** toda consulta a datos de una empresa filtra por `empresa_id`; el tenant sale de la API key, nunca del cuerpo de la petición.
-  Una conversación de la empresa A no se puede continuar con la API key de B (devuelve 404).
+- **RNF-01:** toda consulta a datos de una empresa filtra por `empresa_id`; el tenant sale de la API key (o del usuario autenticado), nunca del cuerpo de la petición.
+  El chat público (`/publico/{slug}`) toma el tenant del slug de la ruta: solo responde con el agente `activo` y solo devuelve datos de marca.
+  Una conversación de la empresa A no se puede continuar con la API key ni con el slug de B (devuelve 404).
 - **RNF-02:** no hay credenciales en el código; todo va en `.env`, que está en `.gitignore`.
 - **RNF-03:** PostgreSQL y Redis publican sus puertos solo en `127.0.0.1`.
 - **RNF-04:** los documentos originales viven en `storage/`, excluida del repositorio; solo el backend la lee.
@@ -149,8 +155,8 @@ Ver `README.md` en la raíz del proyecto (pasos con Docker Compose, Alembic, see
 
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
-| API (pytest, Postgres real) | `backend/tests/test_api.py` (11) y `test_roles.py` (22) — 33 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, flujo del agente, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
-| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 23 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa |
+| API (pytest, Postgres real) | `backend/tests/test_api.py` (13) y `test_roles.py` (28) — 41 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
+| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 37 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta** |
 | Migración | manual | `alembic upgrade head`, `alembic check` (sin diferencias con los modelos) y `downgrade base` sobre un Postgres real |
 
 Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían las tablas.
@@ -173,7 +179,7 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | RF-24 a RF-26 | `backend/tests/`, `tests_e2e/` | En curso |
 | RF-27 | `docs/` | En curso |
 | RF-28, RF-30 | `routers/auth.py`, `deps.py`, `security.py`, `LoginScreen.tsx`, `UsersView.tsx` | Hecho |
-| RF-29 | `widget.min.js` y `/chat/{slug}` | Pendiente |
+| RF-29 | `frontend/public/widget.min.js`, `PublicChat.tsx`, `routers/publico.py` | Hecho |
 
 ## 12. Pendientes y riesgos
 
@@ -181,10 +187,10 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 |---|---|---|
 | Embeddings (sentence-transformers) y guardado en `fragmentos_embeddings` | Vicente | S9–S10 |
 | Motor RAG real: búsqueda pgvector, DeepSeek, clasificador de intención | Vicente | S9–S12 |
-| Widget embebible `widget.min.js` y página pública `/chat/{slug}` | Fabián | S9–S10 |
+| Widget embebible `widget.min.js` y página pública `/chat/{slug}` | Fabián | S9–S10 (hecho) |
 | Integración real con Corestream (depende de su documentación) | Fabián | S11–S12 |
 | Celery + Redis para la ingesta | Vicente | S10–S12 |
-| Vista Analítica con datos reales (hoy usa datos de ejemplo) | Fabián | por definir |
+| Vista Analítica con datos reales | Fabián | hecho (`GET /metricas/analitica`) |
 
 **Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de una sola persona y tiene 4 semanas para el motor.
 El contrato del motor (`responder` y `sugerir_respuesta` en `services/motor_rag.py`) ya está fijo, así que el front y la API no

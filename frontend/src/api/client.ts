@@ -11,6 +11,9 @@ import {
   AuthUser,
   Role,
   TokenResponse,
+  PublicAgent,
+  AssignableAgent,
+  Analytics,
 } from '../types';
 
 export const API_URL: string =
@@ -50,7 +53,7 @@ export const setToken = (t: string | null) => {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   const headers = new Headers(init.headers);
-  if (token && !headers.has('X-API-Key')) headers.set('Authorization', `Bearer ${token}`);
+  if (token && !headers.has('X-API-Key') && !path.startsWith('/publico/')) headers.set('Authorization', `Bearer ${token}`);
   try {
     res = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
@@ -125,13 +128,17 @@ export const getDocumentChunks = (docId: string) => request<ChunkOut[]>(`/docume
 
 // ---------- tickets ----------
 export const getTickets = () => request<Ticket[]>('/tickets');
-export const updateTicket = (id: string, p: { status?: TicketStatus; assignedAgent?: string }) =>
+/** assignedAgentId: id de un usuario de la empresa del ticket; null = dejar sin asignar. */
+export const updateTicket = (id: string, p: { status?: TicketStatus; assignedAgentId?: string | null }) =>
   request<Ticket>(`/tickets/${id}`, json('PATCH', p));
-export const replyTicket = (id: string, text: string, agentName?: string) =>
-  request<Ticket>(`/tickets/${id}/respuesta`, json('POST', { text, agentName }));
+/** El remitente lo pone el backend con el usuario autenticado. */
+export const replyTicket = (id: string, text: string) =>
+  request<Ticket>(`/tickets/${id}/respuesta`, json('POST', { text }));
+export const getAssignableAgents = () => request<AssignableAgent[]>('/tickets/agentes');
 
 // ---------- métricas ----------
 export const getMetrics = () => request<SystemMetrics>('/metricas');
+export const getAnalytics = (days: number) => request<Analytics>(`/metricas/analitica?dias=${days}`);
 
 // ---------- chat ----------
 export interface ChatPayload {
@@ -151,6 +158,12 @@ export const sendChat = (apiKey: string, p: ChatPayload) =>
     ...json('POST', p),
     headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
   });
+
+/** Chat público por slug (página /chat/{slug} y iframe del widget). Sin autenticación. */
+export const getPublicAgent = (slug: string) =>
+  request<PublicAgent>(`/publico/${encodeURIComponent(slug)}`);
+export const sendPublicChat = (slug: string, p: ChatPayload) =>
+  request<ChatResponse>(`/publico/${encodeURIComponent(slug)}/chat`, json('POST', p));
 
 // ---------- autenticación y usuarios ----------
 export const login = async (email: string, password: string) => {

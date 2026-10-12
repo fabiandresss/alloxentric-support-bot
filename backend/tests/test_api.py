@@ -84,16 +84,18 @@ def test_pedir_humano_deriva(client, crear_empresa):
     assert r["derived"] is True and r["ticketNumber"]
 
 
-def test_flujo_ticket_agente(client, crear_empresa):
+def test_flujo_ticket_agente(client, crear_empresa, usuario_como):
     crear_empresa("Acme")
+    usuario_como("acme", "encargado_tickets")
     client.post("/empresas/acme/probar", json={"message": "ayuda", "escalate": True})
     t = client.get("/tickets").json()[0]
-    p = client.patch(f"/tickets/{t['id']}", json={"status": "urgente", "assignedAgent": "Felipe"}).json()
-    assert p["status"] == "urgente" and p["assignedAgent"] == "Felipe"
+    ag = client.get("/tickets/agentes").json()[0]
+    p = client.patch(f"/tickets/{t['id']}", json={"status": "urgente", "assignedAgentId": ag["id"]}).json()
+    assert p["status"] == "urgente" and p["assignedAgentId"] == ag["id"] and p["assignedAgent"] == ag["name"]
     assert client.patch(f"/tickets/{t['id']}", json={"status": "inventado"}).status_code == 422
     done = client.post(f"/tickets/{t['id']}/respuesta", json={"text": "Listo, resuelto."}).json()
     assert done["status"] == "resuelto" and done["transcript"][-1]["sender"] == "agent"
-    assert done["transcript"][-1]["senderName"] == "Felipe"
+    assert done["transcript"][-1]["senderName"] == "Root"   # el usuario autenticado (superadmin del fixture)
     assert client.get("/tickets?status=resuelto").json()[0]["id"] == t["id"]
     assert client.get("/tickets?status=pendiente").json() == []
     assert client.get("/tickets/no-es-uuid").status_code == 404
@@ -189,3 +191,38 @@ def test_documento_corrupto_queda_en_error(client, crear_empresa):
     r = client.post("/empresas/acme/documentos", files={"archivo": ("roto.pdf", io.BytesIO(b"esto no es un pdf"), "application/pdf")})
     assert r.status_code == 201
     assert client.get("/empresas/acme/documentos").json()[0]["status"] == "error"
+
+
+def test_chat_publico_por_slug(anon, client, crear_empresa):
+    """RF-29: la página /chat/{slug} y el iframe del widget usan /publico/{slug}, sin autenticación."""
+    crear_empresa("Acme")
+    subir_txt(client, "acme", "manual.txt", "Los reembolsos de consultas medicas tardan cinco dias habiles en llegar.")
+    # config pública: solo marca y estado, nunca documentos ni claves
+    cfg = anon.get("/publico/acme").json()
+    assert set(cfg) == {"name", "agentName", "logoInitials", "brandColor", "brandBg", "agentStatus"}
+    assert cfg["agentStatus"] == "en_configuracion"
+    assert anon.get("/publico/no-existe").status_code == 404
+    # agente aún no activo -> no responde
+    assert anon.post("/publico/acme/chat", json={"message": "hola"}).status_code == 403
+    activar(client, "acme")
+    r = anon.post("/publico/acme/chat", json={"message": "cuanto tardan los reembolsos de consultas medicas?"}).json()
+    assert r["derived"] is False and r["messages"][1]["ragSources"] == ["manual.txt"]
+    r2 = anon.post("/publico/acme/chat", json={"message": "mi tarjeta fue clonada en el extranjero",
+                                               "conversationId": r["conversationId"]}).json()
+    assert r2["derived"] is True and r2["ticketNumber"].startswith("COR-")
+    assert anon.post("/publico/acme/chat", json={"message": ""}).status_code == 422
+
+
+def test_chat_publico_aislamiento(anon, client, crear_empresa):
+    """Una conversación de A no se continúa por el endpoint público de B, y B no ve datos de A."""
+    crear_empresa("Empresa A"), crear_empresa("Empresa B")
+    subir_txt(client, "empresa-a", "secreto.txt", "El codigo interno de descuento es ZETA9999 para clientes premium.")
+    activar(client, "empresa-a")
+    activar(client, "empresa-b")
+    pregunta = {"message": "cual es el codigo interno de descuento para clientes premium?"}
+    ra = anon.post("/publico/empresa-a/chat", json=pregunta).json()
+    rb = anon.post("/publico/empresa-b/chat", json=pregunta).json()
+    assert "ZETA9999" in ra["messages"][1]["message"]
+    assert "ZETA9999" not in str(rb) and rb["derived"] is True
+    r = anon.post("/publico/empresa-b/chat", json={"message": "hola", "conversationId": ra["conversationId"]})
+    assert r.status_code == 404
