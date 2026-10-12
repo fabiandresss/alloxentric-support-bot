@@ -1,0 +1,27 @@
+# secretos y configuración local
+.env
+.env.*
+!.env.example
+seed_keys.txt
+
+# datos locales
+storage/
+.pgdata/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node / front
+node_modules/
+dist/
+
+# logs y artefactos de pruebas
+*.log
+shot_*.png
+
+# sistema
+.DS_Store
+Thumbs.db
