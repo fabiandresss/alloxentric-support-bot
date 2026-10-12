@@ -138,7 +138,10 @@ class Ticket(Base):
     estado: Mapped[str] = mapped_column(String(20), default="pendiente")  # pendiente|urgente|resuelto
     motivo_derivacion: Mapped[str | None] = mapped_column(Text)
     sugerencia_ia: Mapped[dict | None] = mapped_column(JSONB)  # {confidence, sourceDoc, summary, draftResponse}
-    agente_asignado: Mapped[str | None] = mapped_column(String(120))
+    # agente humano responsable: usuario real de la MISMA empresa (se valida en el router)
+    agente_asignado_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    agente: Mapped["Usuario | None"] = relationship()
     actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     conversacion: Mapped["Conversacion"] = relationship()
     empresa: Mapped["Empresa"] = relationship()

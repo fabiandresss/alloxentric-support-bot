@@ -65,12 +65,14 @@ PERMISOS = [
     ("GET /empresas/acme/documentos", dict(admin_empresa=1, encargado_tickets=0, encargado_agente=1)),
     # tickets
     ("GET /tickets",                  dict(admin_empresa=1, encargado_tickets=1, encargado_agente=0)),
+    ("GET /tickets/agentes",          dict(admin_empresa=1, encargado_tickets=1, encargado_agente=0)),
     # usuarios
     ("GET /usuarios",                 dict(admin_empresa=1, encargado_tickets=0, encargado_agente=0)),
     # solo superadmin
     ("POST /empresas",                dict(admin_empresa=0, encargado_tickets=0, encargado_agente=0)),
     # métricas: todos
     ("GET /metricas",                 dict(admin_empresa=1, encargado_tickets=1, encargado_agente=1)),
+    ("GET /metricas/analitica",       dict(admin_empresa=1, encargado_tickets=1, encargado_agente=1)),
 ]
 CUERPOS = {"PATCH /empresas/acme": {"agentName": "X"}, "POST /empresas/acme/probar": {"message": "hola"},
            "POST /empresas": {"name": "Otra"}}
@@ -195,3 +197,68 @@ def test_la_clave_no_se_guarda_en_claro(client, crear_empresa):
     with engine.begin() as c:
         h = c.execute(text("SELECT password_hash FROM usuarios WHERE email='a@acme.cl'")).scalar()
     assert h.startswith("pbkdf2$") and "Clave1234" not in h
+
+
+# ------------------------------------------------------------------ campos de empresa, remitente y asignación
+def _uid(cli, email):
+    return next(x["id"] for x in cli.get("/usuarios").json() if x["email"] == email)
+
+
+def test_encargado_agente_no_cambia_nombre_ni_industria_de_la_empresa(dos_empresas):
+    ag, adm = dos_empresas["acme"]["encargado_agente"], dos_empresas["acme"]["admin_empresa"]
+    assert ag.patch("/empresas/acme", json={"name": "Acme Hackeada"}).status_code == 403
+    assert ag.patch("/empresas/acme", json={"industry": "Otra"}).status_code == 403
+    # el front reenvía la ficha completa: reenviar los mismos valores no es un cambio
+    emp = ag.get("/empresas/acme").json()
+    r = ag.patch("/empresas/acme", json={"name": emp["name"], "industry": emp["industry"], "agentName": "Bot Nuevo"})
+    assert r.status_code == 200 and r.json()["agentName"] == "Bot Nuevo"
+    assert adm.patch("/empresas/acme", json={"name": "Acme SpA", "industry": "Retail"}).json()["name"] == "Acme SpA"
+
+
+def test_el_remitente_de_la_respuesta_es_el_usuario_autenticado(dos_empresas):
+    tk = dos_empresas["acme"]["encargado_tickets"]
+    t = tk.get("/tickets").json()[0]
+    r = tk.post(f"/tickets/{t['id']}/respuesta", json={"text": "Hola", "agentName": "Gerente General"}).json()
+    assert r["transcript"][-1]["senderName"] == "encargado_tickets"   # nombre del usuario; agentName se ignora
+
+
+def test_asignacion_solo_a_usuarios_de_atencion_de_la_misma_empresa(dos_empresas, client):
+    a, b = dos_empresas["acme"], dos_empresas["beta"]
+    tk = a["encargado_tickets"]
+    t = tk.get("/tickets").json()[0]
+    ag = tk.get("/tickets/agentes").json()
+    assert {x["role"] for x in ag} == {"encargado_tickets", "admin_empresa"} and {x["companyId"] for x in ag} == {"acme"}
+    mio = next(x for x in ag if x["role"] == "encargado_tickets")
+    p = tk.patch(f"/tickets/{t['id']}", json={"assignedAgentId": mio["id"]}).json()
+    assert p["assignedAgentId"] == mio["id"] and p["assignedAgent"] == "encargado_tickets"
+    # no se puede asignar a un usuario de otra empresa, a quien no atiende tickets, ni a un id inventado
+    ajeno = b["encargado_tickets"].get("/tickets/agentes").json()[0]["id"]
+    sin_rol = _uid(a["admin_empresa"], "encargado_agente@acme.test")
+    for malo in (ajeno, sin_rol, "no-es-uuid", "00000000-0000-0000-0000-000000000000"):
+        assert tk.patch(f"/tickets/{t['id']}", json={"assignedAgentId": malo}).status_code == 422, malo
+    assert tk.get(f"/tickets/{t['id']}").json()["assignedAgentId"] == mio["id"]   # sigue igual
+    # null explícito = sin asignar
+    p = tk.patch(f"/tickets/{t['id']}", json={"assignedAgentId": None}).json()
+    assert p["assignedAgent"] == "Sin asignar" and "assignedAgentId" not in p
+    # la lista es por empresa; el encargado del agente no la ve; el superadmin ve todas
+    assert a["encargado_agente"].get("/tickets/agentes").status_code == 403
+    assert {x["companyId"] for x in client.get("/tickets/agentes").json()} == {"acme", "beta"}
+
+
+def test_analitica_real_por_rol_y_empresa(dos_empresas, client):
+    # cada empresa tiene 1 conversación derivada (fixture); sumamos una resuelta por el bot en acme
+    client.post("/empresas/acme/probar", json={"message": "Los reembolsos tardan cinco dias"})
+    a = dos_empresas["acme"]["encargado_agente"].get("/metricas/analitica").json()
+    assert [c["id"] for c in a["companies"]] == ["acme"]                       # no ve a beta
+    assert (a["totalConversations"], a["botResolved"], a["humanEscalated"]) == (2, 1, 1)
+    assert a["botRate"] == 50.0 and a["escalationRate"] == 50.0
+    assert len(a["daily"]) == 14 and a["daily"][-1] == {"date": "Hoy", "bot": 1, "human": 1, "total": 2}
+    b = dos_empresas["beta"]["admin_empresa"].get("/metricas/analitica").json()
+    assert [c["id"] for c in b["companies"]] == ["beta"] and b["totalConversations"] == 1
+    r = client.get("/metricas/analitica", params={"dias": 7})
+    assert r.status_code == 200, r.text
+    g = r.json()
+    assert {c["id"] for c in g["companies"]} == {"acme", "beta"} and g["totalConversations"] == 3
+    assert len(g["daily"]) == 7 and g["conversationsDelta"] is None            # sin periodo anterior
+    assert client.get("/metricas/analitica", params={"dias": 0}).status_code == 422
+    assert client.get("/metricas/analitica", params={"dias": 91}).status_code == 422

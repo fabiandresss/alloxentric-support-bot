@@ -84,6 +84,7 @@ def main(reset: bool):
                 empresa_id=e.id, nombre=d["name"], tipo=d["type"], tamano_bytes=a_bytes(d["size"]),
                 ruta_local=f"storage/seed/{d['name']}", estado=ESTADO_DOC[d["status"]],
                 num_fragmentos=d["chunkCount"], subido_en=fecha_doc(d["uploadedAt"])))
+    con_agente = []
     for t in DATA["tickets"]:
         e = por_slug[t["companyId"]]
         creado = ahora() - timedelta(minutes=minutos_relativos(t["relativeTime"]))
@@ -101,16 +102,25 @@ def main(reset: bool):
                 es_aviso_derivacion=bool(msg.get("isEscalationNotice")),
                 fuentes=msg.get("ragSources"), confianza=msg.get("confidenceScore"),
                 creado_en=creado - timedelta(minutes=n - 1 - j)))
-        db.add(m.Ticket(
+        tk = m.Ticket(
             empresa_id=e.id, conversacion_id=conv.id, numero=t["ticketNumber"], estado=t["status"],
             motivo_derivacion=t["escalationReason"], sugerencia_ia=t["aiSuggestion"],
-            agente_asignado=None if t.get("assignedAgent") in (None, "Sin asignar") else t["assignedAgent"],
-            creado_en=creado, actualizado_en=creado))
+            creado_en=creado, actualizado_en=creado)
+        db.add(tk)
+        if t.get("assignedAgent") not in (None, "Sin asignar"):
+            con_agente.append((tk, e.slug))   # se asigna al usuario demo de la empresa (abajo)
     pw = hash_password(DEMO_PW)
+    atencion = {}
     for slug, e in por_slug.items():   # un usuario por rol y por empresa
         for rol, prefijo in ROLES_DEMO:
-            db.add(m.Usuario(empresa_id=e.id, email=f"{prefijo}@{slug}.demo", rol=rol,
-                             nombre=f"{prefijo.capitalize()} {e.nombre}", password_hash=pw))
+            u = m.Usuario(empresa_id=e.id, email=f"{prefijo}@{slug}.demo", rol=rol,
+                          nombre=f"{prefijo.capitalize()} {e.nombre}", password_hash=pw)
+            db.add(u)
+            if rol == "encargado_tickets":
+                atencion[slug] = u
+    db.flush()
+    for tk, slug in con_agente:      # los tickets "con agente" del mock quedan a cargo del encargado de tickets
+        tk.agente_asignado_id = atencion[slug].id
     db.commit()
     Path("seed_keys.txt").write_text("\n".join(f"{k}: {v}" for k, v in keys.items()) + "\n")
     print(f"Cargadas {len(por_slug)} empresas y {len(DATA['tickets'])} tickets.")

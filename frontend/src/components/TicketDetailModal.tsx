@@ -15,18 +15,20 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { Ticket, ChatMessage } from '../types';
+import { Ticket, ChatMessage, AssignableAgent } from '../types';
 
 interface TicketDetailModalProps {
   ticket: Ticket;
+  agents: AssignableAgent[]; // usuarios de la empresa del ticket
   onClose: () => void;
   onStatusChange: (ticketId: string, newStatus: Ticket['status']) => void;
   onSendMessage: (ticketId: string, text: string) => void;
-  onReassign: (ticketId: string, agentName: string) => void;
+  onReassign: (ticketId: string, agentId: string | null, agentName: string) => void;
 }
 
 export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   ticket,
+  agents,
   onClose,
   onStatusChange,
   onSendMessage,
@@ -35,8 +37,6 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   const [replyText, setReplyText] = useState(ticket.aiSuggestion.draftResponse);
   const [isCopiedSuggestion, setIsCopiedSuggestion] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
-
-  const availableAgents = ['Felipe Armijo', 'Carla Fuentes', 'Tomás Vergara', 'Mesa Nivel 3'];
 
   const handleUseAiSuggestion = () => {
     setReplyText(ticket.aiSuggestion.draftResponse);
@@ -119,19 +119,33 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                   <div className="px-3 py-1 text-[11px] font-semibold text-[#64748B] uppercase">
                     Asignar agente Corestream
                   </div>
-                  {availableAgents.map((ag) => (
+                  {agents.length === 0 && (
+                    <div className="px-3 py-1.5 text-xs text-[#64748B]">No hay agentes activos en esta empresa</div>
+                  )}
+                  {agents.map((ag) => (
                     <button
-                      key={ag}
+                      key={ag.id}
                       onClick={() => {
-                        onReassign(ticket.id, ag);
+                        onReassign(ticket.id, ag.id, ag.name);
                         setShowAssignDropdown(false);
                       }}
                       className="w-full text-left px-3 py-1.5 text-xs text-[#1E1B4B] hover:bg-[#EEF2FF] hover:text-[#4F46E5] flex items-center justify-between"
                     >
-                      <span>{ag}</span>
-                      {ticket.assignedAgent === ag && <Check className="w-3.5 h-3.5 text-[#4F46E5]" />}
+                      <span>{ag.name}</span>
+                      {ticket.assignedAgentId === ag.id && <Check className="w-3.5 h-3.5 text-[#4F46E5]" />}
                     </button>
                   ))}
+                  {ticket.assignedAgentId && (
+                    <button
+                      onClick={() => {
+                        onReassign(ticket.id, null, 'Sin asignar');
+                        setShowAssignDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-[#64748B] hover:bg-[#F1F5F9] border-t border-[#E2E8F0] mt-1"
+                    >
+                      Dejar sin asignar
+                    </button>
+                  )}
                 </div>
               )}
             </div>
