@@ -45,7 +45,8 @@ def _normalizar(texto: str) -> list[str]:
 class HashingEmbedder:
     """Bolsa de palabras con hashing a DIM dimensiones (con raíz recortada a 5 letras para unir singular/plural)."""
     id = "hash-v1"
-    sim_min, sim_max = 0.0, 0.6
+    # calibrado con calidad_rag/evaluar.py --backend hash: respaldo conservador (AUC 0.80), responde poco y deriva
+    sim_min, sim_max = 0.05, 0.30
 
     def embed(self, textos: list[str]) -> list[list[float]]:
         return [self._uno(t) for t in textos]
@@ -60,13 +61,16 @@ class HashingEmbedder:
 
 
 class SentenceTransformerEmbedder:
-    sim_min, sim_max = 0.30, 0.75   # a calibrar con la batería de calidad (tests_calidad_rag)
+    # Calibrado con calidad_rag/evaluar.py (45 preguntas, AUC 0.93): el ruido y lo no documentado quedan en 0.1–0.3 y lo
+    # relevante en 0.45–0.65. Con este rango, el umbral por defecto (0.8) equivale a una similitud ≈0.46 (corte de Youden).
+    sim_min, sim_max = 0.25, 0.51
 
     def __init__(self, nombre: str):
         from sentence_transformers import SentenceTransformer   # import perezoso: es pesado
         self._modelo = SentenceTransformer(nombre)
         self.id = f"st:{nombre}"
-        dim = self._modelo.get_sentence_embedding_dimension()
+        medir = getattr(self._modelo, "get_embedding_dimension", None) or self._modelo.get_sentence_embedding_dimension
+        dim = medir()
         if dim != DIM:
             raise RuntimeError(f"El modelo {nombre} produce {dim} dimensiones y la BD espera {DIM} (cambia EMBED_DIM y migra)")
 

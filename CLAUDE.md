@@ -37,6 +37,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 alembic upgrade head                                             # esquema + extensión vector
 python seed.py [--reset]                                         # 5 empresas, 8 tickets, usuarios demo (imprime keys)
 python reindexar.py [--todo] [--empresa slug]                    # regenera los vectores (primera vez con el modelo real o tras cambiarlo)
+python calidad_rag/evaluar.py [--backend hash]                   # batería de calidad del RAG (45 preguntas); recomienda sim_min/sim_max
 uvicorn app.main:app --reload                                    # http://localhost:8000/docs
 cd ../frontend && cp .env.example .env && npm install && npm run dev   # http://localhost:3000
 cd ../backend && pytest -q                                       # 90 pruebas (Postgres temporal automático)
@@ -120,15 +121,15 @@ El encargado de tickets responde y se envía una **encuesta** al cliente; **el c
 (extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**; **ciclo del ticket con encuesta de resolución (Sí cierra, No escala, 72 h cierra)**; **rate limiting de los endpoints sin sesión**;
 documentación técnica, manual y diagramas.
 
-**Pendiente de validar:** el motor RAG (embeddings + búsqueda vectorial + DeepSeek) está implementado y probado con un embedder determinista y un LLM simulado, pero **no se ha corrido con el modelo real ni con DeepSeek en vivo, ni calibrado `sim_min/sim_max` y los umbrales**. **Provisorio:** Corestream es un mock (`CORESTREAM_MOCK=true`);
+**Motor RAG:** implementado y validado con el modelo real (E2E 49/49; fuente correcta 96 %, AUC 0.93, `calidad_rag/`). **Falta probar DeepSeek en vivo** (no hay `DEEPSEEK_API_KEY` aún: responde en modo extractivo). **Provisorio:** Corestream es un mock (`CORESTREAM_MOCK=true`);
 la ingesta usa `BackgroundTasks`; los documentos del seed no tienen archivo ni fragmentos reales.
 
 ## 8. Pendiente (en orden de dependencia)
 
 | # | Tarea | Dónde | Quién |
 |---|---|---|---|
-| 1 | Embeddings: **implementado** (`services/embeddings.py`, `reindexar.py`); falta correrlo con el modelo real | `services/ingesta.py`, `services/embeddings.py` | Vicente |
-| 2 | Motor RAG: **implementado** (pgvector por `empresa_id`, umbral, DeepSeek, intención, sugerencia IA); falta validarlo con modelo real + clave y calibrar con la batería de calidad | `services/motor_rag.py` | Vicente |
+| 1 | Embeddings: **hecho y validado con el modelo real** (`services/embeddings.py`, `reindexar.py`) | `services/ingesta.py`, `services/embeddings.py` | Vicente |
+| 2 | Motor RAG: **hecho y calibrado** (pgvector por `empresa_id`, umbral, intención, sugerencia IA); falta probar **DeepSeek en vivo** (necesita `DEEPSEEK_API_KEY`) y la ruta SQL de pgvector contra el Docker | `services/motor_rag.py` | Vicente / Fabián |
 | 3 | Celery + Redis para la ingesta | `services/ingesta.py`, `docker-compose.yml` | Vicente |
 | 4 | Corestream real (`httpx`) cuando exista su documentación; mantener el mock | `services/derivacion.py` | Fabián |
 | 5 | Validar el entorno en ambas notebooks (RF-18…23) | README | Ambos |

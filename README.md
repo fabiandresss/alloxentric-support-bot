@@ -17,7 +17,7 @@ creando un ticket en **Corestream**. Todo corre **100% en local** (sin nube).
 | Login JWT y 4 roles con aislamiento por empresa | Hecho |
 | Ingesta de documentos (TXT, PDF, DOCX): extracción, fragmentación y embeddings | Hecho |
 | Front: consola de soporte, panel de agentes, widget de prueba, usuarios y roles | Hecho |
-| Motor RAG (embeddings + pgvector + DeepSeek + intención) | Implementado; **falta validarlo con el modelo real, DeepSeek en vivo y calibrar umbrales** |
+| Motor RAG (embeddings + pgvector + DeepSeek + intención) | Hecho y validado con el modelo real; **falta probar DeepSeek en vivo (sin clave aún)** |
 | Widget embebible `widget.min.js` y chat público `/chat/{slug}` | Hecho |
 | Analítica real por empresa y rol; asignación de tickets a usuarios | Hecho |
 | Corestream real · Celery | Pendiente |
@@ -120,7 +120,7 @@ Las respuestas usan exactamente la forma de `frontend/src/types/index.ts` (camel
 
 | Pendiente | Dónde | Quién |
 |---|---|---|
-| **Validar el motor RAG** con el modelo real (`pip install -r requirements.txt`, primer arranque descarga ~470 MB, luego `python reindexar.py`), con DeepSeek en vivo (`DEEPSEEK_API_KEY`) y **calibrar** `sim_min/sim_max` y los umbrales con preguntas con/sin respaldo | `backend/app/services/embeddings.py`, `motor_rag.py` | Vicente / Fabián |
+| **DeepSeek en vivo**: poner `DEEPSEEK_API_KEY` en `.env` y repasar umbral/tono; probar la búsqueda `pgvector` (SQL + HNSW) corriendo `pytest` con `TEST_DATABASE_URL` del Docker | `backend/app/services/llm.py`, `motor_rag.py` | Fabián / Vicente |
 | Procesar la ingesta con **Celery + Redis** (hoy usa `BackgroundTasks` de FastAPI) | `services/ingesta.py` | Vicente |
 | **Corestream real** (hoy `CORESTREAM_MOCK=true`: el ticket se crea solo en la BD local) | `services/derivacion.py` | Fabián |
 | Los documentos del seed no tienen archivo ni fragmentos reales: sube uno desde el panel para probar | — | — |

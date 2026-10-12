@@ -77,12 +77,18 @@ def test_sin_respaldo_deriva_a_un_humano(client, acme):
 
 
 def test_el_umbral_de_la_empresa_decide(client, acme):
-    pregunta = "cuanto tardan los reembolsos medicos?"
-    assert _preguntar(client, "acme", pregunta)["derived"] is False
-    client.patch("/empresas/acme", json={"ragThreshold": 1.0})        # umbral máximo: casi nada lo supera
-    assert _preguntar(client, "acme", pregunta)["derived"] is True
-    client.patch("/empresas/acme", json={"ragThreshold": 0.1})        # umbral mínimo: responde incluso con poco respaldo
-    assert _preguntar(client, "acme", "reembolsos")["derived"] is False
+    # una pregunta con confianza intermedia: justo por debajo del umbral responde y justo por encima deriva
+    candidatas = ["reembolsos de dinero por favor", "cuanto cuesta un reembolso medico", "horario de reembolsos"]
+    with SessionLocal() as db:
+        emp = db.scalar(select(m.Empresa).where(m.Empresa.slug == "acme"))
+        conf = {q: motor_rag.buscar(db, emp, q)[0].confianza for q in candidatas}
+    pregunta = next((q for q, c in conf.items() if 0.2 < c < 0.9), None)
+    assert pregunta, conf
+    c = conf[pregunta]
+    client.patch("/empresas/acme", json={"ragThreshold": round(min(1.0, c + 0.05), 2)})
+    assert _preguntar(client, "acme", pregunta)["derived"] is True       # umbral apenas sobre la confianza
+    client.patch("/empresas/acme", json={"ragThreshold": round(max(0.1, c - 0.05), 2)})
+    assert _preguntar(client, "acme", pregunta)["derived"] is False      # apenas bajo la confianza
 
 
 def test_busqueda_solo_dentro_de_la_empresa(client, crear_empresa):
