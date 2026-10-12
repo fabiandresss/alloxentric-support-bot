@@ -20,7 +20,9 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 | Subir / borrar documentos y ver fragmentos | ✔ | ✔ | | ✔ |
 | Generar o rotar la API key y obtener el widget | ✔ | ✔ | | ✔ |
 | Probar el agente (simulador) | ✔ | ✔ | | ✔ |
-| Ver y atender tickets (estado, asignar, responder) | todos | los de su empresa | los de su empresa | |
+| Ver y atender tickets (urgente/pendiente, asignar, responder con encuesta) | todos | los de su empresa | los de su empresa (menos los escalados) | |
+| Ver y cerrar tickets **escalados** (el cliente dijo que no se resolvió) | todos | los de su empresa | | |
+| Cerrar un ticket sin encuesta | no existe: lo cierra el cliente (o las 72 h) | | | |
 | Asignar un ticket | a usuarios de la empresa del ticket (admin o encargado de tickets); nunca a otra empresa | | | |
 | Ver métricas y analítica | globales (todas las empresas) | las de su empresa | las de su empresa | las de su empresa |
 | Gestionar usuarios | todos | los de su empresa | | |

@@ -110,18 +110,10 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
       replaceTicket(updated);
       const ticketNum = updated.ticketNumber;
 
-      if (newStatus === 'resuelto') {
-        addToast(
-          'success',
-          `Ticket ${ticketNum} marcado como Resuelto`,
-          'El caso fue cerrado en Corestream y se notificó al usuario.'
-        );
+      if (newStatus === 'cerrado') {
+        addToast('success', `Ticket ${ticketNum} cerrado`, 'El caso escalado quedó gestionado y cerrado definitivamente.');
       } else if (newStatus === 'urgente') {
-        addToast(
-          'warning',
-          `Ticket ${ticketNum} escalado a Nivel Crítico`,
-          'Prioridad aumentada. Guardias de Corestream notificadas.'
-        );
+        addToast('warning', `Ticket ${ticketNum} marcado como urgente`, 'Prioridad aumentada en la cola.');
       } else {
         addToast('info', `Estado de ${ticketNum} actualizado a Pendiente`);
       }
@@ -139,7 +131,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
       addToast(
         'success',
         `Respuesta enviada a ${updated.customerName || 'cliente'}`,
-        `Mensaje despachado vía ${updated.customerChannel || 'chat'}. Caso resuelto.`
+        `Se envió la respuesta con la encuesta de resolución. El ticket se cierra cuando el cliente confirme.`
       );
       refreshMetrics();
     } catch (e) {
@@ -266,6 +258,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
               tickets={tickets}
               agents={agents}
               currentUserName={user.name}
+              canManageEscalated={user.role === 'superadmin' || user.role === 'admin_empresa'}
               metrics={metrics}
               onUpdateTicketStatus={handleUpdateTicketStatus}
               onSendAgentReply={handleSendAgentReply}

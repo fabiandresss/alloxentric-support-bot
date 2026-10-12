@@ -23,12 +23,20 @@ def procesar_mensaje(db: Session, empresa: m.Empresa, req: s.ChatRequest) -> s.C
         db.add(conv)
         db.flush()
 
+    ticket = db.scalar(select(m.Ticket).where(m.Ticket.conversacion_id == conv.id))
+    if ticket and ticket.estado == "cerrado":
+        raise HTTPException(409, "Esta conversación ya fue cerrada. Inicia una nueva consulta.")
+    if ticket and ticket.estado == "escalado":
+        raise HTTPException(409, "Tu caso fue escalado a gestión y ya no se responde por este chat.")
+
     nombre_cliente = conv.nombre_cliente or "Usuario web"
     user_msg = m.Mensaje(empresa_id=empresa.id, conversacion_id=conv.id, rol="usuario",
                          nombre_remitente=nombre_cliente, contenido=req.message)
     db.add(user_msg)
     nuevos = [user_msg]
-    ticket = db.scalar(select(m.Ticket).where(m.Ticket.conversacion_id == conv.id))
+    if ticket and ticket.estado == "esperando_cliente":
+        # escribió en vez de contestar la encuesta: vuelve a la cola del encargado
+        ticket.estado, ticket.encuesta_enviada_en = "pendiente", None
 
     if not conv.derivada:  # si ya fue derivada, responde el agente humano (no el bot)
         nombre_bot = empresa.nombre_agente or f"{empresa.nombre} Assistant"

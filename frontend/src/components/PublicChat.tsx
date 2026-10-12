@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, Bot, User, Headphones, X, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Send, Bot, User, Headphones, X, AlertTriangle, CheckCircle2, Loader2, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
 import { ChatMessage, PublicAgent, TicketStatus } from '../types';
-import { getPublicAgent, getPublicConversation, sendPublicChat } from '../api/client';
+import { answerSurvey, getPublicAgent, getPublicConversation, sendPublicChat } from '../api/client';
 
 const POLL_MS = 5000; // cada cuánto se consulta si el agente humano respondió
 const storeKey = (slug: string) => `alloxentric_chat_${slug}`;
@@ -86,14 +86,40 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
 
   // Con el caso derivado, se consulta periódicamente si el agente respondió (solo con la pestaña visible)
   useEffect(() => {
-    if (!conversationId || !derived) return;
+    if (!conversationId || !derived || ticketStatus === 'cerrado' || ticketStatus === 'escalado') return;
     const t = setInterval(() => {
       if (document.hidden) return;
       getPublicConversation(slug, conversationId).then(applyServer).catch(() => undefined);
     }, POLL_MS);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, conversationId, derived, embed]);
+  }, [slug, conversationId, derived, embed, ticketStatus]);
+
+  // Encuesta de resolución: SÍ cierra el ticket (no se reabre); NO lo escala a gestión
+  const answer = async (resolved: boolean) => {
+    if (!conversationId || sending) return;
+    setError(null);
+    setSending(true);
+    try {
+      applyServer(await answerSurvey(slug, conversationId, resolved));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Caso terminado: el cliente puede iniciar una conversación nueva (el ticket cerrado no se reabre)
+  const nuevaConsulta = () => {
+    writeStored(slug, null);
+    setMessages([]);
+    setConversationId(undefined);
+    setDerived(false);
+    setTicketNumber(undefined);
+    setTicketStatus(undefined);
+    agentMsgs.current = 0;
+    setError(null);
+  };
 
   const send = async (message: string, escalate = false) => {
     if (!message.trim() || sending) return;
@@ -144,6 +170,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
   }
 
   const disponible = agent.agentStatus === 'activo';
+  const finalizado = ticketStatus === 'cerrado' || ticketStatus === 'escalado';
 
   return (
     <div className={`flex flex-col bg-white ${embed ? 'h-screen' : 'h-screen max-w-xl mx-auto sm:border-x border-[#E2E8F0]'}`}>
@@ -184,15 +211,54 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
           </Bubble>
         ))}
         {sending && <p className="text-xs text-[#64748B] pl-1">{agent.agentName} está escribiendo…</p>}
-        {derived && (
+        {derived && !finalizado && ticketStatus !== 'esperando_cliente' && (
           <div className="p-3 rounded-xl bg-[#F0FDFA] border border-[#CCFBF1] text-xs text-[#0F766E] flex gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
-              Derivamos tu consulta a un agente humano{ticketNumber ? <> (ticket <b>{ticketNumber}</b>)</> : null}.{' '}
-              {ticketStatus === 'resuelto'
-                ? 'Caso resuelto: revisa la respuesta del agente más arriba.'
-                : 'Te responderán aquí mismo; esta ventana se actualiza sola.'}
+              Derivamos tu consulta a un agente humano{ticketNumber ? <> (ticket <b>{ticketNumber}</b>)</> : null}.
+              Te responderán aquí mismo; esta ventana se actualiza sola.
             </p>
+          </div>
+        )}
+        {ticketStatus === 'esperando_cliente' && (
+          <div className="p-3.5 rounded-xl bg-white border border-[#C7D2FE] shadow-xs space-y-2.5" data-testid="survey">
+            <p className="text-sm font-semibold text-[#1E1B4B]">¿Se resolvió tu consulta?</p>
+            <p className="text-xs text-[#64748B]">
+              Si respondes que sí, cerramos el caso{ticketNumber ? <> {ticketNumber}</> : null}. Si no, lo escalamos a la gestión de {agent.name}.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => answer(true)}
+                disabled={sending}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-[#22C55E] hover:bg-[#16A34A] disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" /> Sí, se resolvió
+              </button>
+              <button
+                onClick={() => answer(false)}
+                disabled={sending}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-[#B91C1C] bg-[#FEF2F2] border border-[#FCA5A5] hover:bg-[#FEE2E2] disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <ThumbsDown className="w-3.5 h-3.5" /> No, sigue sin resolverse
+              </button>
+            </div>
+          </div>
+        )}
+        {finalizado && (
+          <div className={`p-3 rounded-xl border text-xs space-y-2 ${
+            ticketStatus === 'cerrado' ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#166534]' : 'bg-[#F5F3FF] border-[#DDD6FE] text-[#5B21B6]'
+          }`}>
+            <p>
+              {ticketStatus === 'cerrado'
+                ? <>Caso <b>{ticketNumber}</b> cerrado. ¡Gracias por avisarnos!</>
+                : <>Tu caso <b>{ticketNumber}</b> fue escalado a la gestión de {agent.name}; te contactarán directamente. Ya no se responde por este chat.</>}
+            </p>
+            <button
+              onClick={nuevaConsulta}
+              className="px-3 py-1.5 rounded-lg bg-white border border-current font-semibold flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Iniciar una nueva consulta
+            </button>
           </div>
         )}
         {error && <p className="text-xs text-[#B91C1C]">{error}</p>}
@@ -213,14 +279,14 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            disabled={!disponible || sending}
+            disabled={!disponible || sending || finalizado}
             maxLength={4000}
-            placeholder={disponible ? 'Escribe tu consulta…' : 'Chat no disponible'}
+            placeholder={finalizado ? 'Este caso ya terminó' : disponible ? 'Escribe tu consulta…' : 'Chat no disponible'}
             className="flex-1 px-3.5 py-2.5 text-sm rounded-xl border border-[#E2E8F0] focus:outline-none focus:border-[#4F46E5] disabled:bg-[#F1F5F9]"
           />
           <button
             type="submit"
-            disabled={!disponible || sending || !text.trim()}
+            disabled={!disponible || sending || finalizado || !text.trim()}
             aria-label="Enviar"
             className="px-3.5 rounded-xl text-white disabled:opacity-50"
             style={{ backgroundColor: agent.brandColor }}

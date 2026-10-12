@@ -79,7 +79,7 @@ Decisiones:
   y desordenaba la transcripción (bug encontrado en las pruebas).
 - **Usuarios y roles:** `usuarios.rol` ∈ {`superadmin`, `admin_empresa`, `encargado_tickets`, `encargado_agente`}. `empresa_id` es nulo solo
   para el superadmin; dos `CHECK` en la BD lo garantizan. Las claves se guardan con PBKDF2-SHA256 + sal. Ver `MATRIZ_PERMISOS.md`.
-- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario; `0003` el agente asignado a un ticket pasa de texto libre a un usuario).
+- Los cambios de esquema se versionan con Alembic (`0001` modelo inicial con la extensión `vector`; `0002` roles de usuario; `0003` el agente asignado a un ticket pasa de texto libre a un usuario; `0004` ciclo del ticket con encuesta de resolución).
 
 ## 6. Flujos principales
 
@@ -96,6 +96,23 @@ Decisiones:
 5. El cliente ve esa respuesta en el mismo chat: la página `/chat/{slug}` (y el iframe del widget) consulta `GET /publico/{slug}/conversaciones/{id}`
    cada 5 s mientras la pestaña está visible. El `conversationId` se guarda en el navegador para recuperar la conversación al recargar,
    y el widget cerrado muestra un punto rojo cuando llega una respuesta.
+
+### Ciclo de vida del ticket y encuesta de resolución (definición de negocio)
+
+El encargado **no cierra** los tickets: cuando responde, el cliente recibe una **encuesta** («¿se resolvió tu consulta?») y es el cliente quien decide.
+
+| Desde | Evento | Hacia |
+|---|---|---|
+| `pendiente` / `urgente` (cola del encargado) | el encargado responde (se envía la encuesta) | `esperando_cliente` |
+| `esperando_cliente` | el cliente responde **Sí** | `cerrado` (final: **no se reabre**) |
+| `esperando_cliente` | el cliente responde **No** | `escalado` (se gestiona fuera del chat) |
+| `esperando_cliente` | pasan 72 h (`ENCUESTA_HORAS`) sin respuesta | `cerrado` (motivo `sin_respuesta`) |
+| `esperando_cliente` | el cliente escribe en vez de contestar | `pendiente` (vuelve a la cola) |
+| `escalado` | el admin de la empresa o el superadmin lo cierra | `cerrado` (motivo `gestion_manual`) |
+
+- **Cerrado:** ya nadie lo modifica ni responde; si el cliente vuelve a escribir en esa conversación recibe 409 y debe iniciar una nueva (ticket nuevo).
+- **Escalado:** sale de la cola del encargado de tickets (no lo ve) y el chat deja de responder; solo lo ven y lo cierran `admin_empresa` y `superadmin`.
+- Sin planificador (Celery pendiente), el cierre a las 72 h se aplica al leer tickets, métricas y conversaciones (`services/ciclo_ticket.py`).
 
 ### 6.2 Ingesta de documentos
 
@@ -120,11 +137,12 @@ Documentación interactiva: `http://localhost:8000/docs` (botón *Authorize* par
 | `GET/POST /empresas/{slug}/documentos` | Listar / subir documento (multipart, campo `archivo`) |
 | `DELETE /documentos/{id}` · `GET /documentos/{id}/fragmentos` | Borrar / ver fragmentos |
 | `GET /tickets?company_id=&status=` · `GET/PATCH /tickets/{id}` | Cola de la consola; cambiar estado o asignar agente |
-| `POST /tickets/{id}/respuesta` | El agente responde; el ticket pasa a `resuelto` |
+| `POST /tickets/{id}/respuesta` | El agente responde y envía la encuesta; el ticket pasa a `esperando_cliente` (409 si está `cerrado` o `escalado`) |
 | `POST /chat` (header `X-API-Key`) | Integraciones propias (exige agente `activo`) |
 | `GET /publico/{slug}` | Marca y estado del agente para pintar el chat público (sin documentos ni claves) |
 | `POST /publico/{slug}/chat` | Chat público: página `/chat/{slug}` y widget embebible (exige agente `activo`) |
 | `GET /publico/{slug}/conversaciones/{id}` | Transcripción y estado del ticket de una conversación (el cliente ve la respuesta del agente); 404 si no es de esa empresa |
+| `POST /publico/{slug}/conversaciones/{id}/encuesta` | El cliente responde la encuesta (`{"resolved": true/false}`); solo válido con el ticket `esperando_cliente` (409 si no) |
 | `POST /empresas/{slug}/probar` | Simulador del panel (sin API key) |
 | `GET /metricas` | Tickets abiertos/urgentes, conversaciones de hoy, tasa de resolución del bot |
 | `GET /metricas/analitica?dias=7\|14\|30` | Vista Analítica: totales, volumen diario y comparativa por empresa (cada rol ve solo lo suyo) |
@@ -159,8 +177,8 @@ Ver `README.md` en la raíz del proyecto (pasos con Docker Compose, Alembic, see
 
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
-| API (pytest, Postgres real) | `backend/tests/test_api.py` (15) y `test_roles.py` (28) — 43 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
-| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 43 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta; el cliente ve la respuesta del agente (sin recargar y tras recargar) y el widget cerrado avisa** |
+| API (pytest, Postgres real) | `backend/tests/test_api.py` (15), `test_roles.py` (28) y `test_ciclo_ticket.py` (9) — 52 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
+| Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 49 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta; el cliente ve la respuesta del agente (sin recargar y tras recargar) y el widget cerrado avisa** |
 | Migración | manual | `alembic upgrade head`, `alembic check` (sin diferencias con los modelos) y `downgrade base` sobre un Postgres real |
 
 Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían las tablas.
@@ -196,7 +214,7 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | Celery + Redis para la ingesta | Vicente | S10–S12 |
 | Vista Analítica con datos reales | Fabián | hecho (`GET /metricas/analitica`) |
 | Límite de peticiones (rate limiting) en los endpoints públicos | Fabián | por definir |
-| Reabrir el ticket si el cliente escribe después de que fue resuelto (hoy el mensaje se guarda pero el ticket sigue `resuelto`) | Fabián | por definir |
+| Cierre a las 72 h con un planificador real (hoy se aplica al leer; con Celery pasa a tarea periódica) | Vicente / Fabián | con Celery |
 
 **Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de una sola persona y tiene 4 semanas para el motor.
 El contrato del motor (`responder` y `sugerir_respuesta` en `services/motor_rag.py`) ya está fijo, así que el front y la API no

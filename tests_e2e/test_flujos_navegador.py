@@ -38,15 +38,14 @@ with sync_playwright() as p:
     login(SUPER, SUPER_PW)
     ok(pg.get_by_test_id('user-role').first.inner_text()=='Superadmin','L3 login del superadmin')
 
-    # A) ticket: abrir, marcar resuelto
+    # A) ticket: abrir, responder (envía la encuesta); el cierre lo decide el cliente
     pg.locator('text=COR-8921').first.click(); pg.wait_for_timeout(500)
-    pg.get_by_text('Marcar como resuelto').first.click(); pg.wait_for_timeout(1000)
-    t=[x for x in api('/tickets') if x['ticketNumber']=='COR-8921'][0]
-    ok(t['status']=='resuelto','A1 marcar resuelto persiste en la BD')
+    ok(pg.get_by_text('Marcar como resuelto').count()==0 and pg.get_by_text('Enviar respuesta y encuesta').count()>0,'A1 el encargado no cierra el ticket: responde y envía la encuesta')
     # responder
     pg.locator('textarea').first.fill('Respuesta de prueba desde la consola'); pg.get_by_text('Enviar respuesta').first.click(); pg.wait_for_timeout(1200)
     t=[x for x in api('/tickets') if x['ticketNumber']=='COR-8921'][0]
     ok(t['transcript'][-1]['message']=='Respuesta de prueba desde la consola' and t['transcript'][-1]['sender']=='agent','A2 respuesta del agente queda en la transcripción')
+    ok(t['status']=='esperando_cliente','A3 tras responder, el ticket queda esperando la respuesta del cliente (encuesta)')
     pg.screenshot(path='shot_ticket.png')
     pg.keyboard.press('Escape'); pg.reload(); pg.wait_for_timeout(1500)
 
@@ -185,8 +184,12 @@ with sync_playwright() as p:
         pg.wait_for_selector('text=Ya revisamos tu caso H-respuesta', timeout=12000); visto = True
     except Exception:
         visto = False
-    ok(visto and pg.locator('text=Caso resuelto').count()>0,'H2 el cliente ve la respuesta del agente sin recargar y el caso figura resuelto')
+    ok(visto and pg.locator('[data-testid="survey"]').count()==1 and pg.locator('text=¿Se resolvió tu consulta?').count()>0,'H2 el cliente ve la respuesta del agente sin recargar y la encuesta de resolución')
     pg.screenshot(path='shot_respuesta_agente.png')
+    pg.get_by_role('button', name='Sí, se resolvió').click(); pg.wait_for_timeout(1500)
+    tH=[x for x in api('/tickets') if 'H-prueba' in x['userQueryExcerpt']][0]
+    ok(tH['status']=='cerrado' and tH['closeReason']=='confirmado_cliente' and pg.locator('text=cerrado. ¡Gracias').count()>0
+       and pg.get_by_placeholder('Este caso ya terminó').is_disabled(),'H2b el cliente dice SÍ: el ticket se cierra y el chat queda terminado')
     pg.reload(); pg.wait_for_timeout(1500)
     ok(pg.locator('text=Ya revisamos tu caso H-respuesta').count()>0 and pg.locator('text=Perdi mi tarjeta H-prueba').count()>0,'H3 al recargar se recupera la conversación completa')
     pg.evaluate("localStorage.setItem('alloxentric_chat_wellq','00000000-0000-0000-0000-000000000000')"); pg.reload(); pg.wait_for_timeout(1500)
@@ -206,4 +209,28 @@ with sync_playwright() as p:
     pg.locator('button[data-unread="1"]').click(); pg.wait_for_timeout(800)
     ok(fr.locator('text=Respuesta para el badge').count()>0 and pg.locator('button[data-unread="1"]').count()==0,'H6 al abrir el widget el aviso desaparece y se ve la respuesta')
     srv2.shutdown(); srv2.server_close()
+
+    # I) el cliente dice que NO se resolvió: el ticket se escala, sale de la cola del encargado y lo gestiona el admin
+    pg.goto('http://localhost:3000/chat/wellq'); pg.evaluate('localStorage.clear()'); pg.reload(); pg.wait_for_timeout(1200)
+    q = pg.get_by_placeholder('Escribe tu consulta…')
+    q.fill('No me llega el certificado I-noresuelto urgente'); q.press('Enter'); pg.wait_for_timeout(1800)
+    responder_como_agente('I-noresuelto', 'Te reenviamos el certificado por correo')
+    try:
+        pg.wait_for_selector('[data-testid="survey"]', timeout=12000); encuesta = True
+    except Exception:
+        encuesta = False
+    pg.get_by_role('button', name='No, sigue sin resolverse').click(); pg.wait_for_timeout(1500)
+    tI=[x for x in api('/tickets') if 'I-noresuelto' in x['userQueryExcerpt']][0]
+    ok(encuesta and tI['status']=='escalado' and pg.locator('text=fue escalado a la gestión').count()>0,'I1 el cliente dice NO: el ticket queda escalado y el chat avisa que lo contactarán')
+    pg.screenshot(path='shot_encuesta_no.png')
+    login('tickets@wellq.demo', DEMO_PW)
+    pg.locator('aside').get_by_text('Consola de soporte').first.click(); pg.wait_for_timeout(1200)
+    ok(pg.locator('text=I-noresuelto').count()==0 and pg.get_by_text('Escalado').count()==0,'I2 el ticket escalado ya no está en la cola del encargado de tickets')
+    login('admin@wellq.demo', DEMO_PW)
+    pg.locator('aside').get_by_text('Consola de soporte').first.click(); pg.wait_for_timeout(1200)
+    pg.locator('text=I-noresuelto').first.click(); pg.wait_for_timeout(600)
+    ok(pg.locator('text=Escalado a gestión').count()>0 and pg.get_by_text('Enviar respuesta y encuesta').count()==0,'I3 el admin de la empresa ve el ticket escalado y no puede responderlo por el chat')
+    pg.get_by_text('Cerrar ticket (ya gestionado)').first.click(); pg.wait_for_timeout(1200)
+    tI=[x for x in api('/tickets') if 'I-noresuelto' in x['userQueryExcerpt']][0]
+    ok(tI['status']=='cerrado' and tI['closeReason']=='gestion_manual','I4 el admin cierra el ticket escalado y queda cerrado para siempre')
     b.close()
