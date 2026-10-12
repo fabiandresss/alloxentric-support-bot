@@ -46,6 +46,16 @@ class Company(CamelModel):
     api_key: str | None = None  # solo al crear / rotar
 
 
+class PublicAgent(CamelModel):
+    """Lo único que expone la página pública de chat (sin documentos, claves ni métricas)."""
+    name: str
+    agent_name: str
+    logo_initials: str
+    brand_color: str
+    brand_bg: str
+    agent_status: AgentStatus
+
+
 class ChatMessage(CamelModel):
     id: str
     sender: Literal["user", "bot", "agent"]

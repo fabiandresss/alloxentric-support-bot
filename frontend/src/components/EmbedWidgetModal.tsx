@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Code, ExternalLink, Sparkles } from 'lucide-react';
 import { Company } from '../types';
-import { API_URL, rotateApiKey } from '../api/client';
+import { rotateApiKey } from '../api/client';
 
 interface EmbedWidgetModalProps {
   company: Company;
@@ -23,15 +23,12 @@ export const EmbedWidgetModal: React.FC<EmbedWidgetModalProps> = ({ company, onC
   };
 
   const embedSnippet = `<!-- Alloxentric SupportHub AI Web Widget for ${company.name} -->
-<script 
-  src="https://cdn.alloxentric.com/v3/widget.min.js" 
+<script
+  src="${window.location.origin}/widget.min.js"
   data-tenant-id="${company.slug}"
-  data-api-url="${API_URL}"
-  data-api-key="${apiKey ?? 'GENERA_TU_API_KEY'}"
   data-agent-name="${company.agentName}"
   data-primary-color="${company.brandColor}"
-  data-accent-color="#14B8A6"
-  data-escalation-target="corestream"
+  data-position="right"
   defer>
 </script>`;
 
@@ -96,7 +93,7 @@ export const EmbedWidgetModal: React.FC<EmbedWidgetModalProps> = ({ company, onC
             <div className="min-w-0">
               <p className="font-semibold">API key del widget</p>
               <p className="text-[11px] text-[#64748B] mt-0.5">
-                Se muestra una sola vez. Generar una nueva invalida la anterior.
+                Para integraciones propias vía POST /chat (el widget no la necesita). Se muestra una sola vez; generar una nueva invalida la anterior.
               </p>
               {apiKey && <code className="block mt-1.5 text-[11px] font-mono break-all text-[#4F46E5]">{apiKey}</code>}
               {keyError && <p className="mt-1.5 text-[11px] text-[#B91C1C]">{keyError}</p>}

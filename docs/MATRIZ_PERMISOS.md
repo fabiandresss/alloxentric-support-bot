@@ -34,5 +34,5 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 - **Base de datos:** la tabla `usuarios` tiene dos `CHECK`: el rol debe ser uno de los cuatro, y `empresa_id` es nulo **si y solo si** el rol es `superadmin`.
 - **Reglas anti-accidentes:** nadie puede desactivarse, eliminarse ni cambiarse el rol a sí mismo; un admin de empresa no puede crear ni tocar superadmins;
   un usuario desactivado pierde el acceso aunque su token no haya vencido.
-- **El widget no usa JWT:** el chat público sigue autenticándose con la API key de la empresa (`X-API-Key`).
+- **El widget no usa JWT:** el chat público (`/publico/{slug}`, que usan la página `/chat/{slug}` y el widget embebible) no exige login; la empresa sale del slug de la ruta, solo responde con el agente `activo` y solo expone datos de marca. `POST /chat` sigue autenticándose con la API key (`X-API-Key`).
 - **En el front** el menú muestra solo las vistas del rol (`src/auth/permissions.ts`), pero es solo comodidad: la regla real está en el backend.

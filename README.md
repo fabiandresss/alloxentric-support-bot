@@ -18,7 +18,8 @@ creando un ticket en **Corestream**. Todo corre **100% en local** (sin nube).
 | Ingesta de documentos (TXT, PDF, DOCX): extracción y fragmentación | Hecho (faltan embeddings) |
 | Front: consola de soporte, panel de agentes, widget de prueba, usuarios y roles | Hecho |
 | Motor RAG (embeddings + pgvector + DeepSeek + clasificador) | **Provisorio** (palabras clave) |
-| Corestream real · Celery · widget embebible · Analítica real | Pendiente |
+| Widget embebible `widget.min.js` y chat público `/chat/{slug}` | Hecho |
+| Corestream real · Celery · Analítica real | Pendiente |
 
 ## Roles
 
@@ -73,7 +74,7 @@ esquema (`alembic upgrade head`). Para cambios de esquema: editar `app/models/mo
 
 ## Pruebas
 
-Pruebas de la API (pytest, 33 pruebas, incluye roles y permisos):
+Pruebas de la API (pytest, 35 pruebas, incluye roles y permisos):
 
 ```bash
 cd backend
@@ -99,11 +100,12 @@ en las respuestas de la empresa B, y una conversación de A no se puede usar con
 | `POST /empresas/{slug}/api-key` | Generar/rotar la API key del widget |
 | `GET/POST /empresas/{slug}/documentos`, `DELETE /documentos/{id}`, `GET /documentos/{id}/fragmentos` | Base de conocimiento |
 | `GET /tickets`, `GET/PATCH /tickets/{id}`, `POST /tickets/{id}/respuesta` | Consola Corestream |
-| `POST /chat` (header `X-API-Key`) | Widget embebido: el tenant sale de la key |
+| `POST /chat` (header `X-API-Key`) | Integraciones propias: el tenant sale de la key |
+| `GET /publico/{slug}` · `POST /publico/{slug}/chat` | Chat público (página `/chat/{slug}` y widget embebible); sin login, solo con agente `activo` |
 | `POST /empresas/{slug}/probar` | Simulador del panel (sin key) |
 | `GET /metricas` | Tarjetas de la consola |
 
-Todas las rutas (salvo `/health`, `/auth/login` y `/chat`) exigen `Authorization: Bearer <token>` y un rol permitido; ver `docs/MATRIZ_PERMISOS.md`.
+Todas las rutas (salvo `/health`, `/auth/login`, `/chat` y `/publico/*`) exigen `Authorization: Bearer <token>` y un rol permitido; ver `docs/MATRIZ_PERMISOS.md`.
 
 Usuarios que deja el seed (solo desarrollo): `superadmin@alloxentric.local` / `Superadmin123!` y, por empresa, `admin@<slug>.demo`, `tickets@<slug>.demo`, `agente@<slug>.demo` con `Demo1234!` (slug: `wellq`, `alloxentric`, `dani-eth`, `dani27001`, `aprueba`). Para crear un superadmin en una BD ya existente: `python crear_superadmin.py correo@dominio.cl`.
 
@@ -116,6 +118,5 @@ Las respuestas usan exactamente la forma de `frontend/src/types/index.ts` (camel
 | **Motor RAG real** (embeddings sentence-transformers + búsqueda pgvector + DeepSeek). Hoy `services/motor_rag.py` busca por palabras clave sobre los fragmentos; el contrato (`responder`, `sugerir_respuesta`) ya está fijo. | `backend/app/services/motor_rag.py`, `ingesta.py::generar_embeddings` | Vicente |
 | Procesar la ingesta con **Celery + Redis** (hoy usa `BackgroundTasks` de FastAPI) | `services/ingesta.py` | Vicente |
 | **Corestream real** (hoy `CORESTREAM_MOCK=true`: el ticket se crea solo en la BD local) | `services/derivacion.py` | Fabián |
-| **widget.min.js**: el snippet de "Widget embebible" apunta a un script que aún no existe | front / nuevo | Fabián |
 | Vista **Analítica**: sigue con datos de ejemplo del prototipo | `AnalyticsView.tsx` | Fabián |
 | Los documentos del seed no tienen archivo ni fragmentos reales: sube uno desde el panel para probar | — | — |
