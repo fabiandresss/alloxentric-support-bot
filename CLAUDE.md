@@ -11,7 +11,7 @@ resolver, **deriva a un humano** creando un ticket en **Corestream** (la tickete
 
 - **Todo corre 100% en local, sin nube** (decisión del equipo: nada de AWS ni servicios cloud). El único gasto externo posible es la API de DeepSeek.
 - Fabián: front, plataforma base, derivación a Corestream, roles/login, documentación. Vicente: modelo de datos, ingesta, embeddings, motor RAG.
-- Estamos en la **semana 9 de 17** (6 oct 2026), con atraso respecto a la Carta Gantt original; ver sección 9.
+- Estamos en la **semana 10 de 17** (13 oct 2026). Lo construido va por delante de lo pendiente, pero DeepSeek en vivo, Corestream real y Celery siguen abiertos; ver sección 9.
 - El usuario escribe en español (Chile). Responde en español, tono directo y de estudiante, sin relleno. Código y nombres de variables en el idioma que ya usa cada archivo (backend en español: `empresa`, `fragmentos`, `ticket`).
 
 ## 2. Stack
@@ -47,9 +47,9 @@ cd ../frontend && npx tsc --noEmit && npm run build              # verificación
 alembic revision --autogenerate -m "desc"                        # tras cambiar models.py; REVISAR el archivo generado
 ```
 
-Usuarios del seed (solo desarrollo): `superadmin@alloxentric.local` / `Superadmin123!`; por empresa `admin@<slug>.demo`,
-`tickets@<slug>.demo`, `agente@<slug>.demo` con `Demo1234!` (slugs: `wellq`, `alloxentric`, `dani-eth`, `dani27001`, `aprueba`).
-Superadmin en una BD ya poblada: `python crear_superadmin.py correo@dominio.cl`.
+Usuarios del seed (solo desarrollo): `superadmin@alloxentric.local` con la clave de `SUPERADMIN_PASSWORD` en `.env` (`iniciar.ps1` la genera al azar;
+sin esa variable el seed usa `Superadmin123!`); por empresa `admin@<slug>.demo`, `tickets@<slug>.demo`, `agente@<slug>.demo` con `Demo1234!`
+(slugs: `wellq`, `alloxentric`, `dani-eth`, `dani27001`, `aprueba`). Tabla por rol en `README.md`. Superadmin en una BD ya poblada: `python crear_superadmin.py correo@dominio.cl`.
 
 ## 4. Mapa del repositorio
 
@@ -66,7 +66,11 @@ backend/app/
   services/          chat (orquesta), motor_rag (RAG: intención, búsqueda por empresa, umbral, LLM), embeddings, llm (DeepSeek),
                      ciclo_ticket, ingesta, derivacion (mock Corestream)
 backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario, 0004 ciclo del ticket con encuesta, 0005 modelo del embedding
-backend/seed.py · seed_data.json · crear_superadmin.py · tests/ (test_api.py, test_roles.py, conftest.py)
+backend/seed.py · seed_data.json · crear_superadmin.py · reindexar.py · dev_db.py (Postgres sin Docker)
+backend/calidad_rag/           batería de calidad del RAG (corpus.json, preguntas.json, evaluar.py, resultados_*.json)
+backend/tests/                 test_api, test_roles, test_ciclo_ticket, test_rag, test_ratelimit + conftest (90 pruebas)
+iniciar.ps1 / detener.ps1 (+ .cmd)   arranque y apagado en un comando (Windows); -SinDocker, -Reset, -Simular
+Carta_Gantt_estado_S10.xlsx · Requerimientos_Chatbot_semana10_roles.xlsx   planificación (RF, EDT, hoja "Pendientes S10")
 frontend/src/api/client.ts     ÚNICO lugar con llamadas HTTP (+ sesión JWT en sessionStorage)
 frontend/src/auth/permissions.ts   vistas por rol (espejo de la matriz; la regla real está en el backend)
 frontend/public/widget.min.js    widget embebible (botón + iframe a /chat/{slug}?embed=1)
@@ -118,11 +122,11 @@ El encargado de tickets responde y se envía una **encuesta** al cliente; **el c
 - `pip install -r requirements.txt` arrastra torch (~1 GB). Las pruebas no lo necesitan (`EMBEDDINGS_BACKEND=hash`).
 - Los embeddings son de **384** dimensiones (el prototipo decía 768 y se corrigió). Si cambias de modelo, cambia `EMBED_DIM` y haz migración.
 
-## 7. Estado actual (semana 9)
+## 7. Estado actual (semana 10, 13 oct 2026)
 
 **Hecho y probado:** modelo de datos + migraciones; API de empresas, usuarios, documentos, tickets, chat y métricas; ingesta de TXT/PDF/DOCX
 (extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**; **ciclo del ticket con encuesta de resolución (Sí cierra, No escala, 72 h cierra)**; **rate limiting de los endpoints sin sesión**;
-documentación técnica, manual y diagramas.
+documentación técnica, manual con capturas actualizadas y diagramas; **batería de calidad del RAG** (45 preguntas) y **scripts de arranque** `iniciar.ps1`/`detener.ps1`.
 
 **Motor RAG:** implementado y validado con el modelo real (E2E 49/49; fuente correcta 96 %, AUC 0.93, `calidad_rag/`). **Falta probar DeepSeek en vivo** (no hay `DEEPSEEK_API_KEY` aún: responde en modo extractivo). **Provisorio:** Corestream es un mock (`CORESTREAM_MOCK=true`);
 la ingesta usa `BackgroundTasks`; los documentos del seed no tienen archivo ni fragmentos reales.
@@ -135,16 +139,19 @@ la ingesta usa `BackgroundTasks`; los documentos del seed no tienen archivo ni f
 | 2 | Motor RAG: **hecho y calibrado** (pgvector por `empresa_id`, umbral, intención, sugerencia IA); falta probar **DeepSeek en vivo** (necesita `DEEPSEEK_API_KEY`) y la ruta SQL de pgvector contra el Docker | `services/motor_rag.py` | Vicente / Fabián |
 | 3 | Celery + Redis para la ingesta | `services/ingesta.py`, `docker-compose.yml` | Vicente |
 | 4 | Corestream real (`httpx`) cuando exista su documentación; mantener el mock | `services/derivacion.py` | Fabián |
-| 5 | Validar el entorno en ambas notebooks (RF-18…23) | README | Ambos |
-| 6 | Pruebas de calidad del RAG (preguntas con/sin respaldo), pruebas integrales, ajustes y documentación final | `tests/`, `docs/` | Ambos |
+| 5 | Validar el entorno con Docker y en la notebook de Vicente (RF-18, RF-20; hoy validado en la de Fabián con `-SinDocker`) | README | Ambos |
+| 6 | Repetir la batería de calidad con DeepSeek real (alucinaciones, RNF-05) y medir tiempos (RNF-06) | `calidad_rag/`, `tests/` | Ambos |
+| 7 | Revisión cruzada: Vicente revisa el motor RAG, los embeddings y los roles implementados desde el repo de Fabián | `services/` | Vicente |
+| 8 | Pruebas de aceptación con los 4 roles, ajustes y documentación final (manual, diagramas) | `tests_e2e/`, `docs/` | Ambos |
+| 9 | Entregables del Capstone: informe final, abstract ES/EN, conclusiones y reflexión individual (inglés), presentación | — | Ambos |
 
-Al terminar una tarea: actualizar `README.md` (sección "Qué es provisorio"), `docs/01_documentacion_tecnica.md` (trazabilidad y pendientes) y avisar a Fabián para actualizar los Excel de Requerimientos y la Carta Gantt (RF-xx: Hecho / En curso / Pendiente).
+Al terminar una tarea: actualizar `README.md` (sección "Qué es provisorio"), `docs/01_documentacion_tecnica.md` (trazabilidad y pendientes) y los Excel de Requerimientos y Carta Gantt (RF-xx: Hecho / En curso / Pendiente; hoja "Pendientes S10").
 
 ## 9. Contexto académico y de planificación
 
-- Requerimientos (Excel, ciclo en cascada): 30 RF — 11 hechos, 11 en curso, 8 pendientes (a la semana 9). Fases: Análisis, Diseño, Configuración del entorno local, Desarrollo, Pruebas, Implementación y cierre.
-- Carta Gantt: 17 semanas, 10 actividades. Van atrasadas carga/vectorización, motor RAG y derivación real. Pruebas S11–S14 y ajustes/documentación S14–S17 son lo que queda después.
-- **Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de Vicente y deja poco margen para el cierre.
+- Requerimientos (Excel, ciclo en cascada): 39 RF — 31 hechos, 5 en curso, 3 pendientes (semana 10), 14 RNF y 41 tareas en la EDT. Fases: Análisis, Diseño, Configuración del entorno local, Desarrollo, Pruebas, Implementación y cierre.
+- Carta Gantt: 17 semanas, 14 actividades. Cerradas: modelo de datos, plataforma base, interfaz, carga/vectorización y motor RAG. En curso: derivación (mock listo) y validación del entorno. Pruebas S11–S14 y ajustes/documentación S14–S17 son lo que queda.
+- **Riesgo principal:** lo que depende de terceros — la API key de DeepSeek y la documentación de Corestream — y el poco margen para el cierre (informe final y entregables académicos).
 - Competencias del perfil de egreso: gestión de proyectos, desarrollo de software, QA, bases de datos, IA. Entregables extra por ser Capstone: Abstract (ES/EN), conclusiones y reflexión individuales (en inglés).
 
 ## 10. Cómo trabajar aquí

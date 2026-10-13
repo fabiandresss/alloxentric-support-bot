@@ -241,13 +241,26 @@ curl -X POST http://localhost:8000/chat \
 
 ## 9. Ejecución local
 
-Ver `README.md` en la raíz del proyecto (pasos con Docker Compose, Alembic, seed, Uvicorn y Vite).
+Ver `README.md` en la raíz del proyecto. En Windows, `.\iniciar.ps1` hace todo (`-SinDocker` usa un Postgres embebido; `.\detener.ps1` apaga).
+
+**Credenciales de desarrollo**
+
+| Rol | Correo | Clave | Qué ve y qué puede probar |
+|---|---|---|---|
+| **Superadmin** | `superadmin@alloxentric.local` | la de `SUPERADMIN_PASSWORD` en tu `.env` (`iniciar.ps1` la genera al azar; si corres `seed.py` sin esa variable es `Superadmin123!`) | Todo: todas las empresas, tickets y usuarios; crea empresas y otros superadmins |
+| **Admin de empresa** | `admin@<slug>.demo` | `Demo1234!` | Consola, agentes, analítica y usuarios de **su** empresa; ve y cierra los tickets escalados |
+| **Encargado de tickets** | `tickets@<slug>.demo` | `Demo1234!` | Solo Consola de soporte y Analítica de su empresa (no ve los tickets escalados) |
+| **Encargado del agente IA** | `agente@<slug>.demo` | `Demo1234!` | Empresas y agentes, documentos y vista previa del widget de su empresa; sin consola ni usuarios |
+
+`<slug>` es uno de: `wellq`, `alloxentric`, `dani-eth`, `dani27001`, `aprueba` (15 usuarios demo: 3 por empresa). Son claves **solo de desarrollo**:
+cámbialas antes de usar el sistema fuera de tu notebook. Para crear un superadmin en una BD ya poblada: `python crear_superadmin.py correo@dominio.cl`.
+
 
 ## 10. Pruebas
 
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
-| API (pytest, Postgres real) | `backend/tests/test_api.py` (15), `test_roles.py` (28), `test_ciclo_ticket.py` (9) y `test_ratelimit.py` (7) y `test_rag.py` (31) — 90 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
+| API (pytest, Postgres real) | `backend/tests/test_api.py` (15), `test_roles.py` (28), `test_ciclo_ticket.py` (9), `test_ratelimit.py` (7) y `test_rag.py` (31) — 90 pruebas | **Login, matriz de permisos por rol, aislamiento entre empresas, gestión de usuarios y constraints de la BD**; CRUD de empresas y forma JSON, ingesta (TXT, PDF, DOCX, archivo corrupto), chat con RAG y derivación, **chat público por slug y su aislamiento**, flujo del agente, **asignación solo a usuarios de la empresa, remitente autenticado, campos de empresa por rol, analítica por empresa**, numeración de tickets, **aislamiento multi-tenant**, métricas, carga del seed |
 | Navegador (Playwright) | `tests_e2e/test_flujos_navegador.py` — 49 verificaciones | **Login y permisos por rol (menús, tickets filtrados, crear usuario, cerrar sesión)**; consola → ticket → respuesta; subir documento; chat con respuesta RAG; derivación y ticket nuevo en la consola; crear empresa; **chat público `/chat/{slug}` y widget embebido en un sitio de otro origen; analítica real por rol, asignación a usuarios reales y remitente de la respuesta; el cliente ve la respuesta del agente (sin recargar y tras recargar) y el widget cerrado avisa** |
 | Migración | manual | `alembic upgrade head`, `alembic check` (sin diferencias con los modelos) y `downgrade base` sobre un Postgres real |
 
@@ -262,14 +275,24 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | RF-04, RF-05 | `routers/documentos.py`, `services/ingesta.py`, `services/embeddings.py` | Hecho (validado con el modelo real) |
 | RF-06 | `BackgroundTasks` (Celery pendiente) | En curso |
 | RF-07, RF-08 | `services/motor_rag.py` (búsqueda vectorial por empresa + umbral) | Hecho (calibrado con la batería de calidad) |
-| RF-09 | `services/llm.py` (DeepSeek, con respaldo extractivo) | Implementado; falta probar en vivo |
+| RF-09 | `services/llm.py` (DeepSeek, con respaldo extractivo) | En curso (implementado; falta probar en vivo) |
 | RF-10, RF-11 | `WidgetPreview.tsx`, `routers/chat.py` | Hecho |
 | RF-12, RF-13 | `services/derivacion.py` (mock con `CORESTREAM_MOCK`) | Hecho |
-| RF-14, RF-15 | `CorestreamConsole.tsx`, `routers/tickets.py` (sugerencia IA provisoria) | Hecho / En curso |
-| RF-16, RF-17 | `AgentDeploymentPanel.tsx`, `AgentConfigModal.tsx`, `EmbedWidgetModal.tsx` | Hecho / En curso |
-| RF-18 a RF-23 | `docker-compose.yml`, `.env.example` | Pendiente de confirmar en ambas notebooks |
-| RF-24 a RF-26 | `backend/tests/`, `tests_e2e/` | En curso |
+| RF-14, RF-15 | `CorestreamConsole.tsx`, `routers/tickets.py` (sugerencia generada por el motor RAG) | Hecho |
+| RF-16, RF-17 | `AgentDeploymentPanel.tsx`, `AgentConfigModal.tsx`, `EmbedWidgetModal.tsx` | Hecho |
+| RF-18, RF-20 | `docker-compose.yml`, `.env.example`, `iniciar.ps1` | En curso (validado en una notebook sin Docker; falta Docker y la de Vicente) |
+| RF-19, RF-21, RF-23 | `.env.example`, `.gitignore`, `docker-compose.yml` | Hecho |
+| RF-22 | `docker-compose.yml` (Redis) | Pendiente (hasta implementar Celery) |
+| RF-24 a RF-26, RF-37 | `backend/tests/`, `tests_e2e/`, `backend/calidad_rag/` | Hecho |
 | RF-27 | `docs/` | En curso |
+| RF-31 | `routers/publico.py`, `PublicChat.tsx`, `widget.min.js` | Hecho |
+| RF-32 | `services/ciclo_ticket.py`, `routers/tickets.py`, `routers/publico.py`, migración 0004 | Hecho |
+| RF-33 | `routers/tickets.py` (`/tickets/agentes`), migración 0003 | Hecho |
+| RF-34 | `routers/metricas.py`, `AnalyticsView.tsx` | Hecho |
+| RF-35 | `ratelimit.py` | Hecho |
+| RF-36 | `iniciar.ps1`, `detener.ps1` | Hecho |
+| RF-38 | `services/derivacion.py` | Pendiente (Corestream real) |
+| RF-39 | `services/ciclo_ticket.py` | Pendiente (tarea periódica con Celery) |
 | RF-28, RF-30 | `routers/auth.py`, `deps.py`, `security.py`, `LoginScreen.tsx`, `UsersView.tsx` | Hecho |
 | RF-29 | `frontend/public/widget.min.js`, `PublicChat.tsx`, `routers/publico.py` | Hecho |
 
@@ -286,6 +309,7 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | Mover los contadores del rate limiting a Redis (hoy en memoria, por proceso) si se despliega con varios workers | Fabián | solo si se escala |
 | Cierre a las 72 h con un planificador real (hoy se aplica al leer; con Celery pasa a tarea periódica) | Vicente / Fabián | con Celery |
 
-**Riesgo principal:** la cadena embeddings → motor RAG → pruebas depende de una sola persona y tiene 4 semanas para el motor.
-El contrato del motor (`responder` y `sugerir_respuesta` en `services/motor_rag.py`) ya está fijo, así que el front y la API no
-cambian cuando se reemplace.
+**Riesgos (semana 10):** (1) DeepSeek en vivo depende de una API key que aún no existe y es el único componente del RAG sin probar con datos reales;
+(2) la integración real con Corestream depende de documentación y credenciales externas (hoy mock); (3) el motor RAG y los embeddings se
+implementaron desde el repositorio de Fabián y requieren revisión de Vicente; (4) margen corto para el cierre: informe final y entregables académicos.
+El resto de la lista de pendientes está en la hoja "Pendientes S10" del Excel de Requerimientos.
