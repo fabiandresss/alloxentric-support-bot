@@ -1,0 +1,21 @@
+{
+  "descripcion": "Corpus de ejemplo (empresa ficticia de telemedicina) para medir la calidad del motor RAG. Un párrafo = un fragmento.",
+  "documentos": [
+    {
+      "nombre": "politica_reembolsos.txt",
+      "texto": "Política de reembolsos\n\nLos reembolsos de consultas de telemedicina se procesan en un plazo de cinco días hábiles, contados desde que recibimos la boleta electrónica.\n\nPara solicitar un reembolso debes ingresar a la sección Mis pagos del portal, seleccionar la consulta y adjuntar la boleta en formato PDF.\n\nNo se reembolsan consultas con más de 60 días de antigüedad ni prestaciones realizadas fuera de la red de profesionales asociados.\n\nEl monto reembolsado se abona en la misma tarjeta o cuenta con la que se realizó el pago original."
+    },
+    {
+      "nombre": "citas_y_agenda.txt",
+      "texto": "Puedes reprogramar una cita sin costo siempre que avises con al menos dos horas de anticipación desde el portal o la aplicación móvil.\n\nSi cancelas con menos de dos horas de anticipación o no asistes, se cobra el 50% del valor de la consulta.\n\nLas consultas de telemedicina se realizan por videollamada. Necesitas una conexión estable, cámara y micrófono, y se recomienda usar Chrome o Safari actualizados.\n\nSi tienes problemas de audio o video durante la consulta, recarga la página y vuelve a ingresar con el mismo enlace; el profesional esperará hasta 10 minutos."
+    },
+    {
+      "nombre": "cuenta_y_seguridad.txt",
+      "texto": "Para restablecer tu contraseña haz clic en ¿Olvidaste tu contraseña? en la pantalla de inicio de sesión y sigue las instrucciones que enviaremos a tu correo.\n\nActivas la verificación en dos pasos desde Configuración, Seguridad. Te enviaremos un código por SMS cada vez que inicies sesión desde un dispositivo nuevo.\n\nPara cambiar el correo electrónico asociado a tu cuenta debes contactar a soporte, ya que requiere validar tu identidad.\n\nTus datos de salud están cifrados y solo pueden verlos tú y los profesionales que atienden tus consultas."
+    },
+    {
+      "nombre": "planes_y_facturacion.txt",
+      "texto": "Ofrecemos tres planes: Básico, Familiar y Empresas. El plan Familiar incluye hasta cinco beneficiarios y consultas ilimitadas de medicina general.\n\nEl cobro de la suscripción se realiza el primer día de cada mes con la tarjeta registrada. Recibirás la factura o boleta por correo.\n\nPuedes cancelar tu suscripción en cualquier momento desde Mi plan; el servicio sigue activo hasta el final del periodo ya pagado.\n\nLas facturas a nombre de empresa deben solicitarse dentro del mismo mes de la compra, indicando razón social y RUT."
+    }
+  ]
+}

@@ -70,7 +70,7 @@ Pulsa **Atender** en la tarjeta.
 5. Otras acciones de la parte superior: **Marcar urgente** (sube el caso a Urgente) y el botón de agente para **reasignar** el caso
    a un usuario de la empresa. Un ticket **Escalado** lo ve y lo cierra el admin con **Cerrar ticket (ya gestionado)**.
 
-> La sugerencia de respuesta es un borrador provisorio; cuando el motor RAG real esté integrado la generará DeepSeek.
+> La sugerencia de respuesta es un borrador generado con la documentación de la empresa (con DeepSeek si hay clave; si no, una plantilla con el fragmento más relevante). Revísala siempre antes de enviarla.
 
 ---
 

@@ -22,8 +22,8 @@ resolver, **deriva a un humano** creando un ticket en **Corestream** (la tickete
 | BD | PostgreSQL 16 + **pgvector** (HNSW, coseno, 384 dimensiones), driver psycopg3 |
 | Auth | PyJWT (HS256) + PBKDF2-SHA256 de la stdlib (`app/security.py`) |
 | Ingesta | pypdf, python-docx; `BackgroundTasks` de FastAPI (Celery + Redis **pendiente**) |
-| Embeddings (pendiente) | `paraphrase-multilingual-MiniLM-L12-v2` (sentence-transformers) |
-| LLM (pendiente) | DeepSeek vía API (`DEEPSEEK_API_KEY` en `.env`) |
+| Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (sentence-transformers, local; `EMBEDDINGS_BACKEND=hash` sin modelo, para pruebas) |
+| LLM | DeepSeek vía API (`DEEPSEEK_API_KEY` en `.env`); sin clave el motor responde extractivo |
 | Front | React 19 + TypeScript + Vite + Tailwind (prototipo de Google AI Studio, ya conectado a la API) |
 | Infra local | Docker Compose (Postgres+pgvector y Redis, puertos solo en 127.0.0.1) |
 | Pruebas | pytest sobre Postgres real, Playwright (navegador), `pixeltable-pgserver` como Postgres temporal |
@@ -36,9 +36,11 @@ cd backend && python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 alembic upgrade head                                             # esquema + extensión vector
 python seed.py [--reset]                                         # 5 empresas, 8 tickets, usuarios demo (imprime keys)
+python reindexar.py [--todo] [--empresa slug]                    # regenera los vectores (primera vez con el modelo real o tras cambiarlo)
+python calidad_rag/evaluar.py [--backend hash]                   # batería de calidad del RAG (45 preguntas); recomienda sim_min/sim_max
 uvicorn app.main:app --reload                                    # http://localhost:8000/docs
 cd ../frontend && cp .env.example .env && npm install && npm run dev   # http://localhost:3000
-cd ../backend && pytest -q                                       # 59 pruebas (Postgres temporal automático)
+cd ../backend && pytest -q                                       # 90 pruebas (Postgres temporal automático)
 python ../tests_e2e/test_flujos_navegador.py                     # 49 verificaciones; BD recién sembrada y todo corriendo
 cd ../frontend && npx tsc --noEmit && npm run build              # verificación de tipos y build
 alembic revision --autogenerate -m "desc"                        # tras cambiar models.py; REVISAR el archivo generado
@@ -60,8 +62,9 @@ backend/app/
   deps.py            tenant por API key, login (JWT), requiere_rol(), verificar_tenant(), empresa_con_rol()
   security.py        hash de claves y JWT
   routers/           auth (login + usuarios), empresas, tickets, documentos, chat, publico (chat por slug), metricas
-  services/          chat (orquesta), motor_rag (PROVISORIO), ingesta, derivacion (mock Corestream)
-backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario, 0004 ciclo del ticket con encuesta
+  services/          chat (orquesta), motor_rag (RAG: intención, búsqueda por empresa, umbral, LLM), embeddings, llm (DeepSeek),
+                     ciclo_ticket, ingesta, derivacion (mock Corestream)
+backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario, 0004 ciclo del ticket con encuesta, 0005 modelo del embedding
 backend/seed.py · seed_data.json · crear_superadmin.py · tests/ (test_api.py, test_roles.py, conftest.py)
 frontend/src/api/client.ts     ÚNICO lugar con llamadas HTTP (+ sesión JWT en sessionStorage)
 frontend/src/auth/permissions.ts   vistas por rol (espejo de la matriz; la regla real está en el backend)
@@ -107,6 +110,9 @@ El encargado de tickets responde y se envía una **encuesta** al cliente; **el c
 - No hay Docker en el entorno de nube de Claude: allí se prueba con `pixeltable-pgserver`. En el notebook de Fabián sí hay Docker.
 - Evitar `pkill -f` con un patrón que coincida con el propio comando (mata la shell); usa `[v]ite` o el PID.
 - Front: `npm install` falló una vez por un `esbuild` fijado contra Vite 8; ya se quitó de `devDependencies`.
+- **Vectores de modelos distintos no se comparan:** cada fragmento guarda el `modelo` que lo generó y la búsqueda ignora los de otro embedder; tras cambiar de modelo, `python reindexar.py`.
+- El pgvector del Postgres sin Docker (`pixeltable-pgserver`) se **cae al calcular distancias** en CPUs sin AVX-512 (probado en un i5-8250U): ahí `RAG_SEARCH=python` y sin índice HNSW (lo hace `tests/conftest.py`). Con Docker `pgvector/pgvector` no pasa.
+- `pip install -r requirements.txt` arrastra torch (~1 GB). Las pruebas no lo necesitan (`EMBEDDINGS_BACKEND=hash`).
 - Los embeddings son de **384** dimensiones (el prototipo decía 768 y se corrigió). Si cambias de modelo, cambia `EMBED_DIM` y haz migración.
 
 ## 7. Estado actual (semana 9)
@@ -115,15 +121,15 @@ El encargado de tickets responde y se envía una **encuesta** al cliente; **el c
 (extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**; **ciclo del ticket con encuesta de resolución (Sí cierra, No escala, 72 h cierra)**; **rate limiting de los endpoints sin sesión**;
 documentación técnica, manual y diagramas.
 
-**Provisorio:** `motor_rag.py` (búsqueda por palabras clave sobre los fragmentos, sin embeddings ni LLM); Corestream es un mock (`CORESTREAM_MOCK=true`);
+**Motor RAG:** implementado y validado con el modelo real (E2E 49/49; fuente correcta 96 %, AUC 0.93, `calidad_rag/`). **Falta probar DeepSeek en vivo** (no hay `DEEPSEEK_API_KEY` aún: responde en modo extractivo). **Provisorio:** Corestream es un mock (`CORESTREAM_MOCK=true`);
 la ingesta usa `BackgroundTasks`; los documentos del seed no tienen archivo ni fragmentos reales.
 
 ## 8. Pendiente (en orden de dependencia)
 
 | # | Tarea | Dónde | Quién |
 |---|---|---|---|
-| 1 | Embeddings con sentence-transformers y guardado en `fragmentos_embeddings` (hoy se guardan fragmentos sin vector) | `services/ingesta.py::generar_embeddings` | Vicente |
-| 2 | Motor RAG real: búsqueda pgvector filtrada por `empresa_id`, umbral `empresas.umbral_rag`, DeepSeek, clasificador de intención (responder vs. derivar), sugerencia IA del ticket | `services/motor_rag.py` | Vicente |
+| 1 | Embeddings: **hecho y validado con el modelo real** (`services/embeddings.py`, `reindexar.py`) | `services/ingesta.py`, `services/embeddings.py` | Vicente |
+| 2 | Motor RAG: **hecho y calibrado** (pgvector por `empresa_id`, umbral, intención, sugerencia IA); falta probar **DeepSeek en vivo** (necesita `DEEPSEEK_API_KEY`) y la ruta SQL de pgvector contra el Docker | `services/motor_rag.py` | Vicente / Fabián |
 | 3 | Celery + Redis para la ingesta | `services/ingesta.py`, `docker-compose.yml` | Vicente |
 | 4 | Corestream real (`httpx`) cuando exista su documentación; mantener el mock | `services/derivacion.py` | Fabián |
 | 5 | Validar el entorno en ambas notebooks (RF-18…23) | README | Ambos |
