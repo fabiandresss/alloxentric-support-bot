@@ -31,6 +31,7 @@ resolver, **deriva a un humano** creando un ticket en **Corestream** (la tickete
 ## 3. Comandos
 
 ```bash
+.\iniciar.ps1 | iniciar.cmd                                      # Windows: TODO en uno (.env, BD, backend, front); .\detener.ps1 apaga
 cp .env.example .env && docker compose up -d                     # BD y Redis
 cd backend && python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
@@ -112,6 +113,8 @@ El encargado de tickets responde y se envía una **encuesta** al cliente; **el c
 - Front: `npm install` falló una vez por un `esbuild` fijado contra Vite 8; ya se quitó de `devDependencies`.
 - **Vectores de modelos distintos no se comparan:** cada fragmento guarda el `modelo` que lo generó y la búsqueda ignora los de otro embedder; tras cambiar de modelo, `python reindexar.py`.
 - El pgvector del Postgres sin Docker (`pixeltable-pgserver`) se **cae al calcular distancias** en CPUs sin AVX-512 (probado en un i5-8250U): ahí `RAG_SEARCH=python` y sin índice HNSW (lo hace `tests/conftest.py`). Con Docker `pgvector/pgvector` no pasa.
+- `iniciar.ps1 -SinDocker` levanta un Postgres embebido; apágalo SIEMPRE con `detener.ps1` (usa `pg_ctl stop`): matarlo a la fuerza obliga a recuperación al reiniciar y en algunos discos tarda >30 s (dev_db.py falla por timeout; el script reintenta).
+- Si hay un PostgreSQL instalado en Windows ocupando 5432, Docker no puede mapear ese puerto: `DB_PORT` en `.env` (iniciar.ps1 lo resuelve solo).
 - `pip install -r requirements.txt` arrastra torch (~1 GB). Las pruebas no lo necesitan (`EMBEDDINGS_BACKEND=hash`).
 - Los embeddings son de **384** dimensiones (el prototipo decía 768 y se corrigió). Si cambias de modelo, cambia `EMBED_DIM` y haz migración.
 
