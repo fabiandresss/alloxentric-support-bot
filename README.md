@@ -47,6 +47,20 @@ proyecto/
 
 ## Puesta en marcha
 
+### Opción rápida (Windows + Docker Desktop)
+
+Un solo comando levanta todo (crea el `.env` con claves aleatorias, base de datos, backend, frontend y abre el navegador). Es idempotente: solo hace lo que falta.
+
+```powershell
+.\iniciar.ps1
+```
+
+O haz doble clic en `iniciar.cmd`. Opciones: `-Reset` (borra la BD y vuelve a sembrar), `-SinFrontend`, `-NoAbrirNavegador`, `-SoloConfigurar` (solo crea el `.env`) y `-Simular` (muestra los pasos sin ejecutarlos). Para apagar: `.\detener.ps1` (o `detener.cmd`; con `-BorrarDatos` elimina también la BD).
+
+La primera vez tarda varios minutos: instala torch (~1 GB) y, al arrancar, descarga el modelo de embeddings (~470 MB).
+
+### Paso a paso (cualquier sistema)
+
 ```bash
 # 1) configuración
 cp .env.example .env            # cambia DB_PASSWORD (y la misma clave dentro de DATABASE_URL)

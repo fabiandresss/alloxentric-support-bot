@@ -31,6 +31,7 @@ resolver, **deriva a un humano** creando un ticket en **Corestream** (la tickete
 ## 3. Comandos
 
 ```bash
+.\iniciar.ps1 | iniciar.cmd                                      # Windows: TODO en uno (.env, BD, backend, front); .\detener.ps1 apaga
 cp .env.example .env && docker compose up -d                     # BD y Redis
 cd backend && python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
