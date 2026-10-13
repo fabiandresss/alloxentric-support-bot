@@ -4,17 +4,22 @@
 
 .DESCRIPTION
   Es idempotente: puedes correrlo cuantas veces quieras; solo hace lo que falta.
-    1. Revisa Docker, Python y Node.
+    1. Revisa Docker (o no, con -SinDocker), Python y Node.
     2. Crea el .env con claves aleatorias si no existe (nunca pisa uno existente).
-    3. Levanta Postgres+pgvector y Redis (docker compose) y espera a que respondan.
-    4. Backend: crea el .venv, instala dependencias (solo si cambiaron), migra y siembra datos de ejemplo (solo si la BD esta vacia).
-    5. Frontend: npm install (solo si cambio) y arranque.
-    6. Abre cada servidor en su ventana y el navegador en http://localhost:3000
+    3. Backend: crea el .venv e instala dependencias (solo si cambiaron).
+    4. Base de datos: Postgres+pgvector y Redis con docker compose, o un Postgres embebido con -SinDocker.
+    5. Migra y siembra datos de ejemplo (solo si la BD esta vacia).
+    6. Frontend: npm install (solo si cambio).
+    7. Abre cada servidor en su ventana y el navegador en http://localhost:3000
 
   Para apagar: .\detener.ps1   (o detener.cmd)
 
+.PARAMETER SinDocker
+  Usa un Postgres embebido (backend\dev_db.py, datos en backend\.pgdata) en vez de Docker. SOLO para desarrollo cuando no
+  hay Docker. Ojo: ese pgvector se cae al calcular distancias en CPUs sin AVX-512; en este modo se usa RAG_SEARCH=python
+  (busqueda exacta en el backend) y se elimina el indice HNSW de ESA base. Con Docker nada de esto es necesario.
 .PARAMETER Reset
-  Borra la base de datos (docker compose down -v) y la vuelve a sembrar desde cero.
+  Borra la base de datos y la vuelve a sembrar desde cero.
 .PARAMETER SinFrontend
   Levanta solo base de datos y backend.
 .PARAMETER NoAbrirNavegador
@@ -27,10 +32,13 @@
 .EXAMPLE
   .\iniciar.ps1
 .EXAMPLE
+  .\iniciar.ps1 -SinDocker
+.EXAMPLE
   .\iniciar.ps1 -Reset
 #>
 [CmdletBinding()]
 param(
+    [switch]$SinDocker,
     [switch]$Reset,
     [switch]$SinFrontend,
     [switch]$NoAbrirNavegador,
@@ -84,22 +92,46 @@ function Copiar-Si-Falta([string]$origen, [string]$destino) {
     return $true
 }
 
+function Silencioso([scriptblock]$bloque) {
+    # Ejecuta un programa nativo sin mostrar su salida y devuelve su codigo. En PowerShell 5.1, con ErrorActionPreference=Stop,
+    # redirigir el stderr de un programa nativo lanza una excepcion: por eso se baja a Continue solo aqui.
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $bloque *> $null } finally { $ErrorActionPreference = $anterior }
+    return $LASTEXITCODE
+}
+
+function Proceso-Vivo([string]$archivoPid) {
+    $f = Join-Path $Run $archivoPid
+    if (-not (Test-Path $f)) { return $false }
+    $id = (Get-Content $f | Select-Object -First 1)
+    return [bool](($id -match '^\d+$') -and (Get-Process -Id ([int]$id) -ErrorAction SilentlyContinue))
+}
+
 # ---------------------------------------------------------------- 1. requisitos
 Paso 'Revisando requisitos'
 if ($Simular) {
     Info '(simulacion) se omite la revision de Docker/Python/Node'
 } elseif (-not $SoloConfigurar) {
-    foreach ($c in @(@('docker', 'Docker Desktop (https://www.docker.com/products/docker-desktop), abrelo y espera a que diga Running'),
-                     @('python', 'Python 3.11 o superior (https://www.python.org/downloads/), marcando "Add to PATH"'),
-                     @('node',   'Node.js 20 o superior (https://nodejs.org/)'))) {
+    $requisitos = @(
+        @('python', 'Python 3.11 o superior (https://www.python.org/downloads/), marcando "Add to PATH"'),
+        @('node',   'Node.js 20 o superior (https://nodejs.org/)'))
+    if (-not $SinDocker) {
+        $requisitos = @(, @('docker', 'Docker Desktop (https://www.docker.com/products/docker-desktop), abrelo y espera a que diga Running. Sin Docker puedes usar: .\iniciar.ps1 -SinDocker')) + $requisitos
+    }
+    foreach ($c in $requisitos) {
         if (-not (Get-Command $c[0] -ErrorAction SilentlyContinue)) { Fallo "Falta '$($c[0])'. Instala $($c[1])" }
     }
     $v = (& python --version) 2>&1
     if ($v -notmatch 'Python 3\.(\d+)' -or [int]$Matches[1] -lt 11) { Fallo "Se necesita Python 3.11 o superior (tienes: $v)" }
-    Ok "$v | Node $(& node --version) | $((& docker --version))"
-    & docker info *> $null
-    if ($LASTEXITCODE -ne 0) { Fallo 'Docker esta instalado pero no esta corriendo. Abre Docker Desktop, espera a que diga "Running" y reintenta.' }
-    Ok 'Docker Desktop esta corriendo'
+    Ok "$v | Node $(& node --version)"
+    if ($SinDocker) {
+        Aviso 'Modo -SinDocker: Postgres embebido (solo desarrollo). Con Docker la busqueda usa el indice HNSW de pgvector.'
+    } else {
+        Ok "$((& docker --version))"
+        if ((Silencioso { & docker info }) -ne 0) { Fallo 'Docker esta instalado pero no esta corriendo. Abre Docker Desktop, espera a que diga "Running" y reintenta.' }
+        Ok 'Docker Desktop esta corriendo'
+    }
 } else {
     Info 'solo configuracion: no se revisan Docker/Python/Node'
 }
@@ -136,29 +168,8 @@ if (Test-Path $EnvRaiz) {
 }
 if ($SoloConfigurar) { Ok 'Listo (solo configuracion).'; exit 0 }
 
-# ---------------------------------------------------------------- 3. base de datos
-Paso 'Base de datos (Postgres + pgvector, Redis)'
-Push-Location $Raiz
-try {
-    if ($Reset) {
-        Aviso 'Reset: se borra la base de datos y se vuelve a sembrar.'
-        Hacer 'docker compose down -v' { & docker compose down -v; Verificar-Salida 'docker compose down' }
-    }
-    Hacer 'docker compose up -d' { & docker compose up -d; Verificar-Salida 'docker compose up' }
-    Hacer 'esperar a Postgres' {
-        $listo = $false
-        for ($i = 0; $i -lt 60; $i++) {
-            & docker compose exec -T db pg_isready -U chatbot -d chatbot_soporte *> $null
-            if ($LASTEXITCODE -eq 0) { $listo = $true; break }
-            Start-Sleep -Seconds 1
-        }
-        if (-not $listo) { Fallo 'Postgres no respondio en 60 s. Mira: docker compose logs db' }
-        Ok 'Postgres responde'
-    }
-} finally { Pop-Location }
-
-# ---------------------------------------------------------------- 4. backend
-Paso 'Backend (Python)'
+# ---------------------------------------------------------------- 3. backend: entorno y dependencias
+Paso 'Backend: entorno de Python'
 Push-Location $Back
 try {
     if (-not (Test-Path $Py)) {
@@ -177,8 +188,112 @@ try {
             Set-Content -Path $marca -Value $hashReq
         }
     }
+} finally { Pop-Location }
 
+# ---------------------------------------------------------------- 4. base de datos
+if ($SinDocker) {
+    Paso 'Base de datos (Postgres embebido, SIN Docker)'
+    if ($Reset) {
+        Aviso 'Reset: se borra backend\.pgdata y se vuelve a sembrar.'
+        Hacer 'detener el Postgres embebido y borrar .pgdata' {
+            & (Join-Path $Raiz 'detener.ps1') -SoloProcesos | Out-Null
+            Remove-Item -Recurse -Force (Join-Path $Back '.pgdata') -ErrorAction SilentlyContinue
+            Remove-Item -Force (Join-Path $Run 'db.url') -ErrorAction SilentlyContinue
+        }
+    }
+    Hacer 'instalar pixeltable-pgserver si falta' {
+        if ((Silencioso { & $Py -c 'import pixeltable_pgserver' }) -ne 0) {
+            Info 'instalando pixeltable-pgserver (Postgres embebido)...'
+            & $Py -m pip install --disable-pip-version-check pixeltable-pgserver
+            Verificar-Salida 'pip install pixeltable-pgserver (si falla por rutas largas, activa Long Paths de Windows o usa Docker)'
+        }
+    }
+    Hacer 'iniciar backend\dev_db.py y leer su DATABASE_URL' {
+        New-Item -ItemType Directory -Force -Path $Run | Out-Null
+        $urlFile = Join-Path $Run 'db.url'
+        if (-not ((Proceso-Vivo 'db.pid') -and (Test-Path $urlFile))) {
+            Remove-Item $urlFile -Force -ErrorAction SilentlyContinue
+            $url = $null
+            # Tras un cierre abrupto Postgres hace recuperacion y puede tardar mas que el timeout de pg_ctl: dev_db.py falla
+            # aunque el servidor termine levantando. Un nuevo intento se engancha al servidor ya arriba.
+            for ($intento = 1; $intento -le 3 -and -not $url; $intento++) {
+                if ($intento -gt 1) { Info "reintento $intento de 3 (Postgres se estaba recuperando)..."; Start-Sleep -Seconds 5 }
+                $salida = Join-Path $Run 'db.out.log'
+                Remove-Item $salida -Force -ErrorAction SilentlyContinue
+                $p = Start-Process $Py -ArgumentList @('-u', 'dev_db.py') -WorkingDirectory $Back -PassThru -WindowStyle Hidden `
+                    -RedirectStandardOutput $salida -RedirectStandardError (Join-Path $Run 'db.err.log')
+                Set-Content -Path (Join-Path $Run 'db.pid') -Value $p.Id
+                for ($i = 0; $i -lt 90 -and -not $url -and -not $p.HasExited; $i++) {
+                    Start-Sleep -Seconds 1
+                    if (Test-Path $salida) {
+                        $m = Select-String -Path $salida -Pattern '^DATABASE_URL=(.+)$' -ErrorAction SilentlyContinue | Select-Object -First 1
+                        if ($m) { $url = $m.Matches[0].Groups[1].Value.Trim() }
+                    }
+                }
+            }
+            if (-not $url) { Fallo "El Postgres embebido no arranco tras 3 intentos. Mira $(Join-Path $Run 'db.err.log')" }
+            Set-Content -Path $urlFile -Value $url
+        }
+        $script:UrlEmbebida = (Get-Content $urlFile | Select-Object -First 1).Trim()
+        # las variables de entorno mandan sobre .env (python-dotenv no las pisa) y las heredan la API y las migraciones
+        $env:DATABASE_URL = $script:UrlEmbebida
+        $env:RAG_SEARCH   = 'python'
+        Ok 'Postgres embebido listo'
+        Info "DATABASE_URL (solo esta sesion): $($env:DATABASE_URL -replace ':[^:@/]*@', ':****@')"
+    }
+} else {
+    Paso 'Base de datos (Postgres + pgvector, Redis)'
+    Push-Location $Raiz
+    try {
+        if ($Reset) {
+            Aviso 'Reset: se borra la base de datos y se vuelve a sembrar.'
+            Hacer 'docker compose down -v' { & docker compose down -v; Verificar-Salida 'docker compose down' }
+        }
+        Hacer 'elegir puerto libre para la BD' {
+            # un PostgreSQL ya instalado en Windows suele ocupar 5432: se usa otro y se deja en .env
+            $puerto = 5432
+            $m = Select-String -Path $EnvRaiz -Pattern '^DB_PORT=(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($m) { $puerto = [int]$m.Matches[0].Groups[1].Value }
+            $nuestro = ((& docker ps --filter 'name=chatbot-soporte-db' --format '{{.Names}}') -match 'chatbot-soporte-db')
+            if ((Puerto-Ocupado $puerto) -and -not $nuestro) {
+                $nuevo = (5433..5440 | Where-Object { -not (Puerto-Ocupado $_) } | Select-Object -First 1)
+                if (-not $nuevo) { Fallo "El puerto $puerto esta ocupado y no encontre otro libre (5433-5440). Libera uno o define DB_PORT en .env." }
+                Aviso "El puerto $puerto esta ocupado (otro PostgreSQL?). Se usara el $nuevo para la BD del proyecto."
+                $txt = Get-Content $EnvRaiz
+                $txt = $txt | Where-Object { $_ -notmatch '^#?\s*DB_PORT=' }
+                $txt = $txt | ForEach-Object { if ($_ -match '^DATABASE_URL=') { $_ -replace '@127\.0\.0\.1:\d+/', "@127.0.0.1:$nuevo/" } else { $_ } }
+                $txt += "DB_PORT=$nuevo"
+                [IO.File]::WriteAllLines($EnvRaiz, [string[]]$txt, (New-Object Text.UTF8Encoding($false)))
+                Ok "DB_PORT=$nuevo y DATABASE_URL actualizados en .env"
+            }
+        }
+        Hacer 'docker compose up -d' { & docker compose up -d; Verificar-Salida 'docker compose up' }
+        Hacer 'esperar a Postgres' {
+            $listo = $false
+            for ($i = 0; $i -lt 60; $i++) {
+                if ((Silencioso { & docker compose exec -T db pg_isready -U chatbot -d chatbot_soporte }) -eq 0) { $listo = $true; break }
+                Start-Sleep -Seconds 1
+            }
+            if (-not $listo) { Fallo 'Postgres no respondio en 60 s. Mira: docker compose logs db' }
+            Ok 'Postgres responde'
+        }
+    } finally { Pop-Location }
+}
+
+# ---------------------------------------------------------------- 5. esquema y datos
+Paso 'Backend: esquema y datos'
+Push-Location $Back
+try {
     Hacer 'alembic upgrade head' { & $Py -m alembic upgrade head; Verificar-Salida 'alembic upgrade head'; Ok 'esquema de BD al dia' }
+
+    if ($SinDocker) {
+        Hacer 'quitar el indice HNSW de la BD embebida' {
+            # ese pgvector se cae al calcular distancias (CPUs sin AVX-512): sin el indice, las inserciones no lo tumban
+            & $Py -c "import os, sqlalchemy as sa; c = sa.create_engine(os.environ['DATABASE_URL']).connect(); c.execute(sa.text('DROP INDEX IF EXISTS ix_fragmentos_embedding_hnsw')); c.commit()"
+            Verificar-Salida 'quitar el indice HNSW'
+            Info 'indice HNSW omitido en esta BD embebida (busqueda exacta en el backend: RAG_SEARCH=python)'
+        }
+    }
 
     Hacer 'sembrar datos si la BD esta vacia' {
         $n = & $Py -c "from app.db import SessionLocal; from app import models as m; from sqlalchemy import select, func; s = SessionLocal(); print(s.scalar(select(func.count()).select_from(m.Empresa)))"
@@ -194,7 +309,7 @@ try {
     }
 } finally { Pop-Location }
 
-# ---------------------------------------------------------------- 5. frontend
+# ---------------------------------------------------------------- 6. frontend
 if (-not $SinFrontend) {
     Paso 'Frontend (React)'
     Push-Location $Front
@@ -215,7 +330,7 @@ if (-not $SinFrontend) {
     } finally { Pop-Location }
 }
 
-# ---------------------------------------------------------------- 6. arranque
+# ---------------------------------------------------------------- 7. arranque
 Paso 'Arrancando servidores'
 if (-not $Simular) {
     New-Item -ItemType Directory -Force -Path $Run | Out-Null
@@ -244,15 +359,15 @@ if (-not $SinFrontend) {
 }
 
 if (-not $Simular) {
-    Info 'esperando a la API...'
+    Info 'esperando a la API (la primera vez importa torch y el modelo: puede tardar 1-3 minutos)...'
     $arriba = $false
-    for ($i = 0; $i -lt 90; $i++) {
+    for ($i = 0; $i -lt 240; $i++) {
         try {
             $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://localhost:8000/health' -TimeoutSec 2
             if ($r.StatusCode -eq 200) { $arriba = $true; break }
         } catch { Start-Sleep -Seconds 1 }
     }
-    if ($arriba) { Ok 'API arriba: http://localhost:8000/docs' } else { Aviso 'La API no respondio en 90 s: revisa su ventana.' }
+    if ($arriba) { Ok 'API arriba: http://localhost:8000/docs' } else { Aviso 'La API no respondio en 4 minutos: revisa su ventana.' }
 }
 
 # ---------------------------------------------------------------- resumen
