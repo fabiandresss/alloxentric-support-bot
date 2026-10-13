@@ -10,14 +10,26 @@ Al abrir la aplicación se pide **correo y contraseña**. Lo que ves depende de 
 
 El detalle de qué puede hacer cada rol está en `MATRIZ_PERMISOS.md`.
 
-> Para encender el sistema, sigue el `README.md` de la raíz del proyecto. Si al abrir la aplicación ves un aviso rojo
-> *"No se pudo cargar la información del backend"*, el servidor no está corriendo: inicia `uvicorn app.main:app --reload`
-> desde `backend/` y pulsa **Reintentar**.
+> Para encender el sistema en Windows ejecuta `.\iniciar.ps1` (o `iniciar.cmd`) desde la carpeta del proyecto; para apagarlo, `.\detener.ps1`.
+> El detalle está en el `README.md`. Si al abrir la aplicación ves un aviso rojo *"No se pudo cargar la información del backend"*,
+> el servidor no está corriendo: vuelve a ejecutar `iniciar.ps1` y pulsa **Reintentar**.
 
 La navegación está en el menú de la izquierda y **muestra solo las secciones de tu rol**: **Consola de soporte**, **Empresas y agentes**,
 **Vista previa del widget**, **Analítica** y **Usuarios y roles**. Para salir, abre tu nombre (arriba a la derecha) y elige **Cerrar sesión**.
 
 ![Inicio de sesión](img/11_login.png)
+
+### Usuarios de ejemplo para probar cada rol
+
+| Rol | Correo | Clave | Qué ve y qué puede probar |
+|---|---|---|---|
+| **Superadmin** | `superadmin@alloxentric.local` | la de `SUPERADMIN_PASSWORD` en tu `.env` (`iniciar.ps1` la genera al azar; si corres `seed.py` sin esa variable es `Superadmin123!`) | Todo: todas las empresas, tickets y usuarios; crea empresas y otros superadmins |
+| **Admin de empresa** | `admin@<slug>.demo` | `Demo1234!` | Consola, agentes, analítica y usuarios de **su** empresa; ve y cierra los tickets escalados |
+| **Encargado de tickets** | `tickets@<slug>.demo` | `Demo1234!` | Solo Consola de soporte y Analítica de su empresa (no ve los tickets escalados) |
+| **Encargado del agente IA** | `agente@<slug>.demo` | `Demo1234!` | Empresas y agentes, documentos y vista previa del widget de su empresa; sin consola ni usuarios |
+
+`<slug>` es uno de: `wellq`, `alloxentric`, `dani-eth`, `dani27001`, `aprueba` (15 usuarios demo: 3 por empresa). Son claves **solo de desarrollo**:
+cámbialas antes de usar el sistema fuera de tu notebook. Para crear un superadmin en una BD ya poblada: `python crear_superadmin.py correo@dominio.cl`.
 
 ## 0. Usuarios y roles (superadmin y admin de empresa)
 
@@ -170,12 +182,40 @@ Desde ese momento el bot no vuelve a responder en esa conversación: la atiende 
 
 ---
 
+### Encuesta de resolución
+
+Cuando el encargado responde, el cliente ve su respuesta **en la misma ventana** (sin recargar) y la pregunta **«¿se resolvió tu consulta?»**:
+
+![Chat con la respuesta del agente y la encuesta](img/15_chat_publico_encuesta.png)
+
+- **Sí, se resolvió:** el ticket queda **Cerrado** y no se vuelve a abrir.
+- **No, sigue sin resolverse:** el ticket pasa a **Escalado**: sale de la cola del encargado y lo gestiona el admin de la empresa fuera del chat.
+- Sin respuesta en 72 h el ticket se cierra solo.
+
+![Caso escalado desde el chat](img/19_chat_publico_escalado.png)
+
+El admin de la empresa ve los tickets escalados en la consola (filtro **Escalado**) y, cuando los resuelve por otro medio, los cierra con **Cerrar ticket (ya gestionado)**:
+
+![Ticket escalado en la consola](img/17_ticket_escalado.png)
+
+### El chat dentro del sitio de la empresa
+
+Al pegar el script del widget en el sitio de la empresa aparece un botón flotante que abre el chat; si el agente humano responde con el chat cerrado, el botón muestra un punto rojo.
+
+![Widget embebido en un sitio](img/18_widget_embebido_sitio.png)
+
 ## 4. Probar un agente sin salir del panel
 
 En la tarjeta de una empresa, pulsa **Probar** (o **Probar agente** dentro de la configuración) para abrir un simulador de chat.
 Usa el mismo motor que el chat real, así que sirve para revisar las respuestas después de cargar documentos.
 
 > Las conversaciones del simulador y de la vista previa son reales: si el bot deriva, se crea un ticket de verdad en la consola.
+
+## 4.1 Analítica
+
+La vista **Analítica** muestra conversaciones, la resolución del bot frente a las derivadas a humano, el tiempo promedio de atención y el volumen diario (7, 14 o 30 días). El superadmin ve todas las empresas; cada rol de empresa ve solo la suya.
+
+![Analítica](img/16_analitica.png)
 
 ## 5. Problemas frecuentes
 
@@ -184,7 +224,9 @@ Usa el mismo motor que el chat real, así que sirve para revisar las respuestas 
 | "Credenciales inválidas" al entrar | Correo o clave mal escritos, o el usuario fue desactivado | Revisar los datos o pedir a tu admin que te reactive |
 | De repente vuelve al login | La sesión venció (8 h) o desactivaron tu usuario | Volver a iniciar sesión |
 | "Tu rol no tiene permiso para esta acción" | La acción no corresponde a tu rol | Pedir a tu admin de empresa que te cambie el rol |
-| Aviso rojo "No se pudo cargar la información del backend" | El servidor no está corriendo | Iniciar `uvicorn app.main:app --reload` y pulsar **Reintentar** |
+| Aviso rojo "No se pudo cargar la información del backend" | El servidor no está corriendo | Ejecutar `.\iniciar.ps1` y pulsar **Reintentar** |
+| "Demasiadas solicitudes" en el chat o al iniciar sesión | Se superó el límite de peticiones por minuto | Esperar el tiempo indicado y reintentar |
+| "Esta conversación ya fue cerrada" | El cliente quiso seguir escribiendo en un caso cerrado | Iniciar una nueva consulta (el ticket cerrado no se reabre) |
 | El bot deriva casi todas las consultas | La empresa no tiene documentos, o el umbral RAG es muy alto | Cargar documentos; bajar el umbral en **Configurar agente** |
 | Documento en estado "error" | Archivo corrupto o formato no soportado | Borrarlo y subir otro archivo (PDF, DOCX, TXT, CSV, FAQ) |
 | "Tipo no soportado" al subir | Extensión distinta a las permitidas | Convertir el archivo |
