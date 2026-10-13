@@ -52,8 +52,12 @@ with sync_playwright() as p:
     # B) empresas: configurar WellQ, subir documento
     pg.get_by_text('Empresas y agentes').first.click(); pg.wait_for_timeout(800)
     pg.get_by_text('Configurar agente').first.click(); pg.wait_for_timeout(600)
-    pg.set_input_files('input[type=file]', DOC); pg.wait_for_timeout(3500)
-    docs=api('/empresas/wellq/documentos')
+    pg.set_input_files('input[type=file]', DOC)
+    for _ in range(40):   # la ingesta calcula embeddings (el primer arranque puede cargar el modelo)
+        pg.wait_for_timeout(1000)
+        docs=api('/empresas/wellq/documentos')
+        if any(x['name']=='doc_demo.txt' and x['status']!='procesando' for x in docs): break
+    pg.wait_for_timeout(2000)   # el panel refresca cada 1,5 s
     d=[x for x in docs if x['name']=='doc_demo.txt']
     ok(len(d)==1 and d[0]['status']=='procesado' and d[0]['chunkCount']>=1, f'B1 subida + ingesta real ({d})')
     ok(pg.locator('text=doc_demo.txt').count()>0,'B2 el documento aparece en el modal')
