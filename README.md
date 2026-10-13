@@ -47,6 +47,24 @@ proyecto/
 
 ## Puesta en marcha
 
+### Opción rápida (Windows + Docker Desktop)
+
+Un solo comando levanta todo (crea el `.env` con claves aleatorias, base de datos, backend, frontend y abre el navegador). Es idempotente: solo hace lo que falta.
+
+```powershell
+.\iniciar.ps1
+```
+
+O haz doble clic en `iniciar.cmd`. Opciones: `-SinDocker` (Postgres embebido, para desarrollo si no tienes Docker; ver abajo), `-Reset` (borra la BD y vuelve a sembrar), `-SinFrontend`, `-NoAbrirNavegador`, `-SoloConfigurar` (solo crea el `.env`) y `-Simular` (muestra los pasos sin ejecutarlos). Para apagar: `.\detener.ps1` (o `detener.cmd`; con `-BorrarDatos` elimina también la BD).
+
+La primera vez tarda varios minutos: instala torch (~1 GB) y, al arrancar, descarga el modelo de embeddings (~470 MB).
+
+**Sin Docker (`-SinDocker`):** usa un Postgres embebido (`backend\dev_db.py`, datos en `backend\.pgdata`). Es solo para desarrollo: su pgvector se cae al calcular distancias en CPUs sin AVX-512, así que en este modo la búsqueda es exacta en el backend (`RAG_SEARCH=python`) y se omite el índice HNSW de esa base. El apagado debe ser con `detener.ps1` (cierre limpio de Postgres).
+
+**Puerto 5432 ocupado:** si ya tienes un PostgreSQL instalado en Windows, con Docker el script elige solo otro puerto (5433–5440), lo guarda como `DB_PORT` en `.env` y ajusta `DATABASE_URL`.
+
+### Paso a paso (cualquier sistema)
+
 ```bash
 # 1) configuración
 cp .env.example .env            # cambia DB_PASSWORD (y la misma clave dentro de DATABASE_URL)

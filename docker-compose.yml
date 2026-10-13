@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: chatbot_soporte
     ports:
-      - "127.0.0.1:5432:5432"   # solo localhost
+      - "127.0.0.1:${DB_PORT:-5432}:5432"   # solo localhost; cambia DB_PORT si 5432 ya esta en uso (p. ej. un PostgreSQL instalado)
     volumes:
       - pgdata:/var/lib/postgresql/data
   redis:

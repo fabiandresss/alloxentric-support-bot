@@ -18,6 +18,9 @@ __pycache__/
 node_modules/
 dist/
 
+# estado de los scripts de arranque (PIDs)
+.run/
+
 # logs y artefactos de pruebas
 *.log
 shot_*.png
