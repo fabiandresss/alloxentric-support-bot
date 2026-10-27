@@ -117,7 +117,16 @@ export const EmbedWidgetModal: React.FC<EmbedWidgetModalProps> = ({ company, onC
           </div>
         </div>
 
-        <div className="px-6 py-3 bg-[#F8FAFC] border-t border-[#E2E8F0] flex justify-end">
+        <div className="px-6 py-3 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-between">
+          <a
+            href="/wellq-landing.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E0F2FE] border border-[#BAE6FD] text-xs font-semibold text-[#0369A1] rounded-lg hover:bg-[#BAE6FD] transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Ver Landing Page Demo en vivo</span>
+          </a>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-white border border-[#E2E8F0] text-xs font-semibold text-[#1E1B4B] rounded-lg hover:bg-[#F1F5F9] transition-colors"
