@@ -41,9 +41,20 @@ class Company(CamelModel):
     monthly_queries: int
     bot_resolution_rate: float
     rag_threshold: float
+    ai_model: str
+    allowed_domains: list[str] = []      # sitios donde puede ir el widget; vacío = cualquiera
     last_updated: str
     version: str
     api_key: str | None = None  # solo al crear / rotar
+
+
+class AiModel(CamelModel):
+    id: str
+    name: str
+    provider: str
+    provider_id: str   # clave del logo del proveedor en el front
+    description: str
+    recommended: bool = False
 
 
 class PublicAgent(CamelModel):
@@ -144,8 +155,8 @@ class CompanyCreate(CamelModel):
     agent_name: str | None = None
     tone: Tone = "formal"
     custom_instructions: str | None = None
-    brand_color: str = "#4F46E5"
-    brand_bg: str = "#EEF2FF"
+    brand_color: str = "#D20A2E"
+    brand_bg: str = "#FCEDEF"
     logo_initials: str | None = None
 
 
@@ -157,6 +168,8 @@ class CompanyUpdate(CamelModel):
     tone: Tone | None = None
     custom_instructions: str | None = None
     rag_threshold: float | None = Field(default=None, ge=0.1, le=1.0)
+    ai_model: str | None = None   # id del catálogo (GET /modelos-ia); se valida en el router
+    allowed_domains: list[str] | None = None   # se normaliza y valida en el router
     brand_color: str | None = None
     brand_bg: str | None = None
     logo_initials: str | None = None
@@ -254,3 +267,391 @@ class Analytics(CamelModel):
     avg_human_resolution: str
     daily: list[AnalyticsDay]
     companies: list[AnalyticsCompany]
+
+
+# ---------- FinOps (consumo de IA) y registro de conversaciones ----------
+class SpendPlan(CamelModel):
+    mode: Literal["limitado", "sin_limite"]
+    monthly_limit_usd: float | None = None   # solo con mode=limitado
+    daily_limit_usd: float | None = None     # tope por día (opcional, solo con mode=limitado)
+
+
+class SpendPlanUpdate(CamelModel):
+    mode: Literal["limitado", "sin_limite"]
+    monthly_limit_usd: float | None = Field(default=None, ge=0.01, le=1_000_000)   # en dólares, con centavos
+    daily_limit_usd: float | None = Field(default=None, ge=0.01, le=1_000_000)     # opcional; no puede superar al mensual
+
+
+class FinOpsModelRow(CamelModel):
+    model_id: str
+    name: str
+    provider: str
+    provider_id: str
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+
+
+class FinOpsPoint(CamelModel):
+    """Un tramo del gráfico: un día, una semana (lunes a domingo) o un mes, recortado al rango consultado."""
+    date: str        # primer día del tramo (AAAA-MM-DD)
+    end_date: str    # último día del tramo
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+
+
+class FinOpsBilling(CamelModel):
+    """Ciclo de cobro: el mes en curso completo y todos los modelos, sin importar el filtro. Es lo que mide el límite del plan."""
+    month: str       # AAAA-MM
+    spent_usd: float
+    used_pct: float | None = None        # % del límite (solo plan limitado)
+    limit_reached: bool                  # tope alcanzado: el agente responde en modo extractivo
+    near_limit: bool                     # >= 80 % y aún bajo el tope
+    projected_usd: float | None = None   # proyección al cierre del mes
+    daily_spent_usd: float = 0.0
+    daily_used_pct: float | None = None  # % del tope diario (si hay)
+    daily_limit_reached: bool = False
+
+
+class FinOpsSummary(CamelModel):
+    range_from: str
+    range_to: str
+    group_by: Literal["dia", "semana", "mes"]
+    model: str | None = None             # filtro de modelo aplicado a los totales y al gráfico
+    plan: SpendPlan
+    billing: FinOpsBilling
+    spent_usd: float                     # del rango y modelo filtrados
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    conversations: int
+    avg_cost_per_conversation_usd: float | None = None
+    by_model: list[FinOpsModelRow]       # del rango, sin el filtro de modelo (para poder compararlos)
+    series: list[FinOpsPoint]
+
+
+class ConversationListItem(CamelModel):
+    id: str
+    customer_name: str
+    customer_email: str | None = None
+    channel: str
+    started_at: str                      # ISO 8601
+    last_activity_at: str                # ISO 8601
+    message_count: int
+    escalated: bool                      # fue derivada a un humano
+    ticket_number: str | None = None
+    ticket_status: str | None = None
+    first_message: str = ""
+    last_message: str = ""
+    cost_usd: float = 0.0
+
+
+class ConversationList(CamelModel):
+    total: int
+    items: list[ConversationListItem]
+
+
+class ConversationDetail(CamelModel):
+    summary: ConversationListItem
+    messages: list[ChatMessage]
+    input_tokens: int
+    output_tokens: int
+    ai_calls: int
+
+
+# ---------- Pruebas del agente (golden sets) y base de conocimiento ----------
+class TestCase(CamelModel):
+    id: str
+    order: int
+    question: str
+    expected_answer: str | None = None
+    expected_document: str | None = None
+    should_escalate: bool = False        # pregunta fuera de la documentación: debe derivar a un humano
+    origin: Literal["manual", "ia", "real"] = "manual"    # real = nació de una conversación
+    conversation_id: str | None = None   # la conversación de la que salió (origin real)
+
+
+class TestCaseIn(CamelModel):
+    question: str = Field(min_length=3, max_length=1000)
+    expected_answer: str | None = Field(default=None, max_length=2000)
+    expected_document: str | None = Field(default=None, max_length=255)
+    should_escalate: bool = False
+    conversation_id: str | None = None   # si el caso sale de una conversación real (debe ser de esta empresa)
+
+
+class TestCaseUpdate(CamelModel):
+    question: str | None = Field(default=None, min_length=3, max_length=1000)
+    expected_answer: str | None = Field(default=None, max_length=2000)
+    expected_document: str | None = Field(default=None, max_length=255)
+    should_escalate: bool | None = None
+
+
+class TestKb(CamelModel):
+    documents: int
+    fragments: int
+
+
+class TestRunSummary(CamelModel):
+    total: int
+    passed: int
+    failed: int
+    errors: int
+    pass_rate: float                       # % de casos aprobados
+    avg_score: float | None = None         # 0..1, solo casos con respuesta esperada
+    source_accuracy: float | None = None   # % de casos que citaron el documento esperado
+    derivation_accuracy: float | None = None   # % de casos donde derivó (o no) como se esperaba
+    avg_confidence: float | None = None    # % de confianza RAG promedio
+    avg_latency_ms: int
+    p95_latency_ms: int
+    input_tokens: int
+    output_tokens: int
+    agent_cost_usd: float
+    judge_cost_usd: float
+    limit_reached: bool = False            # el tope mensual cortó la IA: el agente respondió en modo extractivo
+
+
+class TestRunBrief(CamelModel):
+    id: str
+    set_id: str
+    set_name: str
+    status: Literal["ejecutando", "completada", "error"]
+    total: int
+    completed: int
+    judge_model_id: str                    # LLM as a Judge que puntuó las respuestas
+    group_id: str | None = None            # corridas lanzadas juntas para comparar modelos
+    origin: Literal["manual", "automatica"] = "manual"
+    trigger: str | None = None             # qué la disparó (p. ej. «subir tarifas.pdf»)
+    started_at: str
+    finished_at: str | None = None
+    model_id: str
+    rag_threshold: float
+    kb: TestKb                             # cómo estaba la base de conocimiento al correr
+    created_by: str | None = None
+    summary: TestRunSummary | None = None
+
+
+class TestSetItem(CamelModel):
+    id: str
+    name: str
+    description: str | None = None
+    case_count: int
+    ai_cases: int
+    generated_with: str | None = None      # modelo de IA que propuso los casos
+    auto_run: bool = False                 # se corre solo al ingestar, reemplazar o eliminar documentos
+    created_at: str
+    updated_at: str
+    last_run: TestRunBrief | None = None
+
+
+class TestSet(TestSetItem):
+    cases: list[TestCase]
+
+
+class TestSetIn(CamelModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class TestSetUpdate(CamelModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    auto_run: bool | None = None
+
+
+class TestSetGenerate(CamelModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    count: int = Field(default=10, ge=1, le=30)               # casos con respuesta en la documentación
+    negatives: int = Field(default=2, ge=0, le=10)            # casos fuera de la documentación (deben derivar)
+    document_ids: list[str] | None = None                     # None = toda la base de conocimiento
+    model_id: str | None = None                               # modelo que genera los casos (catálogo); None = el recomendado
+
+
+class TestRunStart(CamelModel):
+    judge_model_id: str | None = None      # LLM as a Judge (catálogo); None = el recomendado
+
+
+class TestResult(CamelModel):
+    id: str
+    order: int
+    question: str
+    expected_answer: str | None = None
+    expected_document: str | None = None
+    should_escalate: bool
+    answer: str
+    escalated: bool
+    sources: list[str]
+    confidence: float | None = None
+    latency_ms: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    source_ok: bool | None = None
+    escalation_ok: bool
+    score: float | None = None
+    verdict: Literal["aprobado", "fallido", "error"]
+    reason: str | None = None
+    previous_verdict: str | None = None    # veredicto del mismo caso en la corrida anterior (para ver regresiones)
+    human_label: Literal["correcto", "incorrecto"] | None = None   # lo que dijo una persona (para calibrar al juez)
+
+
+class TestRunDetail(CamelModel):
+    run: TestRunBrief
+    previous: TestRunBrief | None = None
+    error: str | None = None
+    results: list[TestResult]
+
+
+class KbTypeCount(CamelModel):
+    type: str
+    count: int
+
+
+class KbSummary(CamelModel):
+    documents: int
+    processed: int
+    processing: int
+    errors: int
+    fragments: int
+    characters: int
+    embedded_fragments: int
+    models: list[str]                      # embedders que generaron los vectores
+    last_updated: str | None = None        # ISO 8601 de la última subida
+    by_type: list[KbTypeCount]
+
+
+class KbDocument(CamelModel):
+    """Un documento de la base de conocimiento con lo que REALMENTE quedó ingestado (los fragmentos se cuentan, no se confía en un contador)."""
+    id: str
+    name: str
+    type: str
+    size_bytes: int
+    uploaded_at: str                 # ISO 8601
+    status: Literal["procesando", "procesado", "error"]
+    fragments: int
+    characters: int
+    embedded_fragments: int
+
+
+class KbChunk(CamelModel):
+    id: str
+    document_id: str
+    document_name: str
+    order: int
+    text: str
+    characters: int
+    embedded: bool
+    model: str | None = None
+
+
+class KbChunkList(CamelModel):
+    total: int
+    items: list[KbChunk]
+
+
+# ---------- Notificaciones ----------
+class Notification(CamelModel):
+    id: str
+    type: str
+    title: str
+    message: str
+    view: str | None = None     # pantalla a la que lleva (finops, testing…)
+    ref: str | None = None
+    created_at: str
+    seen: bool
+
+
+# ---------- Comparar modelos y calibrar al juez ----------
+class TestCompareStart(CamelModel):
+    model_ids: list[str] = Field(min_length=2, max_length=5)       # agentes a comparar con el mismo golden set
+    judge_model_id: str | None = None
+
+
+class TestComparison(CamelModel):
+    group_id: str
+    set_id: str
+    set_name: str
+    judge_model_id: str
+    min_quality: float                      # tasa de aprobación mínima para recomendar (%)
+    runs: list[TestRunBrief]
+    recommended_run_id: str | None = None   # el más barato que cumple la calidad mínima
+    recommendation: str                     # explicación en lenguaje claro
+
+
+class TestLabel(CamelModel):
+    label: Literal["correcto", "incorrecto"] | None = None         # None = quitar la etiqueta
+
+
+class LabelCounts(CamelModel):
+    labeled: int                            # respuestas etiquetadas que sirven para calibrar
+    correct: int
+    incorrect: int
+    min_required: int
+    max_used: int
+
+
+class CalibrationStart(CamelModel):
+    judge_model_ids: list[str] = Field(min_length=1, max_length=4)
+
+
+class CalibrationJudge(CamelModel):
+    model_id: str
+    n: int
+    agreement: float                        # % de acuerdo con la persona
+    true_positives: int
+    true_negatives: int
+    false_positives: int                    # el juez aprobó lo que la persona dio por incorrecto
+    false_negatives: int                    # el juez rechazó lo que la persona dio por correcto
+    precision: float | None = None
+    recall: float | None = None
+    kappa: float                            # acuerdo corregido por azar (1 = perfecto, 0 = como tirar una moneda)
+    without_judge: int                      # veces que el juez no dio un puntaje válido
+    cost_usd: float
+    avg_score_if_correct: float | None = None
+    avg_score_if_incorrect: float | None = None
+
+
+class CalibrationRun(CamelModel):
+    id: str
+    status: Literal["ejecutando", "completada", "error"]
+    judge_model_ids: list[str]
+    labeled: int
+    total: int
+    completed: int
+    started_at: str
+    finished_at: str | None = None
+    created_by: str | None = None
+    error: str | None = None
+    judges: list[CalibrationJudge] = []
+
+
+# ---------- Versiones de documentos y calidad de la base de conocimiento ----------
+class DocVersion(CamelModel):
+    version: int
+    name: str
+    type: str
+    size_bytes: int
+    fragments: int
+    uploaded_at: str
+    replaced_at: str | None = None   # cuándo fue reemplazada (las anteriores)
+    current: bool
+    restorable: bool                 # el archivo sigue en el almacenamiento
+
+
+class KbIssue(CamelModel):
+    code: str
+    severity: Literal["alta", "media", "baja"]
+    title: str
+    detail: str
+    count: int
+    documents: list[str]
+
+
+class KbQuality(CamelModel):
+    score: int                       # 0 a 100
+    issues: list[KbIssue]
+    documents_checked: int
+    fragments_checked: int

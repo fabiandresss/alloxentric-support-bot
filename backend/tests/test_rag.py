@@ -1,6 +1,6 @@
 """Motor RAG: embeddings, búsqueda vectorial por empresa, umbral, intención y generación con LLM (mockeado).
 
-Las pruebas usan el embedder determinista `hash` (conftest) y NUNCA llaman a DeepSeek: `llm.generar` se reemplaza.
+Las pruebas usan el embedder determinista `hash` (conftest) y NUNCA llaman a AWS Bedrock: `llm.generar` se reemplaza.
 La calidad con el modelo real se mide aparte (tests_calidad_rag).
 """
 import io
@@ -179,14 +179,31 @@ def test_si_el_llm_no_sabe_deriva(client, acme, llm_falso):
 
 
 def test_si_el_llm_falla_responde_de_forma_extractiva(client, acme, monkeypatch):
-    monkeypatch.setattr(llm, "DEEPSEEK_API_KEY", "clave-falsa")
-    monkeypatch.setattr(llm.httpx, "post", lambda *a, **k: (_ for _ in ()).throw(llm.httpx.ConnectError("sin red")))
+    class ClienteRoto:
+        def converse(self, **kw):
+            raise ConnectionError("sin red")
+    monkeypatch.setattr(llm, "BEDROCK_HABILITADO", True)
+    monkeypatch.setattr(llm, "_cliente", ClienteRoto())
     r = _preguntar(client, "acme", "cuanto tardan los reembolsos de consultas medicas?")
     assert r["derived"] is False and "cinco dias habiles" in _bot(r)["message"]   # el chat no se cae
 
 
-def test_sin_clave_no_se_llama_al_llm(monkeypatch):
-    monkeypatch.setattr(llm, "DEEPSEEK_API_KEY", "")
+def test_bedrock_arma_la_peticion_y_lee_la_respuesta(monkeypatch):
+    visto = {}
+
+    class ClienteFalso:
+        def converse(self, **kw):
+            visto.update(kw)
+            return {"output": {"message": {"content": [{"text": " Hola "}, {"text": "mundo "}]}}}
+    monkeypatch.setattr(llm, "BEDROCK_HABILITADO", True)
+    monkeypatch.setattr(llm, "_cliente", ClienteFalso())
+    assert llm.generar("sistema", "pregunta", max_tokens=123) == "Hola mundo"
+    assert visto["system"] == [{"text": "sistema"}] and visto["inferenceConfig"]["maxTokens"] == 123
+    assert visto["messages"][0]["content"] == [{"text": "pregunta"}]
+
+
+def test_sin_bedrock_no_se_llama_al_llm(monkeypatch):
+    monkeypatch.setattr(llm, "BEDROCK_HABILITADO", False)
     assert llm.disponible() is False and llm.generar("s", "u") is None
 
 
@@ -217,3 +234,47 @@ def test_dividir_un_fragmento_por_parrafo():
     assert len(partes) > 3 and all(len(p) <= 300 for p in partes)
     assert dividir("") == [] and dividir("  \n\n  ") == []
     assert all(len(p) <= 700 for p in dividir("x" * 5000))        # sin saltos: se corta en seco
+
+
+# ------------------------------------------------------------------------------------------ modelo de IA por empresa
+def test_catalogo_de_modelos_y_modelo_por_defecto(client, acme):
+    cat = client.get("/modelos-ia").json()
+    assert {"haiku-5-5", "gpt-oss-20b", "nova-lite", "deepseek-v3-2", "qwen3-32b"} <= {x["id"] for x in cat}
+    assert all({"name", "provider", "providerId", "description"} <= set(x) for x in cat)
+    assert not any("bedrockId" in x or "bedrock_id" in x for x in cat)            # el id de AWS no sale del backend
+    assert [x["id"] for x in cat if x["recommended"]] == ["haiku-5-5"]
+    assert client.get("/empresas/acme").json()["aiModel"] == "haiku-5-5"
+
+
+def test_cambiar_el_modelo_valida_el_catalogo(client, acme):
+    assert client.patch("/empresas/acme", json={"aiModel": "nova-lite"}).json()["aiModel"] == "nova-lite"
+    assert client.patch("/empresas/acme", json={"aiModel": "gpt-inventado"}).status_code == 422
+    assert client.get("/empresas/acme").json()["aiModel"] == "nova-lite"          # el rechazo no cambió nada
+
+
+def test_cada_empresa_usa_su_propio_modelo(client, crear_empresa, monkeypatch):
+    crear_empresa("Alfa"), crear_empresa("Beta")
+    _subir(client, "alfa", "r.txt", REEMBOLSOS), _subir(client, "beta", "r.txt", REEMBOLSOS)
+    client.patch("/empresas/alfa", json={"aiModel": "gpt-oss-20b"})
+    client.patch("/empresas/beta", json={"aiModel": "qwen3-32b"})
+    pedidos = []
+
+    class Cliente:
+        def converse(self, **kw):
+            pedidos.append(kw)
+            return {"output": {"message": {"content": [{"reasoningContent": {}}, {"text": "Cinco dias habiles."}]}}}
+    monkeypatch.setattr(llm, "BEDROCK_HABILITADO", True)
+    monkeypatch.setattr(llm, "_cliente", Cliente())
+    _preguntar(client, "alfa", "cuanto tardan los reembolsos de consultas medicas?")
+    _preguntar(client, "beta", "cuanto tardan los reembolsos de consultas medicas?")
+    assert [p["modelId"] for p in pedidos] == ["openai.gpt-oss-20b-1:0", "qwen.qwen3-32b-v1:0"]
+    assert pedidos[0]["inferenceConfig"]["maxTokens"] == 1500 and pedidos[1]["inferenceConfig"]["maxTokens"] == 500   # el que razona tiene más margen
+
+
+def test_modelo_solo_lo_cambian_los_roles_del_agente(client, crear_empresa, usuario_como):
+    crear_empresa("Alfa"), crear_empresa("Beta")
+    assert usuario_como("alfa", "encargado_tickets").get("/modelos-ia").status_code == 403
+    assert usuario_como("alfa", "encargado_agente").get("/modelos-ia").status_code == 200
+    ajeno = usuario_como("beta", "admin_empresa")
+    assert ajeno.patch("/empresas/alfa", json={"aiModel": "nova-lite"}).status_code in (403, 404)   # aislamiento entre empresas
+    assert client.get("/empresas/alfa").json()["aiModel"] == "haiku-5-5"

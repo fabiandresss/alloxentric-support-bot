@@ -11,4 +11,6 @@ pypdf
 python-docx
 pytest
 httpx
+boto3                   # cliente de AWS Bedrock (único servicio externo)
 PyJWT
+celery[redis]          # tareas en segundo plano (solo con INGESTA_BACKEND=celery)

@@ -1,7 +1,7 @@
 """Batería de calidad del motor RAG: ¿responde cuando debe y deriva cuando no tiene respaldo?
 
 Mide la recuperación con el embedder activo, sin base de datos (fragmenta el corpus como la ingesta, embebe y compara por coseno),
-así que corre igual con Docker, sin Docker o en CI. No llama a DeepSeek.
+así que corre igual con Docker, sin Docker o en CI. No llama a Bedrock.
 
     python calidad_rag/evaluar.py                      # modelo real (sentence-transformers)
     python calidad_rag/evaluar.py --backend hash       # embedder léxico (línea base)

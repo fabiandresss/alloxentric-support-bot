@@ -1,8 +1,8 @@
-"""MOTOR RAG (RF-07…RF-10): búsqueda vectorial por empresa + LLM (DeepSeek) + decisión de derivar.
+"""MOTOR RAG (RF-07…RF-10): búsqueda vectorial por empresa + LLM (AWS Bedrock) + decisión de derivar.
 
-Contrato que NO debe cambiar (lo usa services/chat.py y el front):
+Contrato que NO debe cambiar (lo usa services/chat.py y el front; `historial` es un parámetro opcional agregado al final):
 
-    responder(db, empresa, texto, forzar_derivacion) -> Resultado
+    responder(db, empresa, texto, forzar_derivacion[, historial]) -> Resultado
     sugerir_respuesta(db, empresa, texto, motivo, nombre_cliente) -> dict
 
 Flujo de `responder`:
@@ -11,7 +11,7 @@ Flujo de `responder`:
      embedder activo.
   3. Decisión: la mejor similitud se convierte en confianza 0..1 (rango sim_min..sim_max del embedder); si no supera el `umbral_rag`
      de la empresa, se deriva a un humano.
-  4. Generación: con DEEPSEEK_API_KEY el LLM redacta la respuesta usando solo los fragmentos (si contesta NO_SE, se deriva);
+  4. Generación: con BEDROCK_HABILITADO el LLM redacta la respuesta usando solo los fragmentos (si contesta NO_SE, se deriva);
      sin clave o ante una falla, respuesta extractiva con el fragmento más relevante.
 
 REGLA MULTI-TENANT: toda consulta a fragmentos filtra por empresa_id.
@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m
 from app.config import RAG_SEARCH, RAG_TOP_K
-from app.services import embeddings, llm
+from app.services import embeddings, finops, llm, modelos
 
 log = logging.getLogger("rag.motor")
 
@@ -166,7 +166,45 @@ def _respuesta_extractiva(empresa: m.Empresa, frags: list[Fragmento]) -> str:
 
 
 # ------------------------------------------------------------------------------------------ contrato
-def responder(db: Session, empresa: m.Empresa, texto: str, forzar_derivacion: bool = False) -> Resultado:
+# ------------------------------------------------------------------------------------------ memoria de conversación
+_CONECTORES = re.compile(r"^(y |pero |entonces |tambien |ademas |y si |que pasa si |que sucede si |si |eso |esto |ese |esa |esos |esas |"
+                         r"el mismo |lo mismo |en ese caso|en tal caso|y en |y para |y con |y cuanto |y cuando |y donde )")
+_SISTEMA_REFORMULA = ("Reescribe el ÚLTIMO mensaje del cliente como una pregunta completa y autónoma, incorporando lo necesario de la conversación "
+                      "previa. No respondas ni agregues información nueva. Responde SOLO con la pregunta reescrita, en español, en una línea.")
+
+
+def _depende(texto: str) -> bool:
+    """¿El mensaje solo se entiende con lo anterior? (muy corto o empieza con un conector como «y si…», «eso…»)."""
+    t = _norm(texto)
+    return len(t.split()) <= 6 or bool(_CONECTORES.match(t))
+
+
+def _autonoma(db: Session, empresa: m.Empresa, texto: str, historial: list[tuple[str, str]] | None) -> str:
+    """La consulta para buscar en la documentación. Sin historial, o si el mensaje se entiende solo, es el mismo texto. Si depende
+    de lo anterior, se reescribe con el LLM (una llamada corta) o, sin LLM, anteponiendo la última pregunta del cliente."""
+    if not historial or not _depende(texto):
+        return texto
+    if llm.disponible() and not finops.limite_alcanzado(db, empresa):
+        ctx = "\n".join(f"{'Cliente' if r == 'usuario' else 'Asistente'}: {t[:300]}" for r, t in historial[-4:])
+        out = llm.generar(_SISTEMA_REFORMULA, f"Conversación previa:\n{ctx}\n\nÚltimo mensaje del cliente: {texto}", max_tokens=120,
+                          modelo=modelos.del_agente(empresa))
+        if out and len(out.strip()) < 400:
+            return out.strip().strip('"')
+    previas = [t for r, t in historial if r == "usuario"]
+    return f"{previas[-1]} {texto}" if previas else texto
+
+
+def _bloque_historial(historial: list[tuple[str, str]] | None) -> str:
+    if not historial:
+        return ""
+    lineas = "\n".join(f"{'Cliente' if r == 'usuario' else 'Asistente'}: {t[:300]}" for r, t in historial[-4:])
+    return f"Conversación previa (solo para entender a qué se refiere el cliente; responde con los fragmentos):\n{lineas}\n\n"
+
+
+def responder(db: Session, empresa: m.Empresa, texto: str, forzar_derivacion: bool = False,
+              historial: list[tuple[str, str]] | None = None) -> Resultado:
+    """`historial` (opcional) son los últimos turnos de la conversación como (rol, texto) con rol usuario|bot|agente; permite entender
+    «¿y si es en el extranjero?». Sin él se comporta como antes: cada mensaje se responde solo."""
     agente = empresa.nombre_agente or f"{empresa.nombre} Assistant"
     intento = "humano" if forzar_derivacion else intencion(texto)
 
@@ -177,7 +215,7 @@ def responder(db: Session, empresa: m.Empresa, texto: str, forzar_derivacion: bo
     if intento == "despedida":
         return Resultado("¡Hasta pronto! Que tengas un buen día.", 1.0)
 
-    frags = buscar(db, empresa, texto)
+    frags = buscar(db, empresa, _autonoma(db, empresa, texto, historial) if intento == "consulta" else texto)
     confianza = round(frags[0].confianza, 2) if frags else 0.0
     ctx = _relevantes(frags)
 
@@ -190,7 +228,8 @@ def responder(db: Session, empresa: m.Empresa, texto: str, forzar_derivacion: bo
                          _fuentes(ctx), True,
                          f"Confianza RAG ({confianza:.2f}) bajo el umbral ({empresa.umbral_rag:.2f}).")
 
-    gen = llm.generar(_sistema(empresa), f"Fragmentos:\n{_contexto(ctx)}\n\nPregunta del cliente: {texto}")
+    gen = None if finops.limite_alcanzado(db, empresa) else llm.generar(_sistema(empresa), f"{_bloque_historial(historial)}Fragmentos:\n{_contexto(ctx)}\n\nPregunta del cliente: {texto}",
+                      modelo=modelos.del_agente(empresa))   # el modelo lo elige cada empresa
     if gen is not None and re.fullmatch(rf"\W*{NO_SE}\W*", gen.strip(), flags=re.I):
         return Resultado("No encontré información suficiente en la base de conocimiento para "
                          "resolver tu consulta. Te voy a derivar con un agente humano.", confianza,
@@ -212,7 +251,7 @@ def sugerir_respuesta(db: Session, empresa: m.Empresa, texto: str, motivo: str, 
                  "No hay información en la documentación: confirma la recepción del caso y pide los datos que falten, "
                  "sin prometer plazos ni soluciones.")
               + f"\n\nFragmentos:\n{_contexto(ctx) if util else '(ninguno relevante)'}\n\nConsulta del cliente: {texto}")
-    gen = llm.generar(_sistema(empresa, borrador=True), pedido, max_tokens=400)
+    gen = None if finops.limite_alcanzado(db, empresa) else llm.generar(_sistema(empresa, borrador=True), pedido, max_tokens=400, modelo=modelos.del_agente(empresa), tipo="sugerencia")
     if gen:
         return {**base, "draftResponse": gen}
     cuerpo = (f"Según nuestra documentación: {_extracto(ctx[0], 400)}" if util

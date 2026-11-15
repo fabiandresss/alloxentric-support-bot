@@ -2,7 +2,7 @@
 Toda consulta del backend debe filtrar por empresa_id (RNF-01)."""
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, ForeignKey, DateTime, Boolean, Float, Integer, Index, CheckConstraint, func
+from sqlalchemy import String, Text, ForeignKey, DateTime, Boolean, Float, Integer, Index, CheckConstraint, Numeric, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
@@ -35,6 +35,12 @@ class Empresa(Base):
     tono: Mapped[str] = mapped_column(String(10), default="formal")                      # formal|cercano|tecnico
     instrucciones: Mapped[str | None] = mapped_column(Text)
     umbral_rag: Mapped[float] = mapped_column(Float, default=0.8)
+    # --- plan de gasto de IA (FinOps): limitado = tope mensual en USD; sin_limite = se cobra lo consumido ---
+    plan_gasto: Mapped[str] = mapped_column(String(12), default="sin_limite", server_default="sin_limite")
+    limite_mensual_usd: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    limite_diario_usd: Mapped[float | None] = mapped_column(Numeric(10, 2))     # tope por día (solo plan limitado); None = sin tope diario
+    dominios_permitidos: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')   # sitios donde puede ir el widget; vacío = cualquiera
+    modelo_ia: Mapped[str] = mapped_column(String(40), default="haiku-5-5", server_default="haiku-5-5")   # ver services/modelos.py
     version: Mapped[int] = mapped_column(Integer, default=1)
     # --- branding del widget ---
     iniciales_logo: Mapped[str | None] = mapped_column(String(4))
@@ -78,6 +84,7 @@ class Documento(Base):
     tamano_bytes: Mapped[int] = mapped_column(Integer, default=0)
     ruta_local: Mapped[str] = mapped_column(String(500))     # storage/<empresa_id>/...
     estado: Mapped[str] = mapped_column(String(20), default="procesando")  # procesando|procesado|error
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')   # sube cada vez que se reemplaza el archivo
     num_fragmentos: Mapped[int] = mapped_column(Integer, default=0)
     subido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     fragmentos: Mapped[list["FragmentoEmbedding"]] = relationship(cascade="all, delete-orphan")
@@ -155,3 +162,154 @@ class Ticket(Base):
     conversacion: Mapped["Conversacion"] = relationship()
     empresa: Mapped["Empresa"] = relationship()
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UsoIA(Base):
+    """Una llamada al modelo de IA: tokens y costo. Base del panel FinOps y del límite mensual.
+    El costo se guarda al momento de la llamada (con el precio vigente) para que un cambio de precios no reescriba el historial."""
+    __tablename__ = "usos_ia"
+    __table_args__ = (Index("ix_usos_ia_empresa_fecha", "empresa_id", "creado_en"),)
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    conversacion_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("conversaciones.id", ondelete="SET NULL"), index=True)
+    modelo: Mapped[str] = mapped_column(String(40))              # id del catálogo (services/modelos.py)
+    tipo: Mapped[str] = mapped_column(String(12), default="respuesta")   # respuesta | sugerencia (borrador para el agente humano)
+    tokens_entrada: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_salida: Mapped[int] = mapped_column(Integer, default=0)
+    costo_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=0)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------------------------- pruebas del agente (testing)
+class ConjuntoPrueba(Base):
+    """Golden set: preguntas con la respuesta esperada, creadas a mano o con ayuda de IA, para medir el agente de una empresa."""
+    __tablename__ = "conjuntos_prueba"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    nombre: Mapped[str] = mapped_column(String(120))
+    descripcion: Mapped[str | None] = mapped_column(Text)
+    generado_con: Mapped[str | None] = mapped_column(String(40))          # modelo de IA que propuso los casos (None = hecho a mano)
+    auto_ejecutar: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')   # correr solo al ingestar/borrar/reemplazar documentos
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                                                     onupdate=lambda: datetime.now(timezone.utc))
+    casos: Mapped[list["CasoPrueba"]] = relationship(cascade="all, delete-orphan", order_by="CasoPrueba.orden")
+
+
+class CasoPrueba(Base):
+    __tablename__ = "casos_prueba"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    conjunto_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conjuntos_prueba.id", ondelete="CASCADE"), index=True)
+    orden: Mapped[int] = mapped_column(Integer, default=0)
+    pregunta: Mapped[str] = mapped_column(Text)
+    respuesta_esperada: Mapped[str | None] = mapped_column(Text)        # lo que debería decir (puede ir vacía si solo importa derivar)
+    documento_esperado: Mapped[str | None] = mapped_column(String(255))  # documento que debería citar como fuente
+    debe_derivar: Mapped[bool] = mapped_column(Boolean, default=False)   # pregunta fuera de la documentación: debe pasar a un humano
+    origen: Mapped[str] = mapped_column(String(10), default="manual")    # manual | ia | real (viene de una conversación)
+    conversacion_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("conversaciones.id", ondelete="SET NULL"), index=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class EjecucionPrueba(Base):
+    """Una corrida de un conjunto contra el agente. Guarda con qué modelo, umbral y base de conocimiento se hizo, para poder
+    comparar corridas y ver cómo cambió el desempeño al ingestar documentos."""
+    __tablename__ = "ejecuciones_prueba"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    conjunto_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conjuntos_prueba.id", ondelete="CASCADE"), index=True)
+    conjunto_nombre: Mapped[str] = mapped_column(String(120))
+    modelo_ia: Mapped[str] = mapped_column(String(40))                      # modelo del agente que se probó
+    modelo_juez: Mapped[str] = mapped_column(String(40), default="haiku-5-5", server_default="haiku-5-5")   # LLM as a Judge
+    umbral_rag: Mapped[float] = mapped_column(Float)
+    grupo_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)   # corridas lanzadas juntas para comparar modelos
+    origen: Mapped[str] = mapped_column(String(12), default="manual", server_default="manual")   # manual | automatica
+    disparador: Mapped[str | None] = mapped_column(Text)                   # qué la disparó (p. ej. «subir tarifas.pdf»)
+    estado: Mapped[str] = mapped_column(String(12), default="ejecutando")   # ejecutando | completada | error
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    completados: Mapped[int] = mapped_column(Integer, default=0)
+    kb: Mapped[dict] = mapped_column(JSONB, default=dict)                   # {documentos, fragmentos} al iniciar
+    resumen: Mapped[dict | None] = mapped_column(JSONB)                     # métricas al terminar
+    error: Mapped[str | None] = mapped_column(Text)
+    creada_por: Mapped[str | None] = mapped_column(String(160))
+    iniciada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    terminada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ResultadoPrueba(Base):
+    """Cómo respondió el agente a un caso. Copia (snapshot) la pregunta y lo esperado: editar el conjunto después no altera el historial."""
+    __tablename__ = "resultados_prueba"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    ejecucion_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ejecuciones_prueba.id", ondelete="CASCADE"), index=True)
+    caso_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("casos_prueba.id", ondelete="SET NULL"), index=True)
+    orden: Mapped[int] = mapped_column(Integer, default=0)
+    pregunta: Mapped[str] = mapped_column(Text)
+    respuesta_esperada: Mapped[str | None] = mapped_column(Text)
+    documento_esperado: Mapped[str | None] = mapped_column(String(255))
+    debe_derivar: Mapped[bool] = mapped_column(Boolean, default=False)
+    respuesta: Mapped[str] = mapped_column(Text, default="")
+    derivo: Mapped[bool] = mapped_column(Boolean, default=False)
+    fuentes: Mapped[list | None] = mapped_column(JSONB)
+    confianza: Mapped[float | None] = mapped_column(Float)
+    latencia_ms: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_entrada: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_salida: Mapped[int] = mapped_column(Integer, default=0)
+    costo_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=0)
+    fuente_ok: Mapped[bool | None] = mapped_column(Boolean)                 # None = el caso no esperaba un documento
+    derivacion_ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    puntaje: Mapped[float | None] = mapped_column(Float)                    # 0..1 de la respuesta frente a la esperada; None si no había esperada
+    veredicto: Mapped[str] = mapped_column(String(10), default="fallido")   # aprobado | fallido | error
+    etiqueta_humana: Mapped[str | None] = mapped_column(String(10))        # correcto | incorrecto: lo marca una persona, para calibrar al juez
+    motivo: Mapped[str | None] = mapped_column(Text)
+
+
+# ---------------------------------------------------------------------------------------------- notificaciones, versiones, calibración
+class Notificacion(Base):
+    """Aviso dentro de la plataforma (alertas de gasto, regresiones en las pruebas). `clave` evita repetir el mismo aviso."""
+    __tablename__ = "notificaciones"
+    __table_args__ = (Index("uq_notificaciones_clave", "empresa_id", "clave", unique=True),)
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    tipo: Mapped[str] = mapped_column(String(24))        # gasto_80 | gasto_100 | gasto_dia | pruebas_bajaron | pruebas_mejoraron
+    titulo: Mapped[str] = mapped_column(String(160))
+    mensaje: Mapped[str] = mapped_column(Text)
+    vista: Mapped[str | None] = mapped_column(String(20))   # a qué pantalla lleva (finops, testing…)
+    ref: Mapped[str | None] = mapped_column(String(60))     # id relacionado (p. ej. la corrida)
+    clave: Mapped[str] = mapped_column(String(120))
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    vista_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DocumentoVersion(Base):
+    """Historial de un documento reemplazado: se guarda el archivo anterior para poder volver a él."""
+    __tablename__ = "documento_versiones"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    documento_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documentos.id", ondelete="CASCADE"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    nombre: Mapped[str] = mapped_column(String(255))
+    tipo: Mapped[str] = mapped_column(String(10))
+    tamano_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    ruta_local: Mapped[str] = mapped_column(String(500))
+    num_fragmentos: Mapped[int] = mapped_column(Integer, default=0)
+    subido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))                       # cuándo se subió esa versión
+    reemplazada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class CalibracionJuez(Base):
+    """Mide cuánto coincide cada modelo juez con las etiquetas humanas (correcto/incorrecto) de las respuestas ya evaluadas."""
+    __tablename__ = "calibraciones_juez"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    estado: Mapped[str] = mapped_column(String(12), default="ejecutando")    # ejecutando | completada | error
+    modelos: Mapped[list] = mapped_column(JSONB, default=list)               # ids de los jueces comparados
+    etiquetados: Mapped[int] = mapped_column(Integer, default=0)             # respuestas con etiqueta humana usadas
+    total: Mapped[int] = mapped_column(Integer, default=0)                   # evaluaciones a hacer (etiquetados x jueces)
+    completados: Mapped[int] = mapped_column(Integer, default=0)
+    resumen: Mapped[dict | None] = mapped_column(JSONB)                      # métricas por juez
+    error: Mapped[str | None] = mapped_column(Text)
+    creada_por: Mapped[str | None] = mapped_column(String(160))
+    iniciada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    terminada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

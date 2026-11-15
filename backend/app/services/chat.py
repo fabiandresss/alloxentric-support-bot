@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m, schemas as s
 from app.mappers import mensaje_out
-from app.services import motor_rag, derivacion
+from app.services import motor_rag, derivacion, finops, llm
 
 
 def procesar_mensaje(db: Session, empresa: m.Empresa, req: s.ChatRequest) -> s.ChatResponse:
@@ -23,6 +23,10 @@ def procesar_mensaje(db: Session, empresa: m.Empresa, req: s.ChatRequest) -> s.C
         db.add(conv)
         db.flush()
 
+    previos = db.scalars(select(m.Mensaje).where(m.Mensaje.conversacion_id == conv.id, m.Mensaje.empresa_id == empresa.id)
+                         .order_by(m.Mensaje.creado_en.desc()).limit(6)).all()[::-1]
+    historial = [(x.rol, x.contenido) for x in previos]          # los últimos turnos, para entender «¿y si…?»
+
     ticket = db.scalar(select(m.Ticket).where(m.Ticket.conversacion_id == conv.id))
     if ticket and ticket.estado == "cerrado":
         raise HTTPException(409, "Esta conversación ya fue cerrada. Inicia una nueva consulta.")
@@ -40,7 +44,10 @@ def procesar_mensaje(db: Session, empresa: m.Empresa, req: s.ChatRequest) -> s.C
 
     if not conv.derivada:  # si ya fue derivada, responde el agente humano (no el bot)
         nombre_bot = empresa.nombre_agente or f"{empresa.nombre} Assistant"
-        r = motor_rag.responder(db, empresa, req.message, forzar_derivacion=req.escalate)
+        with llm.capturando() as usos:   # tokens de cada llamada al modelo -> panel FinOps
+            r = motor_rag.responder(db, empresa, req.message, forzar_derivacion=req.escalate, historial=historial)
+            sug = motor_rag.sugerir_respuesta(db, empresa, req.message, r.motivo, nombre_cliente) if r.derivar else None
+        finops.registrar(db, empresa, conv, usos)
         bot_msg = m.Mensaje(empresa_id=empresa.id, conversacion_id=conv.id, rol="bot",
                             nombre_remitente=nombre_bot, contenido=r.respuesta,
                             fuentes=r.fuentes or None, confianza=r.confianza,
@@ -48,7 +55,6 @@ def procesar_mensaje(db: Session, empresa: m.Empresa, req: s.ChatRequest) -> s.C
         db.add(bot_msg)
         nuevos.append(bot_msg)
         if r.derivar:
-            sug = motor_rag.sugerir_respuesta(db, empresa, req.message, r.motivo, nombre_cliente)
             ticket = derivacion.crear_ticket(db, empresa, conv, r.motivo, sug)
 
     db.commit()

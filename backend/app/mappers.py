@@ -31,12 +31,12 @@ def empresa_out(db: Session, e: m.Empresa, api_key: str | None = None) -> s.Comp
     return s.Company(
         id=e.slug, name=e.nombre, slug=e.slug, industry=e.industria or "",
         logo_initials=e.iniciales_logo or e.nombre[:2].upper(),
-        brand_color=e.color_marca or "#4F46E5", brand_bg=e.color_fondo or "#EEF2FF",
+        brand_color=e.color_marca or "#D20A2E", brand_bg=e.color_fondo or "#FCEDEF",
         agent_name=e.nombre_agente or f"{e.nombre} Assistant", agent_status=e.estado_agente,
         documents_count=len(docs), documents=[documento_out(d) for d in docs],
         tone=e.tono, custom_instructions=e.instrucciones or "",
         web_chat_url=f"{PUBLIC_CHAT_BASE_URL}/{e.slug}",
-        monthly_queries=consultas, bot_resolution_rate=tasa, rag_threshold=e.umbral_rag,
+        monthly_queries=consultas, bot_resolution_rate=tasa, rag_threshold=e.umbral_rag, ai_model=e.modelo_ia, allowed_domains=list(e.dominios_permitidos or []),
         last_updated=tiempo_relativo(e.actualizada_en).replace("hace ", "Hace ", 1),
         version=f"v{e.version}.0.0", api_key=api_key)
 

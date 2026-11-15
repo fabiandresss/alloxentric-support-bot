@@ -67,8 +67,8 @@ def generar_embeddings(textos: list[str]) -> tuple[list[list[float]], str]:
     return out, emb.id
 
 
-def procesar_documento(documento_id) -> None:
-    """Corre en segundo plano (BackgroundTasks; luego Celery, RF-06)."""
+def procesar_documento(documento_id, motivo: str = "subir") -> None:
+    """Corre en segundo plano (BackgroundTasks, o Celery con INGESTA_BACKEND=celery; RF-06). Al terminar corre los golden sets automáticos."""
     db = SessionLocal()
     try:
         doc = db.get(m.Documento, documento_id)
@@ -89,5 +89,8 @@ def procesar_documento(documento_id) -> None:
             doc = db.get(m.Documento, documento_id)
             doc.estado = "error"
         db.commit()
+        empresa_id, nombre = doc.empresa_id, doc.nombre
     finally:
         db.close()
+    from app.services import evaluacion      # al final y sin importar arriba: evaluacion usa el motor RAG, que usa embeddings
+    evaluacion.disparar_automaticas(empresa_id, f"{motivo} «{nombre}»")

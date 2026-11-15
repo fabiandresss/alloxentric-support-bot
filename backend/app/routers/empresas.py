@@ -7,7 +7,9 @@ from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import (empresa_con_rol, hash_key, nueva_api_key, requiere_rol, usuario_actual, SUPERADMIN,
                       ADMIN, GESTION_AGENTE, TODOS)
+from app.deps import normalizar_dominios
 from app.mappers import empresa_out
+from app.services import modelos
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
@@ -69,13 +71,20 @@ def actualizar(body: s.CompanyUpdate, e: m.Empresa = Depends(empresa_con_rol(*GE
     mapa = {"name": "nombre", "industry": "industria", "agent_name": "nombre_agente",
             "agent_status": "estado_agente", "tone": "tono", "custom_instructions": "instrucciones",
             "rag_threshold": "umbral_rag", "brand_color": "color_marca", "brand_bg": "color_fondo",
-            "logo_initials": "iniciales_logo"}
+            "logo_initials": "iniciales_logo", "ai_model": "modelo_ia", "allowed_domains": "dominios_permitidos"}
     if "name" in cambios and cambios["name"] != e.nombre and db.scalar(
             select(m.Empresa).where(m.Empresa.nombre == cambios["name"])):
         raise HTTPException(409, "Ya existe una empresa con ese nombre")
+    if cambios.get("allowed_domains") is not None:
+        try:
+            cambios["allowed_domains"] = normalizar_dominios(cambios["allowed_domains"])
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+    if cambios.get("ai_model") is not None and not modelos.existe(cambios["ai_model"]):
+        raise HTTPException(422, "Modelo de IA desconocido: consulta GET /modelos-ia")
     for k, v in cambios.items():
         if v is not None:
-            setattr(e, mapa[k], v)
+            setattr(e, mapa[k], v)          # allowed_domains=[] es válido: significa «cualquier sitio»
     if cambios:
         e.version += 1
     db.commit()

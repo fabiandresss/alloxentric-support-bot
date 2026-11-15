@@ -1,9 +1,12 @@
 import hashlib
 import secrets
-from fastapi import Depends, Header, HTTPException
+import re
+from urllib.parse import urlparse
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m
+from app.config import PUBLIC_CHAT_BASE_URL
 from app.db import get_db
 
 
@@ -15,18 +18,73 @@ def nueva_api_key() -> str:
     return "ak_" + secrets.token_urlsafe(24)
 
 
-def empresa_por_slug(slug: str, db: Session = Depends(get_db)) -> m.Empresa:
+# ---------------------------------------------------------------- sitios autorizados para el widget
+DOMINIO_RE = re.compile(r"^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$|^localhost$")
+
+
+def normalizar_dominios(valores: list[str]) -> list[str]:
+    """Minúsculas, sin protocolo ni ruta ni puerto; valida el formato (midominio.cl, *.midominio.cl, localhost). Lanza ValueError."""
+    out: list[str] = []
+    for v in valores:
+        comodin = v.strip().startswith("*.")
+        crudo = v.strip()[2:] if comodin else v.strip()
+        host = (urlparse(crudo if "://" in crudo else f"//{crudo}").hostname or "").lower() if crudo else ""
+        pat = ("*." + host) if comodin else host
+        if not DOMINIO_RE.match(pat):
+            raise ValueError(f"Dominio inválido: «{v}». Usa por ejemplo midominio.cl o *.midominio.cl")
+        if pat not in out:
+            out.append(pat)
+    if len(out) > 20:
+        raise ValueError("Máximo 20 dominios")
+    return out
+
+
+def _host(valor: str | None) -> str | None:
+    if not valor:
+        return None
+    return (urlparse(valor if "://" in valor else f"//{valor}").hostname or "").lower() or None
+
+
+def _coincide(host: str, patron: str) -> bool:
+    if patron.startswith("*."):
+        base = patron[2:]
+        return host == base or host.endswith("." + base)      # *.x.cl = x.cl y cualquier subdominio
+    return host == patron
+
+
+def verificar_dominio(request: Request, e: m.Empresa) -> None:
+    """Si la empresa limitó los sitios donde puede ir su widget, rechaza las peticiones que vengan de otro.
+
+    El widget (iframe de nuestra página) manda el sitio que lo incrusta en `X-Embed-Host`; las llamadas directas desde un navegador traen `Origin`.
+    Las que no traen ninguno (integraciones servidor a servidor con API key) se dejan pasar. OJO: esto evita que copien el snippet en otro
+    sitio, no es una barrera contra alguien que llame la API a mano (para eso están el límite de peticiones y el tope de gasto)."""
+    patrones = list(e.dominios_permitidos or [])
+    if not patrones:
+        return
+    incrustado = _host(request.headers.get("x-embed-host"))
+    host = incrustado or _host(request.headers.get("origin")) or _host(request.headers.get("referer"))
+    if not host:
+        return
+    if not incrustado and host == _host(PUBLIC_CHAT_BASE_URL):      # nuestra propia página pública, sin incrustar
+        return
+    if not any(_coincide(host, p) for p in patrones):
+        raise HTTPException(403, "Este sitio no está autorizado para usar el widget de esta empresa")
+
+
+def empresa_por_slug(request: Request, slug: str, db: Session = Depends(get_db)) -> m.Empresa:
     e = db.scalar(select(m.Empresa).where(m.Empresa.slug == slug))
     if not e:
         raise HTTPException(404, "Empresa no encontrada")
+    verificar_dominio(request, e)
     return e
 
 
-def empresa_por_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)) -> m.Empresa:
+def empresa_por_api_key(request: Request, x_api_key: str = Header(...), db: Session = Depends(get_db)) -> m.Empresa:
     """El tenant se deduce de la API key; el cliente NUNCA envía empresa_id."""
     e = db.scalar(select(m.Empresa).where(m.Empresa.api_key_hash == hash_key(x_api_key)))
     if not e:
         raise HTTPException(401, "API key inválida")
+    verificar_dominio(request, e)
     return e
 
 
