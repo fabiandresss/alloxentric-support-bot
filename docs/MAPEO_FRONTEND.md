@@ -15,6 +15,7 @@ para no tocar los componentes. La base usa español/snake_case.
 | tone               | tono                                   |
 | customInstructions | instrucciones                          |
 | ragThreshold       | umbral_rag                             |
+| aiModel            | modelo_ia (id del catálogo `services/modelos.py`) |
 | version            | "v{version}"                           |
 | webChatUrl         | calculado: {BASE_URL}/chat/{slug}      |
 | documents / documentsCount | documentos (count)             |
@@ -42,6 +43,17 @@ No tienen tabla: se calculan con COUNT/AVG sobre tickets y mensajes (endpoint GE
 
 ## Endpoints (en el orden que conviene construirlos)
 1. GET  /empresas, POST /empresas, PATCH /empresas/{slug}          -> AgentDeploymentPanel, AddCompanyModal, AgentConfigModal
+   GET  /empresas/{slug}/finops?desde&hasta&modelo&agrupar=dia|semana|mes, PATCH /empresas/{slug}/plan -> FinOpsView "Consumo y costos" (`FinOpsSummary`, `SpendPlan`)
+   GET  /empresas/{slug}/conversaciones (filtros q, ticket, canal, desde, hasta, limit, offset), GET /conversaciones/{id} -> ConversationsView (`ConversationList`, `ConversationDetail`)
+   /empresas/{slug}/testing/... (conjuntos, casos, generar, ejecutar, ejecuciones, exportar)      -> TestingView, TestRunView (`TestSet`, `TestRunDetail`, ...)
+   GET  /empresas/{slug}/kb/resumen, GET /empresas/{slug}/kb/fragmentos?q&documento_id&limit&offset -> KnowledgeBaseView (`KbSummary`, `KbChunkList`)
+   GET/POST /empresas/{slug}/notificaciones[/{id}/visto | /visto-todas]                            -> NotificationBell, Sidebar (insignias)
+   POST /empresas/{slug}/testing/conjuntos/{id}/comparar, GET .../comparativas/{grupo}            -> ComparisonView (`TestComparison`)
+   PUT  .../testing/resultados/{id}/etiqueta, GET .../testing/etiquetas, .../testing/calibraciones -> TestRunView (etiquetas), CalibrationPanel (`CalibrationRun`)
+   POST /documentos/{id}/reemplazar, GET /documentos/{id}/versiones, POST .../versiones/{n}/restaurar -> KnowledgeBaseView, VersionsModal (`DocVersion`)
+   GET  /empresas/{slug}/kb/calidad                                                                -> KnowledgeBaseView «Salud de la base» (`KbQuality`)
+   PATCH /empresas/{slug} {allowedDomains}                                                         -> AgentConfigModal (sitios autorizados del widget)
+   GET  /modelos-ia (catálogo de modelos de IA: `AiModelOption`)    -> ModelPicker (dentro de AgentConfigModal)
 2. GET  /tickets, GET /tickets/{id}, PATCH /tickets/{id} (status solo `pendiente`/`urgente`; `cerrado` solo para cerrar un escalado; assignedAgentId), POST /tickets/{id}/respuesta (el remitente sale del usuario autenticado; envía la encuesta), GET /tickets/agentes -> CorestreamConsole, TicketDetailModal.
    Estados de `status`: pendiente | urgente | esperando_cliente | cerrado | escalado (+ `closeReason`).
 3. POST /empresas/{slug}/documentos (multipart), DELETE /documentos/{id}, GET /documentos/{id}/fragmentos -> AgentConfigModal, DocumentDetailModal

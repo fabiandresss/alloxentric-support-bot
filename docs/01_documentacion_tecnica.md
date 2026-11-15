@@ -7,7 +7,7 @@ Capstone PTY4614 · Duoc UC · Fabián Armijo y Vicente Balladares · versión d
 Plataforma de soporte con IA, **multi-tenant**, que varias empresas del ecosistema Alloxentric (WellQ, Alloxentric,
 Dani ETH, Dani27001, Aprueba) usan para atender a sus propios usuarios. Cada empresa carga su documentación; el
 chatbot responde con RAG sobre *esa* documentación y, cuando no puede resolver, **deriva a un agente humano** creando
-un ticket en Corestream. El sistema corre **100% en local** (sin nube).
+un ticket en Corestream. El sistema corre en local; el único servicio externo es **AWS Bedrock** (el LLM).
 
 ## 2. Arquitectura
 
@@ -24,7 +24,7 @@ un ticket en Corestream. El sistema corre **100% en local** (sin nube).
 | PostgreSQL + pgvector | Guarda empresas, documentos, fragmentos con embeddings, conversaciones, mensajes y tickets | `docker-compose.yml`, `backend/app/models/` |
 | Redis | Reservado para Celery (ingesta en segundo plano) | `docker-compose.yml` — **pendiente** |
 | Carpeta `storage/` | Archivos originales subidos, una subcarpeta por empresa | `STORAGE_DIR` en `.env` |
-| DeepSeek / Corestream | Modelo de lenguaje y ticketera | DeepSeek integrado (modo extractivo sin clave); Corestream es un mock |
+| AWS Bedrock / Corestream | Modelo de lenguaje y ticketera | Bedrock integrado vía API Converse (modo extractivo si está apagado); Corestream es un mock |
 
 El front **nunca** habla con la base de datos: todo pasa por la API.
 
@@ -124,7 +124,7 @@ El encargado **no cierra** los tickets: cuando responde, el cliente recibe una *
 ## 6.3 Motor RAG y embeddings
 
 Implementado en `services/embeddings.py`, `services/motor_rag.py` y `services/llm.py`. **Estado:** validado con el modelo real de punta a punta (E2E 49/49) y
-calibrado con la batería de calidad (`backend/calidad_rag/`). **Falta probar DeepSeek en vivo** (aún no hay clave: hoy responde en modo extractivo).
+calibrado con la batería de calidad (`backend/calidad_rag/`). **Falta probar Bedrock en vivo** (aún no hay perfil de AWS configurado: hoy responde en modo extractivo).
 
 **Embeddings (RF-04).** `EMBEDDINGS_BACKEND=sentence-transformers` (por defecto) usa `paraphrase-multilingual-MiniLM-L12-v2`, local, 384
 dimensiones; la primera vez descarga el modelo (~470 MB) a la caché de Hugging Face y luego funciona sin conexión. `EMBEDDINGS_BACKEND=hash`
@@ -140,7 +140,7 @@ Juntar párrafos diluye la similitud y baja la confianza.
 2. *Recuperación:* embedding de la pregunta y búsqueda por coseno **solo en fragmentos de la empresa**, de documentos `procesado` y del embedder activo (top-4).
 3. *Decisión:* la mejor similitud se convierte en **confianza 0..1** (rango `sim_min..sim_max` de cada embedder) y se compara con el `umbral_rag` de la empresa.
    Bajo el umbral → se deriva a un humano y se crea el ticket.
-4. *Generación:* con `DEEPSEEK_API_KEY`, DeepSeek redacta la respuesta usando **solo los fragmentos de esa empresa**, con su tono e instrucciones;
+4. *Generación:* con `BEDROCK_HABILITADO=true` (perfil `AWS_PROFILE`, modelo `BEDROCK_MODEL_ID`), Bedrock redacta la respuesta usando **solo los fragmentos de esa empresa**, con su tono e instrucciones;
    si contesta `NO_SE`, se deriva. Sin clave, o ante cualquier falla de red/API, responde de forma extractiva con el fragmento más relevante (el chat no se cae).
 5. *Sugerencia para el agente humano* (`sugerir_respuesta`): borrador generado con los mismos fragmentos (o plantilla si no hay clave).
 
@@ -169,7 +169,7 @@ Con el modelo real y el umbral por defecto (0.8): responde bien 18 de 25 pregunt
 | **0.8** | **72 %** | **10 %** | 7 |
 | 0.9 | 60 % | 5 % | 10 |
 
-Subir el umbral reduce las respuestas sin respaldo a costa de derivar más. Con DeepSeek activo hay una segunda barrera (`NO_SE`), por lo que
+Subir el umbral reduce las respuestas sin respaldo a costa de derivar más. Con Bedrock activo hay una segunda barrera (`NO_SE`), por lo que
 conviene un umbral algo más bajo; **sin clave** (modo extractivo) un falso positivo muestra un fragmento irrelevante, y es preferible 0.85–0.9.
 La rúbrica es un corpus pequeño y de un solo rubro: sirve para comparar embedders y vigilar regresiones, no como cifra definitiva en producción.
 
@@ -188,7 +188,8 @@ Documentación interactiva: `http://localhost:8000/docs` (botón *Authorize* par
 | `POST /auth/login` · `GET /auth/me` | Iniciar sesión (devuelve JWT y usuario) / ver el usuario actual |
 | `GET/POST /usuarios` · `PATCH/DELETE /usuarios/{id}` | Gestión de usuarios (superadmin: todos; admin de empresa: los suyos) |
 | `GET /empresas` · `POST /empresas` | Listar (cada rol ve las suyas) / crear empresa (solo superadmin; devuelve la API key una vez) |
-| `GET/PATCH /empresas/{slug}` | Ver / actualizar configuración del agente |
+| `GET/PATCH /empresas/{slug}` | Ver / actualizar configuración del agente (incluye `aiModel`, validado contra el catálogo) |
+| `GET /modelos-ia` | Catálogo de modelos de IA que se pueden elegir (superadmin, admin de empresa y encargado del agente) |
 | `POST /empresas/{slug}/api-key` | Generar o rotar la API key |
 | `GET/POST /empresas/{slug}/documentos` | Listar / subir documento (multipart, campo `archivo`) |
 | `DELETE /documentos/{id}` · `GET /documentos/{id}/fragmentos` | Borrar / ver fragmentos |
@@ -275,7 +276,7 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | RF-04, RF-05 | `routers/documentos.py`, `services/ingesta.py`, `services/embeddings.py` | Hecho (validado con el modelo real) |
 | RF-06 | `BackgroundTasks` (Celery pendiente) | En curso |
 | RF-07, RF-08 | `services/motor_rag.py` (búsqueda vectorial por empresa + umbral) | Hecho (calibrado con la batería de calidad) |
-| RF-09 | `services/llm.py` (DeepSeek, con respaldo extractivo) | En curso (implementado; falta probar en vivo) |
+| RF-09 | `services/llm.py` (AWS Bedrock, con respaldo extractivo) | En curso (implementado; falta probar en vivo) |
 | RF-10, RF-11 | `WidgetPreview.tsx`, `routers/chat.py` | Hecho |
 | RF-12, RF-13 | `services/derivacion.py` (mock con `CORESTREAM_MOCK`) | Hecho |
 | RF-14, RF-15 | `CorestreamConsole.tsx`, `routers/tickets.py` (sugerencia generada por el motor RAG) | Hecho |
@@ -301,7 +302,7 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | Pendiente | Responsable | Semana (replan) |
 |---|---|---|
 | Embeddings (sentence-transformers) y guardado en `fragmentos_embeddings` | Vicente | S9–S10 (hecho y validado con el modelo real) |
-| Motor RAG real: búsqueda pgvector, DeepSeek, clasificador de intención | Vicente | S9–S12 (hecho y calibrado; falta DeepSeek en vivo) |
+| Motor RAG real: búsqueda pgvector, Bedrock, clasificador de intención | Vicente | S9–S12 (hecho y calibrado; falta Bedrock en vivo) |
 | Widget embebible `widget.min.js` y página pública `/chat/{slug}` | Fabián | S9–S10 (hecho) |
 | Integración real con Corestream (depende de su documentación) | Fabián | S11–S12 |
 | Celery + Redis para la ingesta | Vicente | S10–S12 |
@@ -309,7 +310,128 @@ Los tests de API usan una base temporal (o `TEST_DATABASE_URL`) porque vacían l
 | Mover los contadores del rate limiting a Redis (hoy en memoria, por proceso) si se despliega con varios workers | Fabián | solo si se escala |
 | Cierre a las 72 h con un planificador real (hoy se aplica al leer; con Celery pasa a tarea periódica) | Vicente / Fabián | con Celery |
 
-**Riesgos (semana 10):** (1) DeepSeek en vivo depende de una API key que aún no existe y es el único componente del RAG sin probar con datos reales;
+**Riesgos (semana 10):** (1) Bedrock en vivo depende de una cuenta de AWS con el modelo habilitado que aún no está configurada y es el único componente del RAG sin probar con datos reales;
 (2) la integración real con Corestream depende de documentación y credenciales externas (hoy mock); (3) el motor RAG y los embeddings se
 implementaron desde el repositorio de Fabián y requieren revisión de Vicente; (4) margen corto para el cierre: informe final y entregables académicos.
 El resto de la lista de pendientes está en la hoja "Pendientes S10" del Excel de Requerimientos.
+
+
+## Modelo de IA por empresa
+
+Cada empresa elige el modelo que redacta las respuestas de su agente (`empresas.modelo_ia`, migración 0006; por defecto `haiku-5-5`).
+El catálogo vive en `app/services/modelos.py` y todos los modelos se invocan por **AWS Bedrock** (API Converse), así que el único
+servicio externo sigue siendo Bedrock. El id de Bedrock no sale del backend: la API expone solo el id público, el nombre, el proveedor y
+la descripción (`GET /modelos-ia`). `motor_rag` toma el modelo de la empresa dentro de `responder` y `sugerir_respuesta` (las firmas no cambian).
+
+| Id | Modelo | Proveedor | Id de Bedrock (us-east-1) |
+|---|---|---|---|
+| `haiku-5-5` | Claude Haiku 5.5 (recomendado) | Anthropic | `us.anthropic.claude-haiku-5-5` |
+| `gpt-oss-20b` | GPT-OSS 20B | OpenAI | `openai.gpt-oss-20b-1:0` |
+| `nova-lite` | Nova Lite | Amazon | `us.amazon.nova-lite-v1:0` |
+| `deepseek-v3-2` | DeepSeek V3.2 | DeepSeek | `deepseek.v3.2` |
+| `qwen3-32b` | Qwen3 32B | Qwen (Alibaba) | `qwen.qwen3-32b-v1:0` |
+
+Los cinco se probaron en vivo (una pregunta con respuesta y otra sin ella, que debe contestar `NO_SE`). Para agregar un modelo: una línea en
+`CATALOGO`, el logo en `frontend/src/assets/providers/` y su clave en `ProviderLogo.tsx`. Los modelos que razonan (`razona=True`) reciben
+el triple de tokens de salida. Los logos son archivos locales (no se cargan desde internet).
+
+
+## FinOps: consumo de IA y plan de gasto
+
+**Qué se mide.** Cada llamada al modelo (la respuesta del bot y el borrador para el agente humano) guarda una fila en `usos_ia`
+(migración 0007): empresa, conversación, modelo, tipo, tokens de entrada y salida (los informa Bedrock en `usage`) y el costo en USD.
+El costo se calcula al momento con los precios de `services/modelos.py` (USD por millón de tokens, **referenciales**: confirmarlos con la
+tabla de precios de Bedrock antes de cobrar) y queda guardado, así que un cambio de precios no reescribe el historial.
+`llm.capturando()` junta los tokens de la petición y `services/chat.py` los guarda junto con la conversación.
+
+**Plan de gasto** (`empresas.plan_gasto` y `limite_mensual_usd`; lo define solo el superadmin con `PATCH /empresas/{slug}/plan`):
+
+| Plan | Comportamiento |
+|---|---|
+| `sin_limite` (por defecto) | Nunca se corta. Se cobra lo consumido en el mes. |
+| `limitado` | Tope mensual en USD (mínimo 0,01). Al 80 % el panel avisa. Al llegar al 100 % el agente **deja de llamar al modelo y responde en modo extractivo** (con el fragmento más relevante); el chat no se cae. El mes siguiente se reinicia solo. |
+
+El mes se calcula en la zona horaria local (`APP_TZ`). **Falta** el cobro automático al medio de pago del cliente: hoy el sistema mide y aplica el límite, no cobra.
+
+**API** (todo filtrado por empresa): `GET /empresas/{slug}/finops` (superadmin y admin de la empresa) devuelve gasto, tokens, llamadas,
+costo por conversación, desglose por modelo y una serie para el gráfico. Filtros: `desde` y `hasta` (AAAA-MM-DD, juntos; sin ellos, el mes en curso hasta hoy; máximo 366 días),
+`modelo` (id del catálogo; acota totales y gráfico, no la tabla por modelo) y `agrupar=dia|semana|mes` (semanas de lunes a domingo, recortadas al rango). El bloque `billing`
+es siempre el **mes en curso completo y todos los modelos**: es lo que mide el límite del plan, sin importar el filtro. En el panel la vista se llama «Consumo y costos». `PATCH /empresas/{slug}/plan` (solo superadmin).
+
+## Registro de conversaciones
+
+`GET /empresas/{slug}/conversaciones` lista **todas** las conversaciones del chatbot, tengan ticket o no (la más reciente primero), con filtros por
+texto (cliente, correo, ticket o contenido de los mensajes), `ticket=con|sin`, canal y rango de fechas, y paginación. `GET /conversaciones/{id}` entrega
+la transcripción completa, el ticket asociado y los tokens y el costo de IA de esa conversación. Lo ven superadmin, admin de empresa y encargado del
+agente (el encargado de tickets sigue viendo solo los tickets). Incluye las conversaciones del simulador del panel.
+
+
+## Pruebas del agente (golden sets)
+
+**Para qué.** Ingestar documentos cambia lo que el agente recupera y responde. Un *golden set* es una lista de preguntas con la respuesta esperada; se
+ejecuta contra el agente real y mide cómo le va. Cada corrida guarda con qué modelo, umbral RAG y base de conocimiento se hizo (nº de documentos y
+fragmentos), así se compara con la corrida anterior del mismo conjunto y se ve si un documento nuevo mejoró o empeoró el desempeño.
+
+**Conjuntos y casos** (tablas `conjuntos_prueba`, `casos_prueba`; migración 0008). Se crean a mano o con IA (`POST .../testing/conjuntos/generar`): el modelo
+lee fragmentos de la documentación y propone preguntas con su respuesta esperada y su documento, más preguntas fuera de la documentación que *deben derivar*.
+El modelo que genera los casos se **elige** (`modelId`, cualquiera del catálogo; por defecto Haiku 5.5) y queda guardado en el conjunto (`generado_con`). Los casos de IA quedan marcados `ia` para revisarlos; se descartan duplicados y documentos inventados. Un caso tiene: pregunta, respuesta esperada (opcional),
+documento esperado (opcional) y «debe derivar a un humano».
+
+**Corridas** (`ejecuciones_prueba`, `resultados_prueba`). `POST .../conjuntos/{id}/ejecutar` responde 202 y corre en segundo plano (`BackgroundTasks`, como la ingesta);
+el panel consulta el avance. Una a la vez por empresa; una corrida «ejecutando» de más de 20 min se marca como interrumpida. Llama directo a `motor_rag.responder`: **no crea
+conversaciones ni tickets**. Sí gasta tokens: el agente se registra en `usos_ia` como `prueba` y el evaluador como `juez`, y cuentan para el plan de gasto (si el tope mensual
+se alcanza, el agente responde en modo extractivo y la corrida lo avisa).
+
+**Evaluación de cada caso** (`services/evaluacion.py`): *derivación* (si esperaba derivar, derivó; si esperaba responder, no derivó), *fuente* (citó el documento esperado) y
+*respuesta* (puntaje 0 a 1 de un **LLM as a Judge** contra la respuesta esperada). El juez se elige al ejecutar (`judgeModelId`, cualquiera del catálogo; por defecto Haiku 5.5) y queda guardado en la corrida (`modelo_juez`), en el CSV y en la pantalla; su gasto se registra a nombre de ese modelo. El juez recibe un criterio fijo (1 = dice lo mismo, 0,5 = parcial, 0 = incorrecta o inventa) y responde JSON con puntaje y motivo. Si el juez no responde o no devuelve un puntaje válido se usa la cobertura de palabras clave y el motivo del caso lo dice. Si el juez es el mismo modelo que el agente, la pantalla advierte del sesgo de autoevaluación. Probados en vivo como juez (correcta / parcial / incorrecta): Haiku 5.5, GPT-OSS 20B, Nova Lite y DeepSeek V3.2 puntúan 1 / 0,5 / 0; Qwen3 32B es más estricto (1 / 0 / 0). Aprobado = derivación correcta y fuente correcta
+y puntaje ≥ 0,7. Métricas de la corrida: tasa de aprobación, puntaje promedio, precisión de fuentes y de derivación, confianza RAG, latencia promedio y p95, tokens y costo (agente y evaluador),
+con la variación frente a la corrida anterior y los casos que regresaron o mejoraron.
+
+**Exportación** (`GET .../ejecuciones/{id}/exportar?formato=csv|excel`, `services/reporte.py`). CSV UTF-8 con BOM y la plantilla de alloxentric: cabecera de marca, datos de la corrida,
+bloque RESUMEN (métrica, valor, corrida anterior, variación) y bloque RESULTADOS con una fila por caso (pregunta, esperado, respuesta del agente, fuentes, confianza, puntaje, veredicto,
+latencia, tokens, costo, motivo y veredicto anterior). `excel` separa con «;» (Excel en español). Las celdas que empiezan con `= + - @` se neutralizan para evitar inyección de fórmulas.
+
+## Base de conocimiento (vista)
+
+Solo lectura: `GET /empresas/{slug}/kb/resumen` (documentos por estado y tipo, fragmentos, caracteres, vectores y embedders, última subida) y
+`GET /empresas/{slug}/kb/fragmentos` (los fragmentos con su documento; filtros `q`, `documento_id`, paginación). Subir y borrar documentos sigue en Empresas y agentes.
+
+
+## Ciclo de calidad (S10)
+
+**Alertas de gasto y tope diario.** Además del límite mensual, un plan limitado puede tener un **tope diario** (`empresas.limite_diario_usd`, no puede superar al mensual).
+Al alcanzar cualquiera de los dos el agente deja de usar IA (modo extractivo). `finops.registrar` revisa los umbrales tras cada gasto y crea **notificaciones** (tabla `notificaciones`, una por clave:
+`gasto-AAAA-MM-80`, `-100`, `gasto-dia-AAAA-MM-DD`): se ven en la campana y, si hay `SMTP_HOST`, se mandan también por correo a los admin de la empresa (best-effort; un correo caído nunca frena el chat).
+Las alertas de gasto solo las ven superadmin y admin de empresa. `GET /empresas/{slug}/notificaciones`, `POST .../{id}/visto`, `POST .../visto-todas`.
+
+**Pruebas automáticas.** Un golden set marcado `autoRun` corre solo al terminar de **subir, reemplazar o eliminar** un documento (`ingesta.procesar_documento` y `DELETE /documentos/{id}` llaman a
+`evaluacion.disparar_automaticas`, en segundo plano). La corrida guarda `origen=automatica` y qué la disparó. Si empeoró frente a la corrida anterior del mismo modelo (cayó 5 puntos o más, o algún caso que
+pasaba ahora falla) deja el aviso «Las pruebas … bajaron de 92 % a 78 %»; si mejoró 5 puntos o más, avisa que subieron. Solo corre una corrida por empresa a la vez: si hay otra, espera hasta ~2 min.
+
+**Conversación real a caso.** `POST .../testing/conjuntos/{id}/casos` acepta `conversationId` (debe ser de la empresa): el caso queda con origen `real`. En el registro de conversaciones, el botón
+«Agregar al golden set» propone la primera pregunta del cliente y, si la hubo, la respuesta del agente humano como respuesta esperada.
+
+**Comparar modelos.** `POST .../conjuntos/{id}/comparar {modelIds (2 a 5), judgeModelId}` corre el mismo golden set con cada modelo (uno tras otro, mismo juez) sin tocar el modelo configurado
+(`modelos.forzando`). `GET .../comparativas/{grupo}?calidad_minima=80` devuelve las corridas y recomienda **el más barato que cumple la calidad mínima**. Cada corrida se compara solo con corridas anteriores del
+mismo modelo de agente.
+
+**Calibrar al juez.** Una persona marca respuestas como correcta/incorrecta (`PUT .../resultados/{id}/etiqueta`). Con al menos 10 etiquetas (se usan hasta 40) `POST .../calibraciones {judgeModelIds}` hace
+que cada juez vuelva a puntuar esas respuestas y mide el **acuerdo**, los falsos aprobados y rechazos y el **kappa de Cohen** (acuerdo corregido por azar: > 0,6 = confiable). Gasta tokens (tipo `juez`).
+
+**Memoria de conversación.** `motor_rag.responder(..., historial=None)` recibe los últimos turnos (`services/chat.py` pasa hasta 6). Si el mensaje solo se entiende con lo anterior (muy corto o empieza
+con «y si…», «eso…») se reescribe como una pregunta autónoma con una llamada corta al LLM (sin LLM o con el tope alcanzado, anteponiendo la última pregunta del cliente) y esa consulta se usa para buscar;
+el LLM además ve el contexto. Sin historial se comporta igual que antes. La firma agrega un parámetro opcional al final: no rompe a quien la usa.
+
+**Versiones de documentos.** `POST /documentos/{id}/reemplazar` sube un archivo nuevo conservando el anterior (`documento_versiones`, el archivo sigue en `storage/`); `GET .../versiones` lista el historial y
+`POST .../versiones/{n}/restaurar` vuelve a una versión (queda como la más nueva). Reemplazar y restaurar reprocesan el documento y disparan las pruebas automáticas.
+
+**Salud de la base.** `GET /empresas/{slug}/kb/calidad` revisa: documentos sin contenido, atascados en «procesando», fragmentos sin vector o de otro embedder (se ignoran al buscar), contenido repetido,
+documentos casi idénticos (≥ 80 % de fragmentos en común) y fragmentos muy cortos; devuelve un puntaje de 0 a 100.
+
+**Sitios autorizados del widget.** `empresas.dominios_permitidos` (vacío = cualquier sitio; `midominio.cl` o `*.midominio.cl`). El widget manda el sitio que lo incrusta en `X-Embed-Host`; los endpoints públicos y
+`POST /chat` rechazan con 403 los sitios no autorizados. **Límite honesto:** evita que copien el snippet en otro sitio, pero no frena a quien llame la API a mano (para eso están el límite de peticiones y el tope de gasto);
+una barrera real exigiría `frame-ancestors` en el servidor web que sirve el front.
+
+**Celery + Redis.** Con `INGESTA_BACKEND=celery` la ingesta va a una tarea de Celery (`app/tasks.py`) y existe una tarea periódica que cierra los tickets con encuesta vencida cada 15 min en todas las empresas
+(RF-39); si Redis no responde se cae a `BackgroundTasks`. Worker: `celery -A app.celery_app worker -l info -P solo` (Windows) y programador: `celery -A app.celery_app beat -l info`. Por defecto sigue `background`.
+**No está validado contra un Redis real** (no hay Docker en el entorno de desarrollo): las pruebas usan el modo `task_always_eager`.

@@ -164,7 +164,7 @@ if (Test-Path $EnvRaiz) {
     Write-Host '      correo: superadmin@alloxentric.local'
     Write-Host "      clave : $superPw    (queda guardada en .env como SUPERADMIN_PASSWORD)"
     Write-Host ''
-    Aviso 'Si tienes una clave de DeepSeek, agregala en .env como DEEPSEEK_API_KEY=... (sin ella el bot responde con el fragmento mas relevante).'
+    Aviso 'Para usar AWS Bedrock: configura un perfil (aws configure --profile ...) y en .env pon BEDROCK_HABILITADO=true y AWS_PROFILE=... (sin ello el bot responde con el fragmento mas relevante).'
 }
 if ($SoloConfigurar) { Ok 'Listo (solo configuracion).'; exit 0 }
 

@@ -9,9 +9,9 @@ Plataforma de soporte con IA, **multi-tenant**: varias empresas del ecosistema A
 Dani27001, Aprueba) cargan su documentación; el chatbot responde con **RAG** sobre *esa* documentación y, cuando no puede
 resolver, **deriva a un humano** creando un ticket en **Corestream** (la ticketera genérica del ecosistema).
 
-- **Todo corre 100% en local, sin nube** (decisión del equipo: nada de AWS ni servicios cloud). El único gasto externo posible es la API de DeepSeek.
+- **Todo corre en local; el único servicio externo es AWS Bedrock** (LLM que redacta las respuestas; decisión del equipo, reemplaza a DeepSeek). BD, embeddings, archivos y Redis siguen locales. El único gasto externo es Bedrock.
 - Fabián: front, plataforma base, derivación a Corestream, roles/login, documentación. Vicente: modelo de datos, ingesta, embeddings, motor RAG.
-- Estamos en la **semana 10 de 17** (13 oct 2026). Lo construido va por delante de lo pendiente, pero DeepSeek en vivo, Corestream real y Celery siguen abiertos; ver sección 9.
+- Estamos en la **semana 10 de 17** (13 oct 2026). Lo construido va por delante de lo pendiente, pero Bedrock en vivo, Corestream real y Celery siguen abiertos; ver sección 9.
 - El usuario escribe en español (Chile). Responde en español, tono directo y de estudiante, sin relleno. Código y nombres de variables en el idioma que ya usa cada archivo (backend en español: `empresa`, `fragmentos`, `ticket`).
 
 ## 2. Stack
@@ -23,7 +23,7 @@ resolver, **deriva a un humano** creando un ticket en **Corestream** (la tickete
 | Auth | PyJWT (HS256) + PBKDF2-SHA256 de la stdlib (`app/security.py`) |
 | Ingesta | pypdf, python-docx; `BackgroundTasks` de FastAPI (Celery + Redis **pendiente**) |
 | Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (sentence-transformers, local; `EMBEDDINGS_BACKEND=hash` sin modelo, para pruebas) |
-| LLM | DeepSeek vía API (`DEEPSEEK_API_KEY` en `.env`); sin clave el motor responde extractivo |
+| LLM | AWS Bedrock, API Converse con boto3 (cada empresa elige su modelo del catálogo `services/modelos.py`: Haiku 5.5 por defecto, GPT-OSS 20B, Nova Lite, DeepSeek V3.2, Qwen3 32B; `BEDROCK_HABILITADO`, `AWS_PROFILE`, `AWS_REGION`, `BEDROCK_MODEL_ID`); credenciales por perfil de AWS CLI; apagado, el motor responde extractivo |
 | Front | React 19 + TypeScript + Vite + Tailwind (prototipo de Google AI Studio, ya conectado a la API) |
 | Infra local | Docker Compose (Postgres+pgvector y Redis, puertos solo en 127.0.0.1) |
 | Pruebas | pytest sobre Postgres real, Playwright (navegador), `pixeltable-pgserver` como Postgres temporal |
@@ -62,10 +62,10 @@ backend/app/
   mappers.py         ORM → schemas (toda la traducción BD español ↔ front camelCase vive aquí)
   deps.py            tenant por API key, login (JWT), requiere_rol(), verificar_tenant(), empresa_con_rol()
   security.py        hash de claves y JWT
-  routers/           auth (login + usuarios), empresas, tickets, documentos, chat, publico (chat por slug), metricas
-  services/          chat (orquesta), motor_rag (RAG: intención, búsqueda por empresa, umbral, LLM), embeddings, llm (DeepSeek),
+  routers/           auth (login + usuarios), empresas, tickets, documentos, chat, publico (chat por slug), metricas, modelos (catálogo de IA), finops (consumo + plan), conversaciones (registro de todas), testing (golden sets, corridas, comparativas, calibración, CSV), kb (base de conocimiento y su salud), notificaciones (campana)
+  services/          chat (orquesta), motor_rag (RAG: intención, búsqueda por empresa, umbral, LLM), embeddings, llm (Bedrock), modelos (catálogo y precios), finops (consumo, plan y límite mensual), evaluacion (corridas, automáticas, calibración), reporte (CSV de alloxentric), notificaciones (avisos y correo), celery_app/tasks (Celery, opcional),
                      ciclo_ticket, ingesta, derivacion (mock Corestream)
-backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario, 0004 ciclo del ticket con encuesta, 0005 modelo del embedding
+backend/migrations/versions/   0001 modelo inicial, 0002 roles de usuario, 0003 agente del ticket = usuario, 0004 ciclo del ticket con encuesta, 0005 modelo del embedding, 0006 modelo de IA por empresa, 0007 FinOps (plan de gasto + tabla usos_ia), 0008 pruebas del agente (golden sets), 0009 modelo juez y generador de las pruebas, 0010 ciclo de calidad (notificaciones, tope diario, dominios, versiones, comparativas, calibración)
 backend/seed.py · seed_data.json · crear_superadmin.py · reindexar.py · dev_db.py (Postgres sin Docker)
 backend/calidad_rag/           batería de calidad del RAG (corpus.json, preguntas.json, evaluar.py, resultados_*.json)
 backend/tests/                 test_api, test_roles, test_ciclo_ticket, test_rag, test_ratelimit + conftest (90 pruebas)
@@ -76,6 +76,7 @@ frontend/src/auth/permissions.ts   vistas por rol (espejo de la matriz; la regla
 frontend/public/widget.min.js    widget embebible (botón + iframe a /chat/{slug}?embed=1)
 frontend/src/components/PublicChat.tsx   página pública /chat/{slug} (la enruta main.tsx)
 frontend/src/App.tsx           Dashboard: carga por rol, polling de 15 s, handlers que llaman a la API
+docs/DESIGN_SYSTEM.md          marca (wordmark `alloxentric.`, icono x), paleta cherry #D20A2E sobre blanco roto #F2F0EF, tipografía Inter
 docs/                          documentación técnica, manual, MATRIZ_PERMISOS.md, MAPEO_FRONTEND.md, diagramas Mermaid, capturas
 ```
 
@@ -90,12 +91,12 @@ docs/                          documentación técnica, manual, MATRIZ_PERMISOS.
 2. **Roles (RF-28/RF-30):** 4 roles — `superadmin` (sin empresa), `admin_empresa`, `encargado_tickets`, `encargado_agente`.
    Cada endpoint nuevo declara explícitamente qué roles acepta (`requiere_rol(...)` o `empresa_con_rol(...)`) y, si accede por id,
    llama a `verificar_tenant`. Matriz en `docs/MATRIZ_PERMISOS.md`; si la cambias, actualiza la matriz, `tests/test_roles.py` y `frontend/src/auth/permissions.ts`.
-3. **Contrato del motor RAG (no cambiar firmas):** `responder(db, empresa, texto, forzar_derivacion) -> Resultado` y
+3. **Contrato del motor RAG (no cambiar firmas):** `responder(db, empresa, texto, forzar_derivacion[, historial]) -> Resultado` (`historial` es opcional y va al final) y
    `sugerir_respuesta(db, empresa, texto, motivo, nombre_cliente) -> dict` en `services/motor_rag.py`. `services/chat.py` y el front dependen de ellas.
 4. **Forma de la API = tipos del front.** Los schemas están en camelCase con alias; si cambias un campo, cambia `schemas.py`, `mappers.py`,
    `frontend/src/types/index.ts` y `docs/MAPEO_FRONTEND.md` juntos.
 5. **API keys:** se guardan solo como hash SHA-256; el texto plano se muestra una vez. **Contraseñas:** PBKDF2 con sal. Nada de secretos en el código ni en git (`.env`, `seed_keys.txt`, `storage/` están ignorados).
-6. **Sin nube:** no agregar dependencias de AWS/GCP/Azure ni servicios externos salvo DeepSeek.
+6. **Un solo servicio externo:** AWS Bedrock (solo para el LLM, vía `services/llm.py`). No agregar otros servicios de AWS/GCP/Azure ni otros externos. Credenciales por perfil de AWS CLI, nunca en el código ni en `.env`.
 7. **Esquema:** cualquier cambio en `models.py` va con migración Alembic revisada a mano (el autogenerate no importa `pgvector` ni crea la extensión; ya está corregido en `0001`). Verifica `upgrade`, `alembic check` y `downgrade`.
 8. **Subidas:** validar extensión (`pdf, docx, txt, faq, csv`), tamaño (`MAX_UPLOAD_MB`) y sanear el nombre; un directorio por empresa en `storage/`.
 9. **Endpoints sin sesión** (chat público, widget, login): llevan límite de peticiones con `app/ratelimit.py` (`limite(...)` o `verificar(...)`); uno nuevo sin límite es un hueco. Tabla de límites en `docs/01_documentacion_tecnica.md` §8.
@@ -128,7 +129,7 @@ El encargado de tickets responde y se envía una **encuesta** al cliente; **el c
 (extracción + fragmentación); chat con derivación a ticket; **widget embebible `widget.min.js` y página pública `/chat/{slug}` (RF-29)**; consola de soporte; panel de agentes y carga de documentos; login JWT + 4 roles + gestión de usuarios; **analítica real por empresa y rol** (`GET /metricas/analitica`); asignación de tickets a usuarios reales (`GET /tickets/agentes`); **el cliente ve la respuesta del agente humano en el chat público/widget**; **ciclo del ticket con encuesta de resolución (Sí cierra, No escala, 72 h cierra)**; **rate limiting de los endpoints sin sesión**;
 documentación técnica, manual con capturas actualizadas y diagramas; **batería de calidad del RAG** (45 preguntas) y **scripts de arranque** `iniciar.ps1`/`detener.ps1`.
 
-**Motor RAG:** implementado y validado con el modelo real (E2E 49/49; fuente correcta 96 %, AUC 0.93, `calidad_rag/`). **Falta probar DeepSeek en vivo** (no hay `DEEPSEEK_API_KEY` aún: responde en modo extractivo). **Provisorio:** Corestream es un mock (`CORESTREAM_MOCK=true`);
+**Motor RAG:** implementado y validado con el modelo real (E2E 49/49; fuente correcta 96 %, AUC 0.93, `calidad_rag/`). **Bedrock probado en vivo** (13 nov: perfil `chatbot`, `us.anthropic.claude-haiku-5-5` en us-east-1; responde con los fragmentos y contesta `NO_SE` fuera de ellos; ~1-4 s por llamada; Haiku 5.5 rechaza `temperature`, por eso no se envía; el ID sin prefijo `us.` falla). **Falta** repetir la batería de calidad completa con Bedrock (RNF-05/06). Sin `BEDROCK_HABILITADO=true` responde en modo extractivo. **Provisorio:** Corestream es un mock (`CORESTREAM_MOCK=true`);
 la ingesta usa `BackgroundTasks`; los documentos del seed no tienen archivo ni fragmentos reales.
 
 ## 8. Pendiente (en orden de dependencia)
@@ -136,11 +137,11 @@ la ingesta usa `BackgroundTasks`; los documentos del seed no tienen archivo ni f
 | # | Tarea | Dónde | Quién |
 |---|---|---|---|
 | 1 | Embeddings: **hecho y validado con el modelo real** (`services/embeddings.py`, `reindexar.py`) | `services/ingesta.py`, `services/embeddings.py` | Vicente |
-| 2 | Motor RAG: **hecho y calibrado** (pgvector por `empresa_id`, umbral, intención, sugerencia IA); falta probar **DeepSeek en vivo** (necesita `DEEPSEEK_API_KEY`) y la ruta SQL de pgvector contra el Docker | `services/motor_rag.py` | Vicente / Fabián |
+| 2 | Motor RAG: **hecho y calibrado** (pgvector por `empresa_id`, umbral, intención, sugerencia IA); falta probar **Bedrock en vivo** (necesita perfil de AWS y acceso al modelo) y la ruta SQL de pgvector contra el Docker | `services/motor_rag.py` | Vicente / Fabián |
 | 3 | Celery + Redis para la ingesta | `services/ingesta.py`, `docker-compose.yml` | Vicente |
 | 4 | Corestream real (`httpx`) cuando exista su documentación; mantener el mock | `services/derivacion.py` | Fabián |
 | 5 | Validar el entorno con Docker y en la notebook de Vicente (RF-18, RF-20; hoy validado en la de Fabián con `-SinDocker`) | README | Ambos |
-| 6 | Repetir la batería de calidad con DeepSeek real (alucinaciones, RNF-05) y medir tiempos (RNF-06) | `calidad_rag/`, `tests/` | Ambos |
+| 6 | Repetir la batería de calidad con Bedrock real (alucinaciones, RNF-05) y medir tiempos (RNF-06) | `calidad_rag/`, `tests/` | Ambos |
 | 7 | Revisión cruzada: Vicente revisa el motor RAG, los embeddings y los roles implementados desde el repo de Fabián | `services/` | Vicente |
 | 8 | Pruebas de aceptación con los 4 roles, ajustes y documentación final (manual, diagramas) | `tests_e2e/`, `docs/` | Ambos |
 | 9 | Entregables del Capstone: informe final, abstract ES/EN, conclusiones y reflexión individual (inglés), presentación | — | Ambos |
@@ -151,7 +152,7 @@ Al terminar una tarea: actualizar `README.md` (sección "Qué es provisorio"), `
 
 - Requerimientos (Excel, ciclo en cascada): 39 RF — 31 hechos, 5 en curso, 3 pendientes (semana 10), 14 RNF y 41 tareas en la EDT. Fases: Análisis, Diseño, Configuración del entorno local, Desarrollo, Pruebas, Implementación y cierre.
 - Carta Gantt: 17 semanas, 14 actividades. Cerradas: modelo de datos, plataforma base, interfaz, carga/vectorización y motor RAG. En curso: derivación (mock listo) y validación del entorno. Pruebas S11–S14 y ajustes/documentación S14–S17 son lo que queda.
-- **Riesgo principal:** lo que depende de terceros — la API key de DeepSeek y la documentación de Corestream — y el poco margen para el cierre (informe final y entregables académicos).
+- **Riesgo principal:** lo que depende de terceros — el acceso a AWS Bedrock (cuenta, perfil y modelo habilitado) y la documentación de Corestream — y el poco margen para el cierre (informe final y entregables académicos).
 - Competencias del perfil de egreso: gestión de proyectos, desarrollo de software, QA, bases de datos, IA. Entregables extra por ser Capstone: Abstract (ES/EN), conclusiones y reflexión individuales (en inglés).
 
 ## 10. Cómo trabajar aquí

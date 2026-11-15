@@ -15,7 +15,8 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 |---|:-:|:-:|:-:|:-:|
 | Crear empresas | ✔ | | | |
 | Ver empresas | todas | la suya | la suya | la suya |
-| Configurar agente (nombre del agente, tono, instrucciones, umbral, estado) | ✔ | ✔ | | ✔ |
+| Configurar agente (nombre del agente, tono, instrucciones, umbral, estado, **modelo de IA**) | ✔ | ✔ | | ✔ |
+| Ver el catálogo de modelos de IA (`GET /modelos-ia`) | ✔ | ✔ | | ✔ |
 | Cambiar nombre e industria de la empresa | ✔ | ✔ | | |
 | Subir / borrar documentos y ver fragmentos | ✔ | ✔ | | ✔ |
 | Generar o rotar la API key y obtener el widget | ✔ | ✔ | | ✔ |
@@ -24,6 +25,16 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 | Ver y cerrar tickets **escalados** (el cliente dijo que no se resolvió) | todos | los de su empresa | | |
 | Cerrar un ticket sin encuesta | no existe: lo cierra el cliente (o las 72 h) | | | |
 | Asignar un ticket | a usuarios de la empresa del ticket (admin o encargado de tickets); nunca a otra empresa | | | |
+| Ver el **registro de todas las conversaciones** del chatbot (con o sin ticket) y su transcripción | todas | las de su empresa | | las de su empresa |
+| Ver la **base de conocimiento** (documentos ingestados y sus fragmentos) | todas | la suya | | la suya |
+| **Pruebas del agente**: crear golden sets (manuales o con IA), ejecutarlos, ver resultados y exportar CSV | todas | las suyas | | las suyas |
+| Subir, **reemplazar** (con historial de versiones) y restaurar versiones de documentos; ver la **salud de la KB** | todas | las suyas | | las suyas |
+| Comparar modelos con un golden set, etiquetar respuestas y **calibrar al juez** | todas | las suyas | | las suyas |
+| Elegir los **sitios autorizados** del widget de la empresa | todas | la suya | | la suya |
+| Ver las **notificaciones** (campana): cambios en las pruebas | todas | las suyas | | las suyas |
+| Ver las **alertas de gasto** (80 %, 100 %, tope diario) | todas | las suyas | | |
+| Ver el **consumo de IA (FinOps)**: tokens, costo, por modelo y estado del plan | todas | la suya | | |
+| Definir el **plan de gasto** de una empresa (límite mensual y tope diario en USD, o sin límite) | ✔ | | | |
 | Ver métricas y analítica | globales (todas las empresas) | las de su empresa | las de su empresa | las de su empresa |
 | Gestionar usuarios | todos | los de su empresa | | |
 | Crear superadmins | ✔ | | | |

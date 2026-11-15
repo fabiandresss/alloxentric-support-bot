@@ -100,7 +100,7 @@ with sync_playwright() as p:
     ok(nav('Usuarios y roles')==1 and nav('Consola de soporte')==1 and nav('Empresas y agentes')==1,'E6 admin de empresa ve consola, agentes y usuarios')
     pg.get_by_test_id('nav-users').click(); pg.wait_for_timeout(1000)
     pg.get_by_test_id('new-user-email').fill('nuevo.tickets@wellq.demo'); pg.get_by_test_id('new-user-password').fill('Clave12345!')
-    pg.get_by_test_id('new-user-role').select_option('encargado_tickets'); pg.get_by_test_id('new-user-submit').click(); pg.wait_for_timeout(1200)
+    pg.get_by_test_id('new-user-role').click(); pg.get_by_test_id('new-user-role-option-encargado_tickets').click(); pg.get_by_test_id('new-user-submit').click(); pg.wait_for_timeout(1200)
     ok(pg.get_by_test_id('user-row-nuevo.tickets@wellq.demo').count()==1,'E7 admin crea un usuario desde el panel')
     pg.screenshot(path='shot_usuarios.png')
     login('nuevo.tickets@wellq.demo','Clave12345!')
