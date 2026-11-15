@@ -134,21 +134,6 @@ en las respuestas de la empresa B, y una conversación de A no se puede usar con
 
 Todas las rutas (salvo `/health`, `/auth/login`, `/chat` y `/publico/*`) exigen `Authorization: Bearer <token>` y un rol permitido; ver `docs/MATRIZ_PERMISOS.md`.
 
-### Credenciales de desarrollo (por rol)
-
-| Rol | Correo | Clave | Qué ve y qué puede probar |
-|---|---|---|---|
-| **Superadmin** | `superadmin@alloxentric.local` | la de `SUPERADMIN_PASSWORD` en tu `.env` (`iniciar.ps1` la genera al azar; si corres `seed.py` sin esa variable es `Superadmin123!`) | Todo: todas las empresas, tickets y usuarios; crea empresas y otros superadmins |
-| **Admin de empresa** | `admin@<slug>.demo` | `Demo1234!` | Consola, agentes, analítica y usuarios de **su** empresa; ve y cierra los tickets escalados |
-| **Encargado de tickets** | `tickets@<slug>.demo` | `Demo1234!` | Solo Consola de soporte y Analítica de su empresa (no ve los tickets escalados) |
-| **Encargado del agente IA** | `agente@<slug>.demo` | `Demo1234!` | Empresas y agentes, documentos y vista previa del widget de su empresa; sin consola ni usuarios |
-
-`<slug>` es uno de: `wellq`, `alloxentric`, `dani-eth`, `dani27001`, `aprueba` (15 usuarios demo: 3 por empresa). Son claves **solo de desarrollo**:
-cámbialas antes de usar el sistema fuera de tu notebook. Para crear un superadmin en una BD ya poblada: `python crear_superadmin.py correo@dominio.cl`.
-
-
-Las respuestas usan exactamente la forma de `frontend/src/types/index.ts` (camelCase).
-
 ## Qué es provisorio / qué falta
 
 | Pendiente | Dónde | Quién |
