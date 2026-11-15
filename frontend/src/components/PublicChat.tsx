@@ -153,7 +153,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 text-center text-sm text-[#64748B]">
+      <div className="min-h-screen flex items-center justify-center p-6 text-center text-sm text-[color:var(--c-muted)]">
         <div>
           <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-[#F59E0B]" />
           <p>{loadError === 'Empresa no encontrada' ? 'Este chat no existe.' : loadError}</p>
@@ -163,7 +163,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
   }
   if (!agent) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#64748B]">
+      <div className="min-h-screen flex items-center justify-center text-[color:var(--c-muted)]">
         <Loader2 className="w-6 h-6 animate-spin" />
       </div>
     );
@@ -173,7 +173,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
   const finalizado = ticketStatus === 'cerrado' || ticketStatus === 'escalado';
 
   return (
-    <div className={`flex flex-col bg-white ${embed ? 'h-screen' : 'h-screen max-w-xl mx-auto sm:border-x border-[#E2E8F0]'}`}>
+    <div className={`flex flex-col bg-white ${embed ? 'h-screen' : 'h-screen max-w-xl mx-auto sm:border-x border-[color:var(--c-line)]'}`}>
       <header className="p-4 text-white flex items-center justify-between shrink-0" style={{ backgroundColor: agent.brandColor }}>
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-black text-xs shrink-0">
@@ -191,7 +191,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
         )}
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F8FAFC]">
+      <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-[color:var(--c-canvas)]">
         <Bubble bot name={agent.agentName} color={agent.brandColor}>
           {disponible
             ? `¡Hola! Soy ${agent.agentName}, el asistente con IA de ${agent.name}. ¿En qué puedo ayudarte hoy?`
@@ -210,9 +210,9 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
             {m.message}
           </Bubble>
         ))}
-        {sending && <p className="text-xs text-[#64748B] pl-1">{agent.agentName} está escribiendo…</p>}
+        {sending && <p className="text-xs text-[color:var(--c-muted)] pl-1">{agent.agentName} está escribiendo…</p>}
         {derived && !finalizado && ticketStatus !== 'esperando_cliente' && (
-          <div className="p-3 rounded-xl bg-[#F0FDFA] border border-[#CCFBF1] text-xs text-[#0F766E] flex gap-2">
+          <div className="p-3 rounded-xl bg-[color:var(--c-ch50)] border border-[color:var(--c-ch150)] text-xs text-[#8F0720] flex gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
               Derivamos tu consulta a un agente humano{ticketNumber ? <> (ticket <b>{ticketNumber}</b>)</> : null}.
@@ -221,9 +221,9 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
           </div>
         )}
         {ticketStatus === 'esperando_cliente' && (
-          <div className="p-3.5 rounded-xl bg-white border border-[#C7D2FE] shadow-xs space-y-2.5" data-testid="survey">
-            <p className="text-sm font-semibold text-[#1E1B4B]">¿Se resolvió tu consulta?</p>
-            <p className="text-xs text-[#64748B]">
+          <div className="p-3.5 rounded-xl bg-white border border-[color:var(--c-ch350)] shadow-xs space-y-2.5" data-testid="survey">
+            <p className="text-sm font-semibold text-[color:var(--c-ink)]">¿Se resolvió tu consulta?</p>
+            <p className="text-xs text-[color:var(--c-muted)]">
               Si respondes que sí, cerramos el caso{ticketNumber ? <> {ticketNumber}</> : null}. Si no, lo escalamos a la gestión de {agent.name}.
             </p>
             <div className="flex gap-2">
@@ -237,7 +237,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
               <button
                 onClick={() => answer(false)}
                 disabled={sending}
-                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-[#B91C1C] bg-[#FEF2F2] border border-[#FCA5A5] hover:bg-[#FEE2E2] disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-[color:var(--c-rtx)] bg-[color:var(--c-rbg)] border border-[color:var(--c-rline)] hover:bg-[color:var(--c-rbg2)] disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 <ThumbsDown className="w-3.5 h-3.5" /> No, sigue sin resolverse
               </button>
@@ -246,7 +246,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
         )}
         {finalizado && (
           <div className={`p-3 rounded-xl border text-xs space-y-2 ${
-            ticketStatus === 'cerrado' ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#166534]' : 'bg-[#F5F3FF] border-[#DDD6FE] text-[#5B21B6]'
+            ticketStatus === 'cerrado' ? 'bg-[color:var(--c-gbg)] border-[color:var(--c-gline)] text-[color:var(--c-gtx)]' : 'bg-[color:var(--c-soft2)] border-[color:var(--c-line2)] text-[color:var(--c-ink3)]'
           }`}>
             <p>
               {ticketStatus === 'cerrado'
@@ -261,16 +261,16 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
             </button>
           </div>
         )}
-        {error && <p className="text-xs text-[#B91C1C]">{error}</p>}
+        {error && <p className="text-xs text-[color:var(--c-rtx)]">{error}</p>}
         <div ref={endRef} />
       </main>
 
-      <footer className="p-3 border-t border-[#E2E8F0] shrink-0 space-y-2">
+      <footer className="p-3 border-t border-[color:var(--c-line)] shrink-0 space-y-2">
         {disponible && !derived && (
           <button
             onClick={() => send('Quiero hablar con un agente humano.', true)}
             disabled={sending}
-            className="text-[11px] font-semibold text-[#64748B] hover:text-[#1E1B4B] flex items-center gap-1 disabled:opacity-50"
+            className="text-[11px] font-semibold text-[color:var(--c-muted)] hover:text-[color:var(--c-ink)] flex items-center gap-1 disabled:opacity-50"
           >
             <Headphones className="w-3.5 h-3.5" /> Hablar con una persona
           </button>
@@ -282,7 +282,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
             disabled={!disponible || sending || finalizado}
             maxLength={4000}
             placeholder={finalizado ? 'Este caso ya terminó' : disponible ? 'Escribe tu consulta…' : 'Chat no disponible'}
-            className="flex-1 px-3.5 py-2.5 text-sm rounded-xl border border-[#E2E8F0] focus:outline-none focus:border-[#4F46E5] disabled:bg-[#F1F5F9]"
+            className="flex-1 px-3.5 py-2.5 text-sm rounded-xl border border-[color:var(--c-line)] focus:outline-none focus:border-[#D20A2E] disabled:bg-[color:var(--c-soft)]"
           />
           <button
             type="submit"
@@ -294,7 +294,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <p className="text-[10px] text-center text-[#94A3B8]">Con tecnología de Alloxentric SupportHub</p>
+        <p className="text-[10px] text-center text-[color:var(--c-faint)]">Con tecnología de Alloxentric SupportHub</p>
       </footer>
     </div>
   );
@@ -312,21 +312,21 @@ const Bubble: React.FC<{
   <div className={`flex gap-2 ${bot ? '' : 'flex-row-reverse'}`}>
     <div
       className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white"
-      style={{ backgroundColor: bot ? color : '#64748B' }}
+      style={{ backgroundColor: bot ? color : '#6B6562' }}
     >
       {bot ? agent ? <Headphones className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
     </div>
     <div className={`max-w-[80%] ${bot ? '' : 'text-right'}`}>
-      <p className="text-[10px] text-[#64748B] mb-0.5">{name}</p>
+      <p className="text-[10px] text-[color:var(--c-muted)] mb-0.5">{name}</p>
       <div
         className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap text-left ${
-          bot ? (notice ? 'bg-[#FEF3C7] text-[#78350F]' : 'bg-white border border-[#E2E8F0]') : 'text-white'
+          bot ? (notice ? 'bg-[color:var(--c-abg2)] text-[color:var(--c-atx3)]' : 'bg-white border border-[color:var(--c-line)]') : 'text-white'
         }`}
         style={bot ? undefined : { backgroundColor: color }}
       >
         {children}
       </div>
-      {source && <p className="text-[10px] text-[#64748B] mt-1">Fuente: {source}</p>}
+      {source && <p className="text-[10px] text-[color:var(--c-muted)] mt-1">Fuente: {source}</p>}
     </div>
   </div>
 );

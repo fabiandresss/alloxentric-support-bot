@@ -1,1 +1,141 @@
 @import "tailwindcss";
+
+/* ───────────── Design system alloxentric ─────────────
+   Marca: cherry #D20A2E sobre blanco roto #F2F0EF. Ver docs/DESIGN_SYSTEM.md */
+@theme {
+  --color-cherry-50: #FDF3F4;
+  --color-cherry-100: #FCEDEF;
+  --color-cherry-200: #F9D9DE;
+  --color-cherry-300: #F2B0BA;
+  --color-cherry-400: #E8405F;
+  --color-cherry-500: #D20A2E;
+  --color-cherry-600: #B00825;
+  --color-cherry-700: #8F0720;
+  --color-canvas: #F2F0EF;
+  --color-ink: #1F1B1A;
+
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-fade-in: fade-in 0.3s ease-out backwards;
+  --animate-pop: pop-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-slow: float 9s ease-in-out infinite reverse;
+  --animate-ring: ring-pulse 2s ease-out infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-spin-slow: spin 18s linear infinite;
+  --animate-ring: ring 1.6s ease-in-out 1;
+
+  @keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @keyframes ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(8deg); } 60% { transform: rotate(-6deg); } 75% { transform: rotate(3deg); } }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }
+  @keyframes float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-14px) rotate(2deg); } }
+  @keyframes ring-pulse { 0% { box-shadow: 0 0 0 0 rgba(210, 10, 46, 0.45); } 100% { box-shadow: 0 0 0 10px rgba(210, 10, 46, 0); } }
+  @keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+}
+
+
+/* ───────────── Tema claro / oscuro ─────────────
+   Los componentes usan estas variables (text-[color:var(--c-ink)], etc.). El modo oscuro es la clase `dark` en <html>. */
+:root {
+  color-scheme: light;
+  --c-canvas: #F2F0EF; --c-surface: #FFFFFF; --c-ink: #1F1B1A; --c-muted: #6B6562; --c-faint: #9A938F;
+  --c-line: #E4DFDC; --c-line2: #D6D1CE; --c-soft: #ECE8E5; --c-soft2: #F1EEEC; --c-ink2: #3A3532; --c-ink3: #262220;
+  --c-ch50: #FDF3F4; --c-ch100: #FCEDEF; --c-ch150: #FCE3E7; --c-ch200: #F9D9DE; --c-ch300: #F6BFC9; --c-ch350: #F2B0BA;
+  --c-rbg: #FEF2F2; --c-rbg2: #FEE2E2; --c-rline: #FCA5A5; --c-rtx: #B91C1C; --c-rtx2: #991B1B;
+  --c-abg: #FFFBEB; --c-abg2: #FEF3C7; --c-aline: #FDE68A; --c-atx: #B45309; --c-atx2: #92400E; --c-atx3: #78350F;
+  --c-gbg: #F0FDF4; --c-gbg2: #DCFCE7; --c-gline: #BBF7D0; --c-gtx: #166534; --c-sbg: #E0F2FE;
+  --glow: rgba(210, 10, 46, 0.07); --dots: rgba(31, 27, 26, 0.055); --scroll: #D6D1CE;
+}
+.dark {
+  color-scheme: dark;
+  --c-canvas: #141112; --c-surface: #1D191B; --c-ink: #F4F0EF; --c-muted: #ADA5A1; --c-faint: #81797A;
+  --c-line: #332D2F; --c-line2: #443C3E; --c-soft: #262123; --c-soft2: #221D1F; --c-ink2: #D9D2CF; --c-ink3: #F4F0EF;
+  --c-ch50: #25090F; --c-ch100: #34101A; --c-ch150: #3F131E; --c-ch200: #4D1824; --c-ch300: #6A2030; --c-ch350: #7E2638;
+  --c-rbg: #2A1214; --c-rbg2: #381719; --c-rline: #7F2A2E; --c-rtx: #FCA5A5; --c-rtx2: #FECACA;
+  --c-abg: #2A2008; --c-abg2: #35290B; --c-aline: #6B5416; --c-atx: #FBBF24; --c-atx2: #FCD34D; --c-atx3: #FDE68A;
+  --c-gbg: #0F2417; --c-gbg2: #14311F; --c-gline: #1F5A37; --c-gtx: #86EFAC; --c-sbg: #0C2433;
+  --glow: rgba(232, 64, 95, 0.13); --dots: rgba(255, 255, 255, 0.045); --scroll: #443C3E;
+}
+/* Superficies blancas y vidrio */
+.dark .bg-white, .dark .focus\:bg-white:focus, .dark .hover\:bg-white:hover { background-color: var(--c-surface); }
+.dark .bg-white\/80 { background-color: color-mix(in srgb, var(--c-surface) 80%, transparent); }
+.dark .bg-white\/70 { background-color: color-mix(in srgb, var(--c-surface) 70%, transparent); }
+.dark .bg-white\/90 { background-color: color-mix(in srgb, var(--c-surface) 90%, transparent); }
+/* El cherry como texto se aclara para mantener contraste */
+.dark .text-\[\#D20A2E\], .dark .hover\:text-\[\#D20A2E\]:hover { color: #F0516C; }
+.dark .text-\[\#B00825\], .dark .hover\:text-\[\#B00825\]:hover { color: #FF8FA3; }
+.dark .text-\[\#8F0720\] { color: #FFB3C0; }
+.dark .text-\[\#EF4444\] { color: #F87171; }
+.dark .text-\[\#22C55E\], .dark .text-\[\#16A34A\] { color: #4ADE80; }
+.dark .text-\[\#F59E0B\], .dark .text-\[\#D97706\] { color: #FBBF24; }
+.dark input::placeholder, .dark textarea::placeholder { color: var(--c-faint); }
+.dark input, .dark textarea, .dark select { color: var(--c-ink); }
+.dark .card-glow { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -16px rgba(0, 0, 0, 0.7); }
+.dark .lift:hover { box-shadow: 0 18px 32px -18px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(232, 64, 95, 0.35); }
+html.theme-fade, html.theme-fade * { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, fill 0.3s ease !important; }
+
+/* Lienzo: blanco roto con un resplandor cherry muy suave y una trama de puntos */
+html { scroll-behavior: smooth; }
+body {
+  background-color: var(--c-canvas);
+  color: var(--c-ink);
+  background-image:
+    radial-gradient(60rem 28rem at 100% -8%, var(--glow), transparent 65%),
+    radial-gradient(var(--dots) 1px, transparent 1px);
+  background-size: auto, 22px 22px;
+  background-attachment: fixed;
+}
+::selection { background: rgba(210, 10, 46, 0.16); color: #B00825; }
+
+/* Scroll fino y cálido */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: #E8405F; }
+
+/* Foco consistente: anillo cherry */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: #D20A2E;
+  box-shadow: 0 0 0 3px rgba(210, 10, 46, 0.14);
+}
+button:focus-visible, a:focus-visible { outline: 2px solid #D20A2E; outline-offset: 2px; }
+
+/* Botón primario cherry: relieve, elevación al pasar y "press" al hacer clic */
+button[class*="bg-[#D20A2E]"], a[class*="bg-[#D20A2E]"] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 18px -8px rgba(210, 10, 46, 0.6);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.15s ease;
+}
+button[class*="bg-[#D20A2E]"]:hover:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 12px 22px -8px rgba(210, 10, 46, 0.7); }
+button[class*="bg-[#D20A2E]"]:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+button:disabled { cursor: not-allowed; }
+button[class*="bg-[#D20A2E]"]:disabled { box-shadow: none; }
+
+/* Botones secundarios: se despegan un poco al pasar el cursor */
+button[class*="border-[color:var(--c-line)]"]:not(:disabled), button[class*="border-[color:var(--c-line2)]"]:not(:disabled) { transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease; }
+button[class*="border-[color:var(--c-line)]"]:hover:not(:disabled) { border-color: #F2B0BA; }
+
+/* Entrada de modales y avisos (reemplaza las clases animate-in que no estaban definidas) */
+.animate-in { animation: pop-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.fixed.inset-0.animate-in { animation: fade-in 0.2s ease-out backwards; }
+.fixed.inset-0.animate-in > div { animation: pop-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+
+/* Utilidades de producto */
+.lift { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, border-color 0.2s ease; }
+.lift:hover { transform: translateY(-3px); box-shadow: 0 18px 32px -18px rgba(31, 27, 26, 0.28), 0 0 0 1px rgba(210, 10, 46, 0.18); }
+.card-glow { box-shadow: 0 1px 2px rgba(31, 27, 26, 0.04), 0 8px 24px -16px rgba(31, 27, 26, 0.16); }
+.skeleton {
+  background: linear-gradient(90deg, var(--c-soft) 25%, var(--c-line) 50%, var(--c-soft) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+.text-cherry-gradient {
+  background: linear-gradient(90deg, #D20A2E, #E8405F);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.dot-live { position: relative; }
+.dot-live::after { content: ""; position: absolute; inset: 0; border-radius: 999px; animation: ring-pulse 2s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}

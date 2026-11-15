@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Logo } from './Logo';
+import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
 import { 
   Bell, 
   ChevronDown, 
@@ -10,7 +12,7 @@ import {
   ShieldCheck,
   Search
 } from 'lucide-react';
-import { AuthUser } from '../types';
+import { AppNotification, AuthUser } from '../types';
 import { ROLE_LABELS, View } from '../auth/permissions';
 
 interface NavbarProps {
@@ -23,6 +25,10 @@ interface NavbarProps {
   currentView: View;
   user: AuthUser;
   onLogout: () => void;
+  notifications?: AppNotification[];
+  onOpenNotification?: (n: AppNotification) => void;
+  onMarkAllNotifications?: () => void;
+  showBell?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,6 +41,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentView,
   user,
   onLogout,
+  notifications = [],
+  onOpenNotification,
+  onMarkAllNotifications,
+  showBell = false,
 }) => {
   const [userStatus, setUserStatus] = useState<'available' | 'busy' | 'break'>('available');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -52,7 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       : companies.find((c) => c.id === selectedTenantFilter)?.name || 'Empresa';
 
   return (
-    <header className="h-16 bg-white border-b border-[#E2E8F0] px-6 flex items-center justify-between sticky top-0 z-30 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-[color:var(--c-line)] border-t-[3px] border-t-[#D20A2E] px-6 flex items-center justify-between sticky top-0 z-30">
       {/* Left: Brand Logo */}
       <div className="flex items-center gap-6">
         <Logo size="md" showWordmark={true} />
@@ -62,18 +72,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="hidden md:flex items-center gap-3 max-w-md w-full mx-4">
         {currentView === 'console' && (
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[color:var(--c-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Buscar tickets por ID, usuario o motivo..."
-              className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#1E1B4B] placeholder:text-[#64748B] focus:outline-none focus:border-[#4F46E5] focus:bg-white transition-colors"
+              className="w-full bg-[color:var(--c-canvas)] border border-[color:var(--c-line)] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[color:var(--c-ink)] placeholder:text-[color:var(--c-muted)] focus:outline-none focus:border-[#D20A2E] focus:bg-white transition-colors"
             />
             {searchQuery && (
               <button
                 onClick={() => onSearchChange('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#64748B] hover:text-[#1E1B4B]"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[color:var(--c-muted)] hover:text-[color:var(--c-ink)]"
               >
                 ✕
               </button>
@@ -88,16 +98,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               setShowTenantMenu(!showTenantMenu);
               setShowStatusMenu(false);
             }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#E2E8F0] bg-white text-xs font-medium text-[#1E1B4B] hover:border-[#4F46E5] transition-colors whitespace-nowrap shadow-xs"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[color:var(--c-line)] bg-white text-xs font-medium text-[color:var(--c-ink)] hover:border-[#D20A2E] transition-colors whitespace-nowrap shadow-xs"
           >
-            <span className="text-[#64748B]">Filtro:</span>
-            <span className="font-semibold text-[#4F46E5]">{selectedCompanyName}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
+            <span className="text-[color:var(--c-muted)]">Filtro:</span>
+            <span className="font-semibold text-[#D20A2E]">{selectedCompanyName}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-[color:var(--c-muted)]" />
           </button>
 
           {showTenantMenu && (
-            <div className="absolute left-0 mt-1 w-52 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-40">
-              <div className="px-3 py-1.5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#E2E8F0]">
+            <div className="absolute left-0 mt-1 w-52 bg-white rounded-lg border border-[color:var(--c-line)] shadow-lg py-1 z-40">
+              <div className="px-3 py-1.5 text-[11px] font-semibold text-[color:var(--c-muted)] uppercase tracking-wider border-b border-[color:var(--c-line)]">
                 Empresas SaaS
               </div>
               <button
@@ -105,12 +115,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onSelectTenantFilter('all');
                   setShowTenantMenu(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-[#F8FAFC] transition-colors ${
-                  selectedTenantFilter === 'all' ? 'text-[#4F46E5] font-semibold bg-[#EEF2FF]' : 'text-[#1E1B4B]'
+                className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-[color:var(--c-canvas)] transition-colors ${
+                  selectedTenantFilter === 'all' ? 'text-[#D20A2E] font-semibold bg-[color:var(--c-ch100)]' : 'text-[color:var(--c-ink)]'
                 }`}
               >
                 <span>Todas las empresas</span>
-                {selectedTenantFilter === 'all' && <CheckCircle2 className="w-3.5 h-3.5 text-[#4F46E5]" />}
+                {selectedTenantFilter === 'all' && <CheckCircle2 className="w-3.5 h-3.5 text-[#D20A2E]" />}
               </button>
               {companies.map((c) => (
                 <button
@@ -119,12 +129,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onSelectTenantFilter(c.id);
                     setShowTenantMenu(false);
                   }}
-                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-[#F8FAFC] transition-colors ${
-                    selectedTenantFilter === c.id ? 'text-[#4F46E5] font-semibold bg-[#EEF2FF]' : 'text-[#1E1B4B]'
+                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-[color:var(--c-canvas)] transition-colors ${
+                    selectedTenantFilter === c.id ? 'text-[#D20A2E] font-semibold bg-[color:var(--c-ch100)]' : 'text-[color:var(--c-ink)]'
                   }`}
                 >
                   <span>{c.name}</span>
-                  {selectedTenantFilter === c.id && <CheckCircle2 className="w-3.5 h-3.5 text-[#4F46E5]" />}
+                  {selectedTenantFilter === c.id && <CheckCircle2 className="w-3.5 h-3.5 text-[#D20A2E]" />}
                 </button>
               ))}
             </div>
@@ -133,7 +143,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Right: Notifications & User profile */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {showBell && onOpenNotification && onMarkAllNotifications && <NotificationBell items={notifications} onOpen={onOpenNotification} onMarkAll={onMarkAllNotifications} />}
+        <ThemeToggle />
         {/* User profile with status dropdown */}
         <div className="relative">
           <button
@@ -141,10 +153,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               setShowStatusMenu(!showStatusMenu);
               setShowTenantMenu(false);
             }}
-            className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-[#F8FAFC] border border-transparent hover:border-[#E2E8F0] transition-colors text-left"
+            className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-[color:var(--c-canvas)] border border-transparent hover:border-[color:var(--c-line)] transition-colors text-left"
           >
             <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-[#EEF2FF] text-[#4F46E5] border border-[#E2E8F0] flex items-center justify-center text-xs font-bold">
+              <div className="w-8 h-8 rounded-full bg-[color:var(--c-ch100)] text-[#D20A2E] border border-[color:var(--c-line)] flex items-center justify-center text-xs font-bold">
                 {user.name.slice(0, 2).toUpperCase()}
               </div>
               <span
@@ -154,24 +166,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               ></span>
             </div>
             <div className="hidden sm:flex flex-col leading-tight">
-              <span className="text-xs font-semibold text-[#1E1B4B]" data-testid="user-name">{user.name}</span>
-              <span className="text-[11px] text-[#64748B]" data-testid="user-role">{ROLE_LABELS[user.role]}</span>
+              <span className="text-xs font-semibold text-[color:var(--c-ink)]" data-testid="user-name">{user.name}</span>
+              <span className="text-[11px] text-[color:var(--c-muted)]" data-testid="user-role">{ROLE_LABELS[user.role]}</span>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-[#64748B] hidden sm:block" />
+            <ChevronDown className="w-3.5 h-3.5 text-[color:var(--c-muted)] hidden sm:block" />
           </button>
 
           {showStatusMenu && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl border border-[#E2E8F0] shadow-xl py-2 z-40">
-              <div className="px-4 py-2 border-b border-[#E2E8F0]">
-                <p className="text-xs font-semibold text-[#1E1B4B]">{user.name}</p>
-                <p className="text-[11px] text-[#64748B]">{user.email}</p>
-                <div className="flex items-center gap-1.5 mt-1.5 text-[11px] font-medium text-[#14B8A6]">
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl border border-[color:var(--c-line)] shadow-xl py-2 z-40">
+              <div className="px-4 py-2 border-b border-[color:var(--c-line)]">
+                <p className="text-xs font-semibold text-[color:var(--c-ink)]">{user.name}</p>
+                <p className="text-[11px] text-[color:var(--c-muted)]">{user.email}</p>
+                <div className="flex items-center gap-1.5 mt-1.5 text-[11px] font-medium text-[#E8405F]">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>{ROLE_LABELS[user.role]}</span>
                 </div>
               </div>
 
-              <div className="px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+              <div className="px-3 py-2 text-[11px] font-semibold text-[color:var(--c-muted)] uppercase tracking-wider">
                 Estado del agente
               </div>
 
@@ -182,23 +194,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setUserStatus(st);
                     setShowStatusMenu(false);
                   }}
-                  className={`w-full text-left px-4 py-2 text-xs flex items-center justify-between hover:bg-[#F8FAFC] transition-colors ${
-                    userStatus === st ? 'font-semibold bg-[#F8FAFC]' : ''
+                  className={`w-full text-left px-4 py-2 text-xs flex items-center justify-between hover:bg-[color:var(--c-canvas)] transition-colors ${
+                    userStatus === st ? 'font-semibold bg-[color:var(--c-canvas)]' : ''
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-full ${statusConfig[st].color}`}></span>
-                    <span className="text-[#1E1B4B]">{statusConfig[st].label}</span>
+                    <span className="text-[color:var(--c-ink)]">{statusConfig[st].label}</span>
                   </div>
-                  {userStatus === st && <CheckCircle2 className="w-3.5 h-3.5 text-[#4F46E5]" />}
+                  {userStatus === st && <CheckCircle2 className="w-3.5 h-3.5 text-[#D20A2E]" />}
                 </button>
               ))}
 
-              <div className="mt-2 pt-2 border-t border-[#E2E8F0] px-2">
+              <div className="mt-2 pt-2 border-t border-[color:var(--c-line)] px-2">
                 <button
                   onClick={onLogout}
                   data-testid="logout"
-                  className="w-full text-left px-2 py-2 text-xs font-semibold text-[#B91C1C] hover:bg-[#FEF2F2] rounded-lg"
+                  className="w-full text-left px-2 py-2 text-xs font-semibold text-[color:var(--c-rtx)] hover:bg-[color:var(--c-rbg)] rounded-lg"
                 >
                   Cerrar sesión
                 </button>

@@ -49,8 +49,8 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
       case 'inactivo':
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#64748B]/10 text-[#64748B] border border-[#64748B]/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#64748B]"></span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[color:var(--c-muted)]/10 text-[color:var(--c-muted)] border border-[color:var(--c-muted)]/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--c-muted)]"></span>
             Inactivo
           </span>
         );
@@ -63,21 +63,21 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-[#1E1B4B]">
+            <h1 className="text-2xl font-bold tracking-tight text-[color:var(--c-ink)]">
               Empresas y agentes
             </h1>
-            <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#F1F5F9] text-[#64748B]">
+            <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[color:var(--c-soft)] text-[color:var(--c-muted)]">
               {companies.length} empresas registradas
             </span>
           </div>
-          <p className="text-xs text-[#64748B] mt-1">
+          <p className="text-xs text-[color:var(--c-muted)] mt-1">
             Administra los chatbots con RAG por cada cliente SaaS, actualiza sus bases de conocimiento y gestiona los canales de atención.
           </p>
         </div>
 
         {canCreateCompany && <button
           onClick={() => setShowAddCompanyModal(true)}
-          className="self-start sm:self-auto px-4 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+          className="self-start sm:self-auto px-4 py-2 bg-[#D20A2E] hover:bg-[#B00825] text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
         >
           <Plus className="w-4 h-4" />
           <span>+ Agregar empresa</span>
@@ -89,7 +89,7 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
         {companies.map((company) => (
           <div
             key={company.id}
-            className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-[#4F46E5]/40 transition-all flex flex-col justify-between"
+            className="bg-white rounded-xl border border-[color:var(--c-line)] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-[#D20A2E]/40 transition-all flex flex-col justify-between"
           >
             <div>
               {/* Header: Company Initials & Status */}
@@ -97,15 +97,15 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
                 <div className="flex items-center gap-3">
                   <div
                     className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm tracking-wider shadow-xs shrink-0"
-                    style={{ backgroundColor: company.brandBg, color: company.brandColor }}
+                    style={{ backgroundColor: `color-mix(in srgb, company.brandColor 14%, transparent)`, color: company.brandColor }}
                   >
                     {company.logoInitials}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-[#1E1B4B] leading-tight">
+                    <h3 className="text-sm font-bold text-[color:var(--c-ink)] leading-tight">
                       {company.name}
                     </h3>
-                    <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-1">
+                    <p className="text-[11px] text-[color:var(--c-muted)] mt-0.5 line-clamp-1">
                       {company.industry}
                     </p>
                   </div>
@@ -116,12 +116,12 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
 
               {/* Empty state if company has 0 documents */}
               {company.documentsCount === 0 ? (
-                <div className="p-4 bg-[#FFFBEB] rounded-xl border border-[#FDE68A] mt-4 space-y-2.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-[#B45309]">
+                <div className="p-4 bg-[color:var(--c-abg)] rounded-xl border border-[color:var(--c-aline)] mt-4 space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[color:var(--c-atx)]">
                     <FileText className="w-4 h-4 text-[#F59E0B] shrink-0" />
                     <span>Aún no hay documentos cargados</span>
                   </div>
-                  <p className="text-[11px] text-[#92400E] leading-relaxed">
+                  <p className="text-[11px] text-[color:var(--c-atx2)] leading-relaxed">
                     Este agente está en configuración y no cuenta con base de conocimiento RAG. Necesita al menos un archivo o FAQ para poder responder consultas.
                   </p>
                   <button
@@ -135,30 +135,30 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
               ) : (
                 <>
                   {/* Agent Details */}
-                  <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] space-y-2 mt-4">
+                  <div className="p-3 bg-[color:var(--c-canvas)] rounded-lg border border-[color:var(--c-line)] space-y-2 mt-4">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#64748B] flex items-center gap-1.5">
-                        <Bot className="w-3.5 h-3.5 text-[#14B8A6]" />
+                      <span className="text-[color:var(--c-muted)] flex items-center gap-1.5">
+                        <Bot className="w-3.5 h-3.5 text-[#E8405F]" />
                         Agente IA:
                       </span>
-                      <span className="font-semibold text-[#1E1B4B]">
+                      <span className="font-semibold text-[color:var(--c-ink)]">
                         {company.agentName}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#64748B] flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-[#4F46E5]" />
+                      <span className="text-[color:var(--c-muted)] flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[#D20A2E]" />
                         Base de conocimiento:
                       </span>
-                      <span className="font-bold text-[#4F46E5] tabular-nums">
+                      <span className="font-bold text-[#D20A2E] tabular-nums">
                         {company.documentsCount} documentos/FAQ
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs pt-1 border-t border-[#E2E8F0]">
-                      <span className="text-[#64748B]">Tono de respuesta:</span>
-                      <span className="font-medium text-[#1E1B4B] capitalize">
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-[color:var(--c-line)]">
+                      <span className="text-[color:var(--c-muted)]">Tono de respuesta:</span>
+                      <span className="font-medium text-[color:var(--c-ink)] capitalize">
                         {company.tone}
                       </span>
                     </div>
@@ -166,15 +166,15 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
 
                   {/* Mini KPIs */}
                   <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-                    <div className="p-2 rounded-lg bg-white border border-[#E2E8F0]">
-                      <span className="text-[10px] text-[#64748B] block">Consultas este mes</span>
-                      <span className="font-bold text-[#1E1B4B] tabular-nums">
+                    <div className="p-2 rounded-lg bg-white border border-[color:var(--c-line)]">
+                      <span className="text-[10px] text-[color:var(--c-muted)] block">Consultas este mes</span>
+                      <span className="font-bold text-[color:var(--c-ink)] tabular-nums">
                         {company.monthlyQueries.toLocaleString()}
                       </span>
                     </div>
 
-                    <div className="p-2 rounded-lg bg-white border border-[#E2E8F0]">
-                      <span className="text-[10px] text-[#64748B] block">Efectividad RAG</span>
+                    <div className="p-2 rounded-lg bg-white border border-[color:var(--c-line)]">
+                      <span className="text-[10px] text-[color:var(--c-muted)] block">Efectividad RAG</span>
                       <span className="font-bold text-[#22C55E] tabular-nums">
                         {company.botResolutionRate > 0 ? `${company.botResolutionRate}%` : 'En calibración'}
                       </span>
@@ -185,7 +185,7 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
             </div>
 
             {/* Footer Buttons */}
-            <div className="mt-5 pt-3 border-t border-[#E2E8F0] flex items-center justify-between gap-2">
+            <div className="mt-5 pt-3 border-t border-[color:var(--c-line)] flex items-center justify-between gap-2">
               <button
                 onClick={() => {
                   if (onOpenWidgetPreview) {
@@ -194,16 +194,16 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
                     setTestCompany(company);
                   }
                 }}
-                className="px-2.5 py-1.5 text-xs font-semibold text-[#64748B] hover:text-[#1E1B4B] hover:bg-[#F1F5F9] rounded-lg transition-colors flex items-center gap-1"
+                className="px-2.5 py-1.5 text-xs font-semibold text-[color:var(--c-muted)] hover:text-[color:var(--c-ink)] hover:bg-[color:var(--c-soft)] rounded-lg transition-colors flex items-center gap-1"
                 title="Probar respuestas del bot en simulador del widget"
               >
-                <Play className="w-3 h-3 text-[#14B8A6] fill-[#14B8A6]" />
+                <Play className="w-3 h-3 text-[#E8405F] fill-[#E8405F]" />
                 <span>Probar</span>
               </button>
 
               <button
                 onClick={() => setSelectedCompanyToConfig(company)}
-                className="px-3.5 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5"
+                className="px-3.5 py-1.5 bg-[#D20A2E] hover:bg-[#B00825] text-white rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5"
               >
                 <Settings className="w-3.5 h-3.5" />
                 <span>Configurar agente</span>

@@ -1,6 +1,6 @@
 import { Role } from '../types';
 
-export type View = 'console' | 'agents' | 'widget' | 'analytics' | 'users';
+export type View = 'console' | 'agents' | 'widget' | 'analytics' | 'finops' | 'conversations' | 'kb' | 'testing' | 'users';
 
 export const ROLE_LABELS: Record<Role, string> = {
   superadmin: 'Superadmin',
@@ -11,10 +11,10 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 /** Vistas visibles por rol. Espejo de la matriz de permisos del backend (que es la que manda). */
 const VIEWS: Record<Role, View[]> = {
-  superadmin: ['console', 'agents', 'widget', 'analytics', 'users'],
-  admin_empresa: ['console', 'agents', 'widget', 'analytics', 'users'],
+  superadmin: ['console', 'conversations', 'agents', 'kb', 'testing', 'widget', 'analytics', 'finops', 'users'],
+  admin_empresa: ['console', 'conversations', 'agents', 'kb', 'testing', 'widget', 'analytics', 'finops', 'users'],
   encargado_tickets: ['console', 'analytics'],
-  encargado_agente: ['agents', 'widget', 'analytics'],
+  encargado_agente: ['conversations', 'agents', 'kb', 'testing', 'widget', 'analytics'],
 };
 
 export const allowedViews = (role: Role): View[] => VIEWS[role];

@@ -5,6 +5,11 @@ import { CorestreamConsole } from './components/CorestreamConsole';
 import { AgentDeploymentPanel } from './components/AgentDeploymentPanel';
 import { WidgetPreview } from './components/WidgetPreview';
 import { AnalyticsView } from './components/AnalyticsView';
+import { FinOpsView } from './components/FinOpsView';
+import { ConversationsView } from './components/ConversationsView';
+import { KnowledgeBaseView } from './components/KnowledgeBaseView';
+import { TestingView } from './components/TestingView';
+import { useNotifications } from './components/NotificationBell';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { Logo } from './components/Logo';
 import * as api from './api/client';
@@ -35,7 +40,7 @@ export default function App() {
     }
   }, []);
 
-  if (!authChecked) return <div className="min-h-screen flex items-center justify-center text-xs text-[#64748B]">Cargando…</div>;
+  if (!authChecked) return <div className="min-h-screen flex items-center justify-center text-xs text-[color:var(--c-muted)]">Cargando…</div>;
   if (!user) return <LoginScreen onLogin={setUser} />;
   return <Dashboard user={user} onLogout={() => { api.logout(); setUser(null); }} />;
 }
@@ -161,6 +166,8 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
         tone: updatedCompany.tone,
         customInstructions: updatedCompany.customInstructions,
         ragThreshold: updatedCompany.ragThreshold,
+        aiModel: updatedCompany.aiModel,
+        allowedDomains: updatedCompany.allowedDomains,
       });
       setCompanies((prev) => prev.map((c) => (c.id === saved.id ? saved : c)));
       addToast(
@@ -196,12 +203,30 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
     }
   };
 
+  // campana: los avisos son de una empresa (la del usuario, o la que el superadmin tenga filtrada)
+  const notifSlug = user.role === 'encargado_tickets' ? null : user.companyId ?? (selectedTenantFilter !== 'all' ? selectedTenantFilter : null);
+  const notifs = useNotifications(notifSlug);
+  const [testingFocus, setTestingFocus] = useState<string | null>(null);
+  const badges = notifs.items.reduce<Partial<Record<View, number>>>((acc, n) => {
+    const v = (n.view === 'finops' || n.view === 'testing' ? n.view : null) as View | null;
+    if (v && !n.seen && views.includes(v)) acc[v] = (acc[v] ?? 0) + 1;
+    return acc;
+  }, {});
+  const openNotification = (n: { id: string; view?: string; ref?: string; seen: boolean }) => {
+    notifs.markSeen(n as never);
+    const v = n.view as View | undefined;
+    if (v && views.includes(v)) {
+      setCurrentView(v);
+      if (v === 'testing' && n.ref) setTestingFocus(n.ref);
+    }
+  };
+
   const pendingTicketsCount = tickets.filter(
     (t) => t.status === 'pendiente' || t.status === 'urgente'
   ).length;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#1E1B4B] flex flex-col font-['Plus_Jakarta_Sans',sans-serif] relative overflow-x-hidden">
+    <div className="min-h-screen text-[color:var(--c-ink)] flex flex-col font-['Inter',sans-serif] relative overflow-x-hidden">
       {/* Subtle background watermark logo in bottom right */}
       <div className="fixed -bottom-16 -right-16 z-0 pointer-events-none opacity-[0.035]">
         <Logo size="watermark" />
@@ -218,6 +243,10 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
         currentView={currentView}
         user={user}
         onLogout={onLogout}
+        showBell={!!notifSlug}
+        notifications={notifs.items}
+        onOpenNotification={openNotification}
+        onMarkAllNotifications={notifs.markAll}
       />
 
       {/* Main Content Layout with Fixed Sidebar */}
@@ -229,29 +258,31 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
           allowedViews={views}
           pendingCount={pendingTicketsCount}
           activeCompaniesCount={companies.length}
+          badges={badges}
         />
 
         {/* Viewport Area */}
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-[1500px] w-full mx-auto relative z-10">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 overflow-y-auto max-w-[1500px] w-full mx-auto relative">
+          <div key={currentView} className="animate-fade-up">
           {backendError && (
-            <div className="mb-4 p-4 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2] text-xs text-[#991B1B] flex items-start justify-between gap-4">
+            <div className="mb-4 p-4 rounded-xl border border-[color:var(--c-rline)] bg-[color:var(--c-rbg)] text-xs text-[color:var(--c-rtx2)] flex items-start justify-between gap-4">
               <div>
                 <p className="font-bold">No se pudo cargar la información del backend</p>
                 <p className="mt-1">{backendError}</p>
-                <p className="mt-1 text-[#B91C1C]">
+                <p className="mt-1 text-[color:var(--c-rtx)]">
                   ¿Está corriendo? Desde <code>backend/</code>: <code>uvicorn app.main:app --reload</code>
                 </p>
               </div>
               <button
                 onClick={() => refreshAll()}
-                className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-[#FCA5A5] font-semibold hover:bg-[#FEE2E2]"
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-[color:var(--c-rline)] font-semibold hover:bg-[color:var(--c-rbg2)]"
               >
                 Reintentar
               </button>
             </div>
           )}
           {loading && !backendError && (
-            <div className="py-24 text-center text-xs text-[#64748B]">Conectando con el backend…</div>
+            <div className="py-24 text-center text-xs text-[color:var(--c-muted)]">Conectando con el backend…</div>
           )}
           {!loading && currentView === 'console' && (
             <CorestreamConsole
@@ -316,6 +347,15 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
           {!loading && currentView === 'analytics' && (
             <AnalyticsView />
           )}
+
+          {!loading && currentView === 'finops' && <FinOpsView me={user} companies={companies} onToast={addToast} />}
+
+          {!loading && currentView === 'conversations' && <ConversationsView me={user} companies={companies} />}
+
+          {!loading && currentView === 'kb' && <KnowledgeBaseView me={user} companies={companies} onToast={addToast} />}
+
+          {!loading && currentView === 'testing' && <TestingView me={user} companies={companies} onToast={addToast} focusRunId={testingFocus} onFocusConsumed={() => setTestingFocus(null)} />}
+          </div>
         </main>
       </div>
 

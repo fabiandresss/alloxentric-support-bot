@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Ticket, SystemMetrics, AssignableAgent } from '../types';
 import { TicketDetailModal } from './TicketDetailModal';
+import { MetricCards } from './MetricCards';
 
 interface CorestreamConsoleProps {
   tickets: Ticket[];
@@ -34,6 +35,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
   agents,
   currentUserName,
   canManageEscalated,
+  metrics,
   onUpdateTicketStatus,
   onSendAgentReply,
   onReassignAgent,
@@ -83,15 +85,15 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
         );
       case 'esperando_cliente':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#4F46E5]/10 text-[#4F46E5] border border-[#4F46E5]/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#4F46E5]"></span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#D20A2E]/10 text-[#D20A2E] border border-[#D20A2E]/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#D20A2E]"></span>
             Esperando cliente
           </span>
         );
       case 'escalado':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#7C3AED]"></span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[color:var(--c-ink2)]/10 text-[color:var(--c-ink2)] border border-[color:var(--c-ink2)]/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--c-ink2)]"></span>
             Escalado a gestión
           </span>
         );
@@ -118,10 +120,10 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#1E1B4B]">
+          <h1 className="text-2xl font-bold tracking-tight text-[color:var(--c-ink)]">
             Consola de soporte
           </h1>
-          <p className="text-xs text-[#64748B] mt-1">
+          <p className="text-xs text-[color:var(--c-muted)] mt-1">
             Gestión y resolución humana de consultas derivadas por el chatbot con RAG a través de la ticketera Corestream.
           </p>
         </div>
@@ -130,7 +132,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
           {selectedTenantFilter !== 'all' && (
             <button
               onClick={onResetFilters}
-              className="text-xs text-[#4F46E5] hover:underline font-medium px-2 py-1"
+              className="text-xs text-[#D20A2E] hover:underline font-medium px-2 py-1"
             >
               Limpiar filtro ({selectedTenantFilter})
             </button>
@@ -138,11 +140,13 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
         </div>
       </div>
 
+      {metrics && <MetricCards metrics={metrics} />}
+
       {/* Main Status Filters Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[color:var(--c-line)]">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-[#1E1B4B] flex items-center gap-1.5 mr-1">
-            <Filter className="w-3.5 h-3.5 text-[#4F46E5]" />
+          <span className="text-xs font-semibold text-[color:var(--c-ink)] flex items-center gap-1.5 mr-1">
+            <Filter className="w-3.5 h-3.5 text-[#D20A2E]" />
             Estado:
           </span>
           {(['all', 'urgente', 'pendiente', 'esperando_cliente', 'cerrado', ...(canManageEscalated ? (['escalado'] as const) : [])] as const).map((st) => (
@@ -151,8 +155,8 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
               onClick={() => setStatusFilter(st)}
               className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
                 statusFilter === st
-                  ? 'bg-[#1E1B4B] text-white shadow-xs font-semibold'
-                  : 'bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E2E8F0] hover:text-[#1E1B4B]'
+                  ? 'bg-[#D20A2E] text-white shadow-sm font-semibold'
+                  : 'bg-white text-[color:var(--c-muted)] hover:bg-[color:var(--c-canvas)] border border-[color:var(--c-line)] hover:text-[color:var(--c-ink)]'
               }`}
             >
               {st === 'all' ? 'Todos' : st === 'esperando_cliente' ? 'Esperando cliente' : st.charAt(0).toUpperCase() + st.slice(1)}
@@ -170,21 +174,21 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
           ))}
         </div>
 
-        <div className="text-xs text-[#64748B]">
-          Mostrando <span className="font-semibold text-[#1E1B4B]">{filteredTickets.length}</span> tickets
+        <div className="text-xs text-[color:var(--c-muted)]">
+          Mostrando <span className="font-semibold text-[color:var(--c-ink)]">{filteredTickets.length}</span> tickets
         </div>
       </div>
 
       {/* Ticket List Cards */}
       {filteredTickets.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-12 text-center">
-          <div className="w-12 h-12 rounded-full bg-[#EEF2FF] text-[#4F46E5] flex items-center justify-center mx-auto mb-3">
+        <div className="bg-white rounded-2xl border border-[color:var(--c-line)] p-12 text-center">
+          <div className="w-12 h-12 rounded-full bg-[color:var(--c-ch100)] text-[#D20A2E] flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-semibold text-[#1E1B4B]">
+          <h3 className="text-sm font-semibold text-[color:var(--c-ink)]">
             No hay tickets que coincidan con estos criterios
           </h3>
-          <p className="text-xs text-[#64748B] mt-1 max-w-sm mx-auto">
+          <p className="text-xs text-[color:var(--c-muted)] mt-1 max-w-sm mx-auto">
             Todos los casos bajo este filtro han sido resueltos o no se encontraron coincidencias en la búsqueda.
           </p>
           <button
@@ -192,18 +196,19 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
               setStatusFilter('all');
               onResetFilters();
             }}
-            className="mt-4 px-3.5 py-1.5 text-xs font-semibold text-[#4F46E5] bg-[#EEF2FF] rounded-lg hover:bg-[#E0E7FF] transition-colors"
+            className="mt-4 px-3.5 py-1.5 text-xs font-semibold text-[#D20A2E] bg-[color:var(--c-ch100)] rounded-lg hover:bg-[color:var(--c-ch200)] transition-colors"
           >
             Restablecer todos los filtros
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredTickets.map((ticket) => (
+          {filteredTickets.map((ticket, idx) => (
             <div
               key={ticket.id}
               onClick={() => setSelectedTicket(ticket)}
-              className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-[#4F46E5]/50 transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+              style={{ animationDelay: `${Math.min(idx, 8) * 55}ms` }}
+              className="animate-fade-up lift card-glow bg-white rounded-2xl border border-[color:var(--c-line)] p-5 cursor-pointer flex flex-col justify-between group relative overflow-hidden before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px] before:bg-[#D20A2E] before:scale-y-0 before:origin-top before:transition-transform before:duration-300 hover:before:scale-y-100"
             >
               {/* Top Accent Line for Urgent */}
               {ticket.status === 'urgente' && (
@@ -217,13 +222,13 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
                     {/* Badge de empresa */}
                     <span
                       className="text-xs font-semibold px-2.5 py-0.5 rounded-md"
-                      style={{ backgroundColor: ticket.companyBg, color: ticket.companyColor }}
+                      style={{ backgroundColor: `color-mix(in srgb, ticket.companyColor 14%, transparent)`, color: ticket.companyColor }}
                     >
                       {ticket.companyName}
                     </span>
 
                     {/* ID del ticket */}
-                    <span className="font-mono text-xs font-bold text-[#64748B]">
+                    <span className="font-mono text-xs font-bold text-[color:var(--c-muted)]">
                       {ticket.ticketNumber}
                     </span>
                   </div>
@@ -233,34 +238,34 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
                 </div>
 
                 {/* Extracto de la consulta del usuario */}
-                <h3 className="text-xs font-semibold text-[#1E1B4B] group-hover:text-[#4F46E5] transition-colors line-clamp-2 leading-snug">
+                <h3 className="text-xs font-semibold text-[color:var(--c-ink)] group-hover:text-[#D20A2E] transition-colors line-clamp-2 leading-snug">
                   "{ticket.userQueryExcerpt}"
                 </h3>
 
                 {/* Motivo de la derivación */}
-                <div className="mt-3 p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-[#64748B] flex items-start gap-2">
+                <div className="mt-3 p-2.5 rounded-lg bg-[color:var(--c-canvas)] border border-[color:var(--c-line)] text-xs text-[color:var(--c-muted)] flex items-start gap-2">
                   <ShieldAlert className="w-3.5 h-3.5 text-[#F59E0B] shrink-0 mt-0.5" />
                   <p className="line-clamp-2 leading-relaxed">
-                    <strong className="text-[#1E1B4B]">Motivo de derivación: </strong>
+                    <strong className="text-[color:var(--c-ink)]">Motivo de derivación: </strong>
                     {ticket.escalationReason}
                   </p>
                 </div>
               </div>
 
               {/* Footer of Card */}
-              <div className="mt-4 pt-3 border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#64748B]">
+              <div className="mt-4 pt-3 border-t border-[color:var(--c-line)] flex items-center justify-between text-[11px] text-[color:var(--c-muted)]">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-medium text-[#1E1B4B]">{ticket.customerName}</span>
+                  <span className="font-medium text-[color:var(--c-ink)]">{ticket.customerName}</span>
                   <span>·</span>
-                  <span className="text-[#94A3B8]">{ticket.customerChannel}</span>
+                  <span className="text-[color:var(--c-faint)]">{ticket.customerChannel}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span className="flex items-center gap-1 tabular-nums">
-                    <Clock className="w-3 h-3 text-[#94A3B8]" />
+                    <Clock className="w-3 h-3 text-[color:var(--c-faint)]" />
                     {ticket.relativeTime}
                   </span>
-                  <span className="text-[#4F46E5] font-semibold group-hover:translate-x-0.5 transition-transform flex items-center">
+                  <span className="text-[#D20A2E] font-semibold group-hover:translate-x-0.5 transition-transform flex items-center">
                     Atender <ArrowRight className="w-3 h-3 ml-0.5" />
                   </span>
                 </div>

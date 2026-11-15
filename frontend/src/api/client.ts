@@ -15,6 +15,27 @@ import {
   PublicConversation,
   AssignableAgent,
   Analytics,
+  AiModelOption,
+  SpendPlan,
+  FinOpsSummary,
+  FinOpsGroup,
+  ConversationList,
+  ConversationDetail,
+  TestSet,
+  TestSetItem,
+  TestResult,
+  TestCase,
+  TestRunBrief,
+  TestRunDetail,
+  KbSummary,
+  KbChunkList,
+  KbDocument,
+  AppNotification,
+  TestComparison,
+  LabelCounts,
+  CalibrationRun,
+  DocVersion,
+  KbQuality,
 } from '../types';
 
 export const API_URL: string =
@@ -55,6 +76,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   const headers = new Headers(init.headers);
   if (token && !headers.has('X-API-Key') && !path.startsWith('/publico/')) headers.set('Authorization', `Bearer ${token}`);
+  if (path.startsWith('/publico/')) {
+    // el widget incrustado le avisa al backend en qué sitio está (para los dominios autorizados de la empresa)
+    try { const host = new URLSearchParams(window.location.search).get('host'); if (host) headers.set('X-Embed-Host', host); } catch { /* sin location */ }
+  }
   try {
     res = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
@@ -105,11 +130,44 @@ export interface CompanyUpdatePayload {
   tone?: ResponseTone;
   customInstructions?: string;
   ragThreshold?: number;
+  aiModel?: string;
+  allowedDomains?: string[];
   brandColor?: string;
   brandBg?: string;
   logoInitials?: string;
 }
 
+export const getAiModels = () => request<AiModelOption[]>('/modelos-ia');
+
+// ---------- FinOps y registro de conversaciones ----------
+export interface FinOpsFilters {
+  desde?: string; // AAAA-MM-DD (junto con hasta); sin rango = mes en curso
+  hasta?: string;
+  modelo?: string;
+  agrupar?: FinOpsGroup;
+}
+export const getFinOps = (slug: string, f: FinOpsFilters = {}) => {
+  const qs = new URLSearchParams();
+  Object.entries(f).forEach(([k, v]) => v && qs.set(k, String(v)));
+  return request<FinOpsSummary>(`/empresas/${slug}/finops${qs.toString() ? `?${qs}` : ''}`);
+};
+export const updateSpendPlan = (slug: string, p: { mode: SpendPlan['mode']; monthlyLimitUsd?: number; dailyLimitUsd?: number }) =>
+  request<SpendPlan>(`/empresas/${slug}/plan`, json('PATCH', p));
+export interface ConversationFilters {
+  q?: string;
+  ticket?: 'con' | 'sin';
+  canal?: string;
+  desde?: string;
+  hasta?: string;
+  limit?: number;
+  offset?: number;
+}
+export const getConversations = (slug: string, f: ConversationFilters = {}) => {
+  const qs = new URLSearchParams();
+  Object.entries(f).forEach(([k, v]) => v !== undefined && v !== '' && qs.set(k, String(v)));
+  return request<ConversationList>(`/empresas/${slug}/conversaciones${qs.toString() ? `?${qs}` : ''}`);
+};
+export const getConversation = (id: string) => request<ConversationDetail>(`/conversaciones/${id}`);
 export const getCompanies = () => request<Company[]>('/empresas');
 export const createCompany = (p: CompanyCreatePayload) => request<Company>('/empresas', json('POST', p));
 export const updateCompany = (slug: string, p: CompanyUpdatePayload) =>
@@ -192,3 +250,84 @@ export const createUser = (p: { email: string; name: string; password: string; r
 export const updateUser = (id: string, p: { name?: string; role?: Role; active?: boolean; password?: string }) =>
   request<AuthUser>(`/usuarios/${id}`, json('PATCH', p));
 export const deleteUser = (id: string) => request<void>(`/usuarios/${id}`, { method: 'DELETE' });
+
+// ---------- Pruebas del agente (golden sets) ----------
+const T = (slug: string) => `/empresas/${slug}/testing`;
+export interface TestCasePayload {
+  question?: string;
+  expectedAnswer?: string | null;
+  expectedDocument?: string | null;
+  shouldEscalate?: boolean;
+  conversationId?: string; // el caso nace de una conversación real
+}
+export const getTestSets = (slug: string) => request<TestSetItem[]>(`${T(slug)}/conjuntos`);
+export const getTestSet = (slug: string, id: string) => request<TestSet>(`${T(slug)}/conjuntos/${id}`);
+export const createTestSet = (slug: string, p: { name: string; description?: string }) => request<TestSet>(`${T(slug)}/conjuntos`, json('POST', p));
+export const generateTestSet = (slug: string, p: { name: string; description?: string; count: number; negatives: number; documentIds?: string[]; modelId?: string }) =>
+  request<TestSet>(`${T(slug)}/conjuntos/generar`, json('POST', p));
+export const updateTestSet = (slug: string, id: string, p: { name?: string; description?: string; autoRun?: boolean }) => request<TestSetItem>(`${T(slug)}/conjuntos/${id}`, json('PATCH', p));
+export const deleteTestSet = (slug: string, id: string) => request<void>(`${T(slug)}/conjuntos/${id}`, { method: 'DELETE' });
+export const createTestCase = (slug: string, setId: string, p: TestCasePayload) => request<TestCase>(`${T(slug)}/conjuntos/${setId}/casos`, json('POST', p));
+export const updateTestCase = (slug: string, caseId: string, p: TestCasePayload) => request<TestCase>(`${T(slug)}/casos/${caseId}`, json('PATCH', p));
+export const deleteTestCase = (slug: string, caseId: string) => request<void>(`${T(slug)}/casos/${caseId}`, { method: 'DELETE' });
+export const runTestSet = (slug: string, setId: string, p: { judgeModelId?: string } = {}) => request<TestRunBrief>(`${T(slug)}/conjuntos/${setId}/ejecutar`, json('POST', p));
+export const getTestRuns = (slug: string, setId?: string) => request<TestRunBrief[]>(`${T(slug)}/ejecuciones${setId ? `?conjunto_id=${setId}` : ''}`);
+export const getTestRun = (slug: string, runId: string) => request<TestRunDetail>(`${T(slug)}/ejecuciones/${runId}`);
+export const deleteTestRun = (slug: string, runId: string) => request<void>(`${T(slug)}/ejecuciones/${runId}`, { method: 'DELETE' });
+
+/** Descarga el CSV de una corrida (plantilla alloxentric). `excel` usa «;» como separador. Va con el JWT, por eso no es un simple enlace. */
+export async function downloadTestRun(slug: string, runId: string, formato: 'csv' | 'excel'): Promise<string> {
+  const res = await fetch(`${API_URL}${T(slug)}/ejecuciones/${runId}/exportar?formato=${formato}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    let detail = `Error ${res.status}`;
+    try { detail = (await res.json()).detail ?? detail; } catch { /* sin JSON */ }
+    throw new ApiError(detail, res.status);
+  }
+  const nombre = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'alloxentric_pruebas.csv';
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return nombre;
+}
+
+// ---------- Base de conocimiento ----------
+export const getKbSummary = (slug: string) => request<KbSummary>(`/empresas/${slug}/kb/resumen`);
+export const getKbDocuments = (slug: string) => request<KbDocument[]>(`/empresas/${slug}/kb/documentos`);
+export const getKbChunks = (slug: string, f: { q?: string; documentId?: string; limit?: number; offset?: number } = {}) => {
+  const qs = new URLSearchParams();
+  if (f.q) qs.set('q', f.q);
+  if (f.documentId) qs.set('documento_id', f.documentId);
+  if (f.limit !== undefined) qs.set('limit', String(f.limit));
+  if (f.offset) qs.set('offset', String(f.offset));
+  return request<KbChunkList>(`/empresas/${slug}/kb/fragmentos${qs.toString() ? `?${qs}` : ''}`);
+};
+
+// ---------- Notificaciones (campana) ----------
+export const getNotifications = (slug: string, soloNuevas = false) => request<AppNotification[]>(`/empresas/${slug}/notificaciones${soloNuevas ? '?solo_nuevas=true' : ''}`);
+export const markNotificationSeen = (slug: string, id: string) => request<void>(`/empresas/${slug}/notificaciones/${id}/visto`, { method: 'POST' });
+export const markAllNotificationsSeen = (slug: string) => request<void>(`/empresas/${slug}/notificaciones/visto-todas`, { method: 'POST' });
+
+// ---------- Comparar modelos y calibrar al juez ----------
+export const compareModels = (slug: string, setId: string, p: { modelIds: string[]; judgeModelId?: string }) =>
+  request<TestComparison>(`${T(slug)}/conjuntos/${setId}/comparar`, json('POST', p));
+export const getComparison = (slug: string, groupId: string, minQuality = 80) => request<TestComparison>(`${T(slug)}/comparativas/${groupId}?calidad_minima=${minQuality}`);
+export const labelResult = (slug: string, resultId: string, label: 'correcto' | 'incorrecto' | null) =>
+  request<TestResult>(`${T(slug)}/resultados/${resultId}/etiqueta`, json('PUT', { label }));
+export const getLabelCounts = (slug: string) => request<LabelCounts>(`${T(slug)}/etiquetas`);
+export const startCalibration = (slug: string, judgeModelIds: string[]) => request<CalibrationRun>(`${T(slug)}/calibraciones`, json('POST', { judgeModelIds }));
+export const getCalibrations = (slug: string) => request<CalibrationRun[]>(`${T(slug)}/calibraciones`);
+
+// ---------- Versiones de documentos y salud de la base de conocimiento ----------
+export const replaceDocument = (docId: string, file: File) => {
+  const fd = new FormData();
+  fd.append('archivo', file);
+  return request<DocumentItem>(`/documentos/${docId}/reemplazar`, { method: 'POST', body: fd });
+};
+export const getDocVersions = (docId: string) => request<DocVersion[]>(`/documentos/${docId}/versiones`);
+export const restoreDocVersion = (docId: string, version: number) => request<DocumentItem>(`/documentos/${docId}/versiones/${version}/restaurar`, { method: 'POST' });
+export const getKbQuality = (slug: string) => request<KbQuality>(`/empresas/${slug}/kb/calidad`);

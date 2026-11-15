@@ -44,9 +44,9 @@ export const AnalyticsView: React.FC = () => {
 
   if (!data) {
     return (
-      <div className="py-24 text-center text-xs text-[#64748B]">
+      <div className="py-24 text-center text-xs text-[color:var(--c-muted)]">
         {error ? (
-          <span className="text-[#B91C1C]">No se pudo cargar la analítica: {error}</span>
+          <span className="text-[color:var(--c-rtx)]">No se pudo cargar la analítica: {error}</span>
         ) : (
           <span className="inline-flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando analítica…
@@ -71,16 +71,16 @@ export const AnalyticsView: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#1E1B4B]">
+          <h1 className="text-2xl font-bold tracking-tight text-[color:var(--c-ink)]">
             {companyAnalytics.length > 1 ? 'Analítica global de soporte' : `Analítica de soporte · ${companyAnalytics[0]?.name ?? ''}`}
           </h1>
-          <p className="text-xs text-[#64748B] mt-1">
+          <p className="text-xs text-[color:var(--c-muted)] mt-1">
             Rendimiento del motor RAG, volumen de consultas automatizadas y derivaciones a la mesa de ayuda Corestream.
           </p>
         </div>
 
         {/* Time period filter */}
-        <div className="flex items-center gap-1 p-1 bg-[#F1F5F9] rounded-xl self-start">
+        <div className="flex items-center gap-1 p-1 bg-[color:var(--c-soft)] rounded-xl self-start">
           {RANGES.map((r) => (
             <button
               key={r.days}
@@ -88,8 +88,8 @@ export const AnalyticsView: React.FC = () => {
               disabled={loading}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                 days === r.days
-                  ? 'bg-white text-[#1E1B4B] shadow-xs'
-                  : 'text-[#64748B] hover:text-[#1E1B4B]'
+                  ? 'bg-white text-[color:var(--c-ink)] shadow-xs'
+                  : 'text-[color:var(--c-muted)] hover:text-[color:var(--c-ink)]'
               }`}
             >
               {r.label}
@@ -101,15 +101,15 @@ export const AnalyticsView: React.FC = () => {
       {/* Cross-Company High Level Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Conversaciones totales */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="bg-white rounded-xl border border-[color:var(--c-line)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">Conversaciones totales</span>
-            <div className="w-8 h-8 rounded-lg bg-[#EEF2FF] flex items-center justify-center text-[#4F46E5]">
+            <span className="text-xs font-medium text-[color:var(--c-muted)]">Conversaciones totales</span>
+            <div className="w-8 h-8 rounded-lg bg-[color:var(--c-ch100)] flex items-center justify-center text-[#D20A2E]">
               <BarChart3 className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-[#1E1B4B] tabular-nums">
+            <span className="text-2xl font-bold text-[color:var(--c-ink)] tabular-nums">
               {totalConversations.toLocaleString()}
             </span>
             {delta != null && (
@@ -124,17 +124,17 @@ export const AnalyticsView: React.FC = () => {
               </span>
             )}
           </div>
-          <p className="text-[11px] text-[#64748B] mt-1">
+          <p className="text-[11px] text-[color:var(--c-muted)] mt-1">
             {companyAnalytics.length === 1 ? 'En tu empresa' : `En ${companyAnalytics.length} empresas cliente`}
             {delta != null ? ' · vs periodo anterior' : ''}
           </p>
         </div>
 
         {/* 2. % Resueltas por Bot vs Derivadas */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="bg-white rounded-xl border border-[color:var(--c-line)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">Resolución por Bot (RAG)</span>
-            <div className="w-8 h-8 rounded-lg bg-[#F0FDF4] flex items-center justify-center text-[#22C55E]">
+            <span className="text-xs font-medium text-[color:var(--c-muted)]">Resolución por Bot (RAG)</span>
+            <div className="w-8 h-8 rounded-lg bg-[color:var(--c-gbg)] flex items-center justify-center text-[#22C55E]">
               <Bot className="w-4 h-4" />
             </div>
           </div>
@@ -142,45 +142,45 @@ export const AnalyticsView: React.FC = () => {
             <span className="text-2xl font-bold text-[#22C55E] tabular-nums">
               {botRate}%
             </span>
-            <span className="text-xs text-[#64748B]">
+            <span className="text-xs text-[color:var(--c-muted)]">
               vs {escalationRate}% derivado
             </span>
           </div>
-          <div className="mt-2 w-full h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden flex">
+          <div className="mt-2 w-full h-1.5 bg-[color:var(--c-soft)] rounded-full overflow-hidden flex">
             <div className="h-full bg-[#22C55E]" style={{ width: `${botRate}%` }}></div>
             <div className="h-full bg-[#F59E0B]" style={{ width: `${escalationRate}%` }}></div>
           </div>
         </div>
 
         {/* 3. Tiempo promedio de resolución */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="bg-white rounded-xl border border-[color:var(--c-line)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">Tiempo prom. resolución</span>
-            <div className="w-8 h-8 rounded-lg bg-[#CCFBF1] flex items-center justify-center text-[#0D9488]">
-              <Clock className="w-4 h-4 text-[#14B8A6]" />
+            <span className="text-xs font-medium text-[color:var(--c-muted)]">Tiempo prom. resolución</span>
+            <div className="w-8 h-8 rounded-lg bg-[color:var(--c-ch150)] flex items-center justify-center text-[#B00825]">
+              <Clock className="w-4 h-4 text-[#E8405F]" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-[#1E1B4B] tabular-nums">
+            <span className="text-2xl font-bold text-[color:var(--c-ink)] tabular-nums">
               {data.avgHumanResolution}
             </span>
-            <span className="text-xs text-[#64748B]">(atención humana)</span>
+            <span className="text-xs text-[color:var(--c-muted)]">(atención humana)</span>
           </div>
         </div>
 
         {/* 4. Empresa con más volumen */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="bg-white rounded-xl border border-[color:var(--c-line)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">Mayor volumen de tráfico</span>
-            <div className="w-8 h-8 rounded-lg bg-[#EEF2FF] flex items-center justify-center text-[#4F46E5]">
+            <span className="text-xs font-medium text-[color:var(--c-muted)]">Mayor volumen de tráfico</span>
+            <div className="w-8 h-8 rounded-lg bg-[color:var(--c-ch100)] flex items-center justify-center text-[#D20A2E]">
               <Building2 className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-xl font-bold text-[#1E1B4B]">
+            <span className="text-xl font-bold text-[color:var(--c-ink)]">
               {top && top.totalQueries > 0 ? top.name : '—'}
             </span>
-            <span className="text-xs font-semibold text-[#4F46E5] tabular-nums">
+            <span className="text-xs font-semibold text-[#D20A2E] tabular-nums">
               {top && top.totalQueries > 0 ? `${top.totalQueries.toLocaleString()} cons.` : 'sin consultas'}
             </span>
           </div>
@@ -188,14 +188,14 @@ export const AnalyticsView: React.FC = () => {
       </div>
 
       {/* Main Bar Chart: Conversations per day (Stacked: Bot vs Human) */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 shadow-xs">
+      <div className="bg-white rounded-2xl border border-[color:var(--c-line)] p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h3 className="text-sm font-bold text-[#1E1B4B] flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-[#4F46E5]" />
+            <h3 className="text-sm font-bold text-[color:var(--c-ink)] flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[#D20A2E]" />
               Volumen diario de conversaciones (Últimos {data.days} días)
             </h3>
-            <p className="text-xs text-[#64748B] mt-0.5">
+            <p className="text-xs text-[color:var(--c-muted)] mt-0.5">
               Comparativa entre respuestas resueltas por el bot RAG y casos derivados a agentes Corestream.
             </p>
           </div>
@@ -204,18 +204,18 @@ export const AnalyticsView: React.FC = () => {
           <div className="flex items-center gap-4 text-xs font-medium">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-xs bg-[#22C55E]"></span>
-              <span className="text-[#1E1B4B]">Resuelto por Bot</span>
+              <span className="text-[color:var(--c-ink)]">Resuelto por Bot</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-xs bg-[#F59E0B]"></span>
-              <span className="text-[#1E1B4B]">Derivado a Humano (Corestream)</span>
+              <span className="text-[color:var(--c-ink)]">Derivado a Humano (Corestream)</span>
             </div>
           </div>
         </div>
 
         {/* Stacked Bars Visualizer */}
         <div className="pt-4 pb-2">
-          <div className="h-64 flex items-end justify-between gap-2 border-b border-[#E2E8F0] pb-2 relative">
+          <div className="h-64 flex items-end justify-between gap-1 sm:gap-2 border-b border-[color:var(--c-line)] pb-2 relative overflow-hidden">
             {dailyData.map((d, index) => {
               const totalHeightPercent = (d.total / maxDaily) * 100;
               const botHeightPercent = d.total ? (d.bot / d.total) * 100 : 0;
@@ -230,7 +230,7 @@ export const AnalyticsView: React.FC = () => {
                 >
                   {/* Tooltip on hover */}
                   {activeBarIndex === index && (
-                    <div className="absolute -top-20 z-20 bg-[#1E1B4B] text-white p-2.5 rounded-xl shadow-xl text-[11px] whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95">
+                    <div className="absolute -top-20 z-20 bg-[color:var(--c-ink)] text-white p-2.5 rounded-xl shadow-xl text-[11px] whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95">
                       <div className="font-bold border-b border-white/20 pb-1 mb-1">
                         {d.date} · {d.total.toLocaleString()} total
                       </div>
@@ -265,7 +265,7 @@ export const AnalyticsView: React.FC = () => {
                   </div>
 
                   {/* X Axis Label */}
-                  <span className="text-[10px] text-[#64748B] mt-2 block font-medium group-hover:text-[#1E1B4B] whitespace-nowrap">
+                  <span className="text-[10px] text-[color:var(--c-muted)] mt-2 block font-medium group-hover:text-[color:var(--c-ink)] whitespace-nowrap">
                     {index % labelEvery === 0 || index === dailyData.length - 1 ? d.date : '\u00A0'}
                   </span>
                 </div>
@@ -276,18 +276,18 @@ export const AnalyticsView: React.FC = () => {
       </div>
 
       {/* Company Breakdown Section: Full Width Comparison among 5 Companies */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 shadow-xs">
+      <div className="bg-white rounded-2xl border border-[color:var(--c-line)] p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-bold text-[#1E1B4B] flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-[#14B8A6]" />
+            <h3 className="text-sm font-bold text-[color:var(--c-ink)] flex items-center gap-2">
+              <PieIcon className="w-4 h-4 text-[#E8405F]" />
               Comparativa de resolución por empresa ({companyAnalytics.length} {companyAnalytics.length === 1 ? 'tenant' : 'tenants'})
             </h3>
-            <p className="text-xs text-[#64748B] mt-0.5">
+            <p className="text-xs text-[color:var(--c-muted)] mt-0.5">
               Desglose de eficiencia del chatbot con RAG en cada organización cliente.
             </p>
           </div>
-          <span className="text-xs text-[#4F46E5] font-semibold bg-[#EEF2FF] px-2.5 py-1 rounded-lg">
+          <span className="text-xs text-[#D20A2E] font-semibold bg-[color:var(--c-ch100)] px-2.5 py-1 rounded-lg">
             Promedio: {botRate}%
           </span>
         </div>
@@ -296,7 +296,7 @@ export const AnalyticsView: React.FC = () => {
           {companyAnalytics.map((comp) => (
             <div
               key={comp.id}
-              className="p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#CBD5E1] transition-all bg-[#F8FAFC]"
+              className="p-3.5 rounded-xl border border-[color:var(--c-line)] hover:border-[color:var(--c-line2)] transition-all bg-[color:var(--c-canvas)]"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2.5">
@@ -304,16 +304,16 @@ export const AnalyticsView: React.FC = () => {
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: comp.brandColor }}
                   ></span>
-                  <span className="text-xs font-bold text-[#1E1B4B]">
+                  <span className="text-xs font-bold text-[color:var(--c-ink)]">
                     {comp.name}
                   </span>
-                  <span className="text-[10px] text-[#64748B]">
+                  <span className="text-[10px] text-[color:var(--c-muted)]">
                     ({comp.industry})
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3 text-xs">
-                  <span className="text-[#64748B] font-mono text-[11px]">
+                  <span className="text-[color:var(--c-muted)] font-mono text-[11px]">
                     {comp.totalQueries.toLocaleString()} consultas
                   </span>
                   <span className="font-bold text-[#22C55E] bg-[#22C55E]/10 px-2 py-0.5 rounded-md border border-[#22C55E]/30">
@@ -326,7 +326,7 @@ export const AnalyticsView: React.FC = () => {
               </div>
 
               {/* Progress bar */}
-              <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden flex">
+              <div className="w-full h-2 bg-[color:var(--c-line)] rounded-full overflow-hidden flex">
                 <div
                   className="h-full bg-[#22C55E] rounded-l-full"
                   style={{ width: `${comp.botRate}%` }}
