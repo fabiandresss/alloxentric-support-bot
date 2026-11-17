@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, selectinload, joinedload
 from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import requiere_rol, verificar_tenant, SUPERADMIN, ADMIN, GESTION_TICKETS
-from app.services import ciclo_ticket
+from app.services import ciclo_ticket, finops, llm, resumen
 from app.mappers import ticket_out, nombre_usuario
 
 # Roles que atienden tickets: son los únicos a quienes se puede asignar uno
@@ -72,6 +72,18 @@ def agentes_asignables(u: m.Usuario = Depends(requiere_rol(*GESTION_TICKETS)), d
 @router.get("/{ticket_id}", response_model=s.Ticket, response_model_exclude_none=True)
 def obtener(ticket_id: str, u: m.Usuario = Depends(requiere_rol(*GESTION_TICKETS)),
             db: Session = Depends(get_db)):
+    return ticket_out(_get(ticket_id, db, u))
+
+
+@router.post("/{ticket_id}/resumen", response_model=s.Ticket, response_model_exclude_none=True)
+def regenerar_resumen(ticket_id: str, u: m.Usuario = Depends(requiere_rol(*GESTION_TICKETS)), db: Session = Depends(get_db)):
+    """(Re)genera el resumen con IA del ticket: sirve para tickets antiguos o para actualizarlo cuando la conversación siguió."""
+    t = _get(ticket_id, db, u)
+    with llm.capturando() as usos:
+        t.resumen_ia = resumen.generar(db, t.empresa, t.conversacion, t.motivo_derivacion or "")
+    finops.registrar(db, t.empresa, t.conversacion, usos)
+    db.commit()
+    db.expire_all()
     return ticket_out(_get(ticket_id, db, u))
 
 

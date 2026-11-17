@@ -6,7 +6,7 @@ from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import empresa_con_rol, GESTION_AGENTE
 from app.routers.testing import _uuid
-from app.services import embeddings
+from app.services import embeddings, vacios as vacios_srv
 from app.utils import ahora
 from datetime import timedelta
 import re
@@ -131,3 +131,16 @@ def calidad(e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Sessio
                                 documents=sorted(nombre(d) for d in cortos)))
     pena = {"alta": 25, "media": 12, "baja": 5}
     return s.KbQuality(score=max(0, 100 - sum(pena[i.severity] for i in issues)), issues=issues, documents_checked=len(docs), fragments_checked=len(frs))
+
+
+@router.get("/vacios", response_model=s.UnansweredReport, response_model_exclude_none=True)
+def vacios(dias: int = Query(30, ge=1, le=180), e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Session = Depends(get_db)):
+    """Preguntas que el bot no pudo resolver (derivadas por falta de información o valoradas 👎), agrupadas por tema, con el documento
+    más cercano y qué hacer: es lo que le falta a la base de conocimiento."""
+    r = vacios_srv.reporte(db, e, dias)
+    return s.UnansweredReport(
+        days=r["days"], total_questions=r["total"],
+        groups=[s.UnansweredGroup(topic=g["topic"], count=g["count"], last_at=g["last_at"], reason=g["reason"], closest_document=g["closest_document"],
+                                  closest_confidence=g["closest_confidence"], suggestion=g["suggestion"],
+                                  questions=[s.UnansweredQuestion(question=q["question"], at=q["at"], conversation_id=q["conversation_id"]) for q in g["questions"]])
+                for g in r["groups"]])

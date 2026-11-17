@@ -41,6 +41,9 @@ class Empresa(Base):
     limite_diario_usd: Mapped[float | None] = mapped_column(Numeric(10, 2))     # tope por día (solo plan limitado); None = sin tope diario
     dominios_permitidos: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')   # sitios donde puede ir el widget; vacío = cualquiera
     modelo_ia: Mapped[str] = mapped_column(String(40), default="haiku-5-5", server_default="haiku-5-5")   # ver services/modelos.py
+    chatbot_pendiente: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")   # empresa registrada por su dueño que aún no crea su chatbot (uno por empresa)
+    seguridad: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')   # guardarraíles de la IA (services/seguridad.py): pii, inyeccion, temasProhibidos, fuentesPublicas
+    horario: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')     # atención humana: {activo, dias:{lun:[desde,hasta]…}, mensajeFuera}
     version: Mapped[int] = mapped_column(Integer, default=1)
     # --- branding del widget ---
     iniciales_logo: Mapped[str | None] = mapped_column(String(4))
@@ -51,17 +54,18 @@ class Empresa(Base):
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-ROLES = ("superadmin", "admin_empresa", "encargado_tickets", "encargado_agente")
+ROLES = ("superadmin", "admin_empresa", "encargado_tickets", "encargado_agente", "registrado")
+SIN_EMPRESA = ("superadmin", "registrado")     # roles sin empresa: el superadmin (plataforma) y el recién registrado (aún no registra su empresa)
 
 
 class Usuario(Base):
-    """Usuarios de la plataforma. El superadmin no pertenece a ninguna empresa (empresa_id NULL);
-    los otros tres roles pertenecen SIEMPRE a una empresa (check constraint)."""
+    """Usuarios de la plataforma. El superadmin (plataforma) y el `registrado` (se creó una cuenta pero aún no registra su empresa)
+    no pertenecen a ninguna empresa (empresa_id NULL); los otros tres roles pertenecen SIEMPRE a una empresa (check constraint)."""
     __tablename__ = "usuarios"
     __table_args__ = (
-        CheckConstraint("rol IN ('superadmin','admin_empresa','encargado_tickets','encargado_agente')",
+        CheckConstraint("rol IN ('superadmin','admin_empresa','encargado_tickets','encargado_agente','registrado')",
                         name="ck_usuarios_rol"),
-        CheckConstraint("(rol = 'superadmin') = (empresa_id IS NULL)", name="ck_usuarios_superadmin_sin_empresa"),
+        CheckConstraint("(rol IN ('superadmin','registrado')) = (empresa_id IS NULL)", name="ck_usuarios_sin_empresa"),
     )
     id: Mapped[uuid.UUID] = _id()
     empresa_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -135,6 +139,10 @@ class Mensaje(Base):
     es_aviso_derivacion: Mapped[bool] = mapped_column(Boolean, default=False)
     fuentes: Mapped[list | None] = mapped_column(JSONB)       # nombres de documentos usados (RAG)
     confianza: Mapped[float | None] = mapped_column(Float)    # 0..1
+    fuentes_detalle: Mapped[list | None] = mapped_column(JSONB)   # [{documentId, documentName, fragmentId, order, excerpt, confidence}]: de dónde salió la respuesta
+    valoracion: Mapped[str | None] = mapped_column(String(6))     # arriba | abajo: lo marca el cliente en el chat
+    valoracion_comentario: Mapped[str | None] = mapped_column(String(500))
+    valoracion_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))  # no now(): en una misma transacción repetiría la hora y desordenaría la transcripción
 
 
@@ -154,6 +162,7 @@ class Ticket(Base):
     cierre_motivo: Mapped[str | None] = mapped_column(String(30))  # confirmado_cliente|sin_respuesta|gestion_manual|migrado
     motivo_derivacion: Mapped[str | None] = mapped_column(Text)
     sugerencia_ia: Mapped[dict | None] = mapped_column(JSONB)  # {confidence, sourceDoc, summary, draftResponse}
+    resumen_ia: Mapped[dict | None] = mapped_column(JSONB)     # {summary, reason, urgency, source: ia|reglas, generatedAt}
     # agente humano responsable: usuario real de la MISMA empresa (se valida en el router)
     agente_asignado_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -313,3 +322,17 @@ class CalibracionJuez(Base):
     creada_por: Mapped[str | None] = mapped_column(String(160))
     iniciada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     terminada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EventoSeguridad(Base):
+    """Intervención de los guardarraíles de la IA (intento de inyección, tema prohibido, fuga bloqueada…). Sin datos personales:
+    el detalle se guarda enmascarado y acotado."""
+    __tablename__ = "eventos_seguridad"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    conversacion_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("conversaciones.id", ondelete="SET NULL"), index=True)
+    tipo: Mapped[str] = mapped_column(String(28))            # inyeccion | tema_prohibido | pii | fuga_salida | salida_saneada | fragmento_sospechoso | limite_conversacion
+    severidad: Mapped[str] = mapped_column(String(6), default="media")   # baja | media | alta
+    detalle: Mapped[str] = mapped_column(String(300), default="")
+    senales: Mapped[list] = mapped_column(JSONB, default=list)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)

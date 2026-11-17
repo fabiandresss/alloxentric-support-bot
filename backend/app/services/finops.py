@@ -28,6 +28,18 @@ def _utc(d: date) -> datetime:
     return datetime.combine(d, time.min, tzinfo=TZ).astimezone(timezone.utc)
 
 
+def aplicar_plan(empresa: m.Empresa, mode: str, mensual: float | None, diario: float | None) -> None:
+    """Fija el plan de gasto de la empresa: «sin_limite» o «limitado» (con tope mensual y, opcional, diario). Lanza ValueError."""
+    if mode == "limitado":
+        if mensual is None:
+            raise ValueError("El plan limitado necesita un monto mensual (monthlyLimitUsd)")
+        if diario is not None and diario > mensual:
+            raise ValueError("El límite diario no puede superar al mensual")
+    empresa.plan_gasto = mode
+    empresa.limite_mensual_usd = mensual if mode == "limitado" else None
+    empresa.limite_diario_usd = diario if mode == "limitado" else None
+
+
 def rango_mes(mes: str | None) -> tuple[datetime, datetime, str]:
     """('2026-11' | None=mes actual) -> (inicio, fin exclusivo, 'AAAA-MM') en la zona horaria local, como instantes UTC."""
     hoy = datetime.now(TZ)

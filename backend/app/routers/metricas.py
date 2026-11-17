@@ -94,6 +94,19 @@ def analitica(dias: int = Query(14, ge=1, le=90), u: m.Usuario = Depends(requier
             total_queries=bot + hum, bot_resolved=bot, bot_rate=_pct(bot, bot + hum),
             escalated=hum, escalation_rate=_pct(hum, bot + hum)))
 
+    # satisfacción: valoraciones 👍/👎 de los clientes a las respuestas del bot en el periodo
+    M = m.Mensaje
+    filas_sat = db.execute(select(M.empresa_id, func.count(), func.count().filter(M.valoracion == "arriba"), func.count().filter(M.valoracion == "abajo"))
+                           .where(M.empresa_id.in_(ids), M.rol == "bot", M.creado_en >= inicio).group_by(M.empresa_id)).all()
+    sat = {eid: (int(n), int(a), int(b)) for eid, n, a, b in filas_sat}
+    for c, e_ in zip(companies, empresas):
+        _, a, b = sat.get(e_.id, (0, 0, 0))
+        c.satisfaction = _pct(a, a + b) if a + b else None
+    n_bot = sum(v[0] for v in sat.values())
+    up = sum(v[1] for v in sat.values())
+    down = sum(v[2] for v in sat.values())
+    satisfaccion = s.Satisfaction(rated=up + down, up=up, down=down, rate=_pct(up, up + down) if up + down else None,
+                                  coverage=_pct(up + down, n_bot) if n_bot else None)
     bot = sum(c.bot_resolved for c in companies)
     hum = sum(c.escalated for c in companies)
     total = bot + hum
@@ -104,4 +117,4 @@ def analitica(dias: int = Query(14, ge=1, le=90), u: m.Usuario = Depends(requier
         days=dias, total_conversations=total, bot_resolved=bot, human_escalated=hum,
         bot_rate=_pct(bot, total), escalation_rate=_pct(hum, total),
         conversations_delta=round((total - previo) / previo * 100, 1) if previo else None,
-        avg_human_resolution=_mmss(seg), daily=daily, companies=companies)
+        avg_human_resolution=_mmss(seg), satisfaction=satisfaccion, daily=daily, companies=companies)

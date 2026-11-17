@@ -9,7 +9,7 @@ from app.deps import (empresa_con_rol, hash_key, nueva_api_key, requiere_rol, us
                       ADMIN, GESTION_AGENTE, TODOS)
 from app.deps import normalizar_dominios
 from app.mappers import empresa_out
-from app.services import modelos
+from app.services import horario, modelos, seguridad
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
@@ -80,10 +80,27 @@ def actualizar(body: s.CompanyUpdate, e: m.Empresa = Depends(empresa_con_rol(*GE
             cambios["allowed_domains"] = normalizar_dominios(cambios["allowed_domains"])
         except ValueError as exc:
             raise HTTPException(422, str(exc))
+    if cambios.get("agent_status") == "activo" and e.chatbot_pendiente:
+        raise HTTPException(409, "Primero crea el chatbot de tu empresa")
     if cambios.get("ai_model") is not None and not modelos.existe(cambios["ai_model"]):
         raise HTTPException(422, "Modelo de IA desconocido: consulta GET /modelos-ia")
+    seg, hor = cambios.pop("security", None), cambios.pop("schedule", None)
+    if seg is not None:
+        if u.rol not in ADMIN:    # bajar las defensas de la IA es decisión del admin, no del encargado del agente
+            raise HTTPException(403, "Solo el admin de la empresa puede cambiar la configuración de seguridad de la IA")
+        e.seguridad = {"pii": bool(seg["pii"]), "inyeccion": bool(seg["injection"]),
+                       "temasProhibidos": seguridad.limpiar_temas(seg["forbidden_topics"]), "fuentesPublicas": seg["public_sources"]}
+    if hor is not None:
+        try:
+            dias = horario.validar(hor["days"])
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        e.horario = {"activo": bool(hor["enabled"]) and bool(dias), "dias": dias,
+                     "mensajeFuera": " ".join(seguridad.limpiar(hor["out_of_hours_message"]).split())[:300]}
+    if seg is not None or hor is not None:
+        cambios["_cfg"] = True
     for k, v in cambios.items():
-        if v is not None:
+        if v is not None and k != "_cfg":
             setattr(e, mapa[k], v)          # allowed_domains=[] es válido: significa «cualquier sitio»
     if cambios:
         e.version += 1

@@ -4,6 +4,7 @@ No lleva autenticación: el slug de la ruta identifica a la empresa (es el mismo
 Solo responde si el agente está `activo` y solo devuelve datos de marca, nunca documentos ni API keys.
 """
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from app.db import get_db
 from app.deps import empresa_por_slug
 from app.mappers import mensaje_out
 from app.ratelimit import limite, verificar
-from app.services import ciclo_ticket
+from app.services import ciclo_ticket, horario, seguridad
 from app.services.chat import procesar_mensaje
 
 router = APIRouter(prefix="/publico", tags=["publico"])
@@ -25,7 +26,7 @@ def agente_publico(e: m.Empresa = Depends(empresa_por_slug)):
         name=e.nombre, agent_name=e.nombre_agente or f"{e.nombre} Assistant",
         logo_initials=e.iniciales_logo or e.nombre[:2].upper(),
         brand_color=e.color_marca or "#4F46E5", brand_bg=e.color_fondo or "#EEF2FF",
-        agent_status=e.estado_agente)
+        agent_status=e.estado_agente, human_support=s.HumanSupport(**horario.estado(e)))
 
 
 # 20 mensajes/min por IP y empresa; además, como máximo 6 conversaciones nuevas/min (cada derivación crea un ticket)
@@ -57,9 +58,9 @@ def _conversacion(db: Session, e: m.Empresa, conversation_id: str) -> tuple[m.Co
     return conv, ticket
 
 
-def _salida(conv: m.Conversacion, ticket: m.Ticket | None) -> s.PublicConversation:
+def _salida(e: m.Empresa, conv: m.Conversacion, ticket: m.Ticket | None) -> s.PublicConversation:
     return s.PublicConversation(
-        conversation_id=str(conv.id), messages=[mensaje_out(x) for x in conv.mensajes],
+        conversation_id=str(conv.id), messages=[mensaje_out(x, e) for x in conv.mensajes],
         derived=conv.derivada, ticket_number=ticket.numero if ticket else None,
         ticket_status=ticket.estado if ticket else None)
 
@@ -77,7 +78,32 @@ def conversacion_publica(conversation_id: str, e: m.Empresa = Depends(empresa_po
     datos internos del ticket: solo su número y estado (`esperando_cliente` = hay una encuesta por responder).
     """
     conv, ticket = _conversacion(db, e, conversation_id)
-    return _salida(conv, ticket)
+    return _salida(e, conv, ticket)
+
+
+@router.put("/{slug}/conversaciones/{conversation_id}/mensajes/{message_id}/valoracion", response_model=s.ChatMessage,
+            response_model_exclude_none=True,
+            dependencies=[Depends(limite("valoracion", 30, 60, por=("slug", "conversation_id")))])
+def valorar_respuesta(conversation_id: str, message_id: str, body: s.RatingIn, e: m.Empresa = Depends(empresa_por_slug),
+                      db: Session = Depends(get_db)):
+    """El cliente valora una respuesta del bot (👍/👎, con comentario opcional). Solo se pueden valorar respuestas del bot de ESTA
+    conversación y empresa; `rating: null` quita la valoración. Las 👎 alimentan los casos de prueba y la analítica de satisfacción."""
+    conv, _ = _conversacion(db, e, conversation_id)
+    try:
+        mid = uuid.UUID(message_id)
+    except ValueError:
+        raise HTTPException(404, "Mensaje no encontrado")
+    msg = db.scalar(select(m.Mensaje).where(m.Mensaje.id == mid, m.Mensaje.conversacion_id == conv.id,
+                                            m.Mensaje.empresa_id == e.id, m.Mensaje.rol == "bot"))      # <- tenant
+    if not msg:
+        raise HTTPException(404, "Mensaje no encontrado")
+    msg.valoracion = {"up": "arriba", "down": "abajo"}.get(body.rating or "")
+    comentario = seguridad.enmascarar(body.comment or "")[0] if body.rating else ""
+    msg.valoracion_comentario = " ".join(comentario.split())[:500] or None
+    msg.valoracion_en = datetime.now(timezone.utc) if body.rating else None
+    db.commit()
+    db.refresh(msg)
+    return mensaje_out(msg, e)
 
 
 @router.post("/{slug}/conversaciones/{conversation_id}/encuesta", response_model=s.PublicConversation,
@@ -96,4 +122,4 @@ def responder_encuesta(conversation_id: str, body: s.SurveyAnswer, e: m.Empresa 
     ciclo_ticket.responder_encuesta(db, e, conv, ticket, body.resolved)
     db.expire_all()  # recargar la transcripción con los mensajes nuevos
     conv, ticket = _conversacion(db, e, conversation_id)
-    return _salida(conv, ticket)
+    return _salida(e, conv, ticket)

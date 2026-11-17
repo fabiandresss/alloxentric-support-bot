@@ -53,6 +53,9 @@ SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() == "true"
 INGESTA_BACKEND = os.getenv("INGESTA_BACKEND", "background")
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
+# Registro abierto: cualquiera puede crear una cuenta, registrar su empresa y crear su chatbot (uno por empresa). false = solo el superadmin crea empresas y usuarios.
+REGISTRO_ABIERTO = os.getenv("REGISTRO_ABIERTO", "true").lower() == "true"
+
 JWT_SECRET = os.getenv("JWT_SECRET", "cambia-este-secreto-largo-en-el-archivo-env-32+")
 JWT_HORAS = int(os.getenv("JWT_HORAS", "8"))
 

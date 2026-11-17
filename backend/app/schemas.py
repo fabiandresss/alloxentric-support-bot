@@ -43,6 +43,10 @@ class Company(CamelModel):
     rag_threshold: float
     ai_model: str
     allowed_domains: list[str] = []      # sitios donde puede ir el widget; vacío = cualquiera
+    chatbot_created: bool = True         # false = la empresa se registró y falta crear su chatbot (uno por empresa)
+    spend_plan: "SpendPlan"              # gasto del chatbot: ilimitado o con tope mensual (y diario)
+    security: "SecurityConfig"
+    schedule: "Schedule"
     last_updated: str
     version: str
     api_key: str | None = None  # solo al crear / rotar
@@ -65,6 +69,40 @@ class PublicAgent(CamelModel):
     brand_color: str
     brand_bg: str
     agent_status: AgentStatus
+    human_support: "HumanSupport | None" = None
+
+
+class SecurityConfig(CamelModel):
+    """Guardarraíles de la IA de la empresa (ver services/seguridad.py)."""
+    pii: bool = True                                   # enmascarar RUT, tarjetas, correos, teléfonos y claves antes del modelo y de guardar
+    injection: bool = True                             # bloquear intentos de inyección de prompt y jailbreak
+    forbidden_topics: list[str] = Field(default_factory=list, max_length=30)
+    public_sources: Literal["extracto", "nombre", "ninguna"] = "extracto"   # qué ve el cliente de las fuentes de una respuesta
+
+
+class Schedule(CamelModel):
+    """Horario de atención humana. `days`: día (lun…dom) -> [desde, hasta] en HH:MM; un día ausente no tiene atención."""
+    enabled: bool = False
+    days: dict[str, list[str]] = Field(default_factory=dict)
+    out_of_hours_message: str = Field(default="", max_length=300)
+
+
+class HumanSupport(CamelModel):
+    """Lo que ve el cliente sobre la atención humana: si hoy hay alguien, el horario y el aviso fuera de horario."""
+    enabled: bool
+    open: bool
+    schedule: str | None = None
+    message: str | None = None
+
+
+class SourceDetail(CamelModel):
+    """De dónde salió una respuesta. Para el equipo trae ids (abrir el fragmento); para el cliente solo lo que permite la empresa."""
+    document_id: str | None = None
+    document_name: str
+    fragment_id: str | None = None
+    order: int | None = None
+    excerpt: str | None = None
+    confidence: float | None = None
 
 
 class ChatMessage(CamelModel):
@@ -75,7 +113,10 @@ class ChatMessage(CamelModel):
     timestamp: str
     is_escalation_notice: bool | None = None
     rag_sources: list[str] | None = None
+    source_details: list[SourceDetail] | None = None
     confidence_score: float | None = None
+    rating: Literal["up", "down"] | None = None         # valoración del cliente a la respuesta del bot
+    rating_comment: str | None = None
 
 
 class AiSuggestion(CamelModel):
@@ -102,10 +143,20 @@ class Ticket(CamelModel):
     customer_channel: str
     transcript: list[ChatMessage]
     ai_suggestion: AiSuggestion
+    ai_summary: "TicketSummary | None" = None
     close_reason: str | None = None        # confirmado_cliente | sin_respuesta | gestion_manual | migrado
     assigned_agent: str | None = None      # nombre para mostrar
     assigned_agent_id: str | None = None   # id del usuario asignado
     is_live: bool | None = None
+
+
+class TicketSummary(CamelModel):
+    """Resumen para el agente humano: qué quiere el cliente, por qué se derivó y qué urgencia parece."""
+    summary: str
+    reason: str = ""
+    urgency: Literal["baja", "media", "alta"]
+    source: Literal["ia", "reglas"]
+    generated_at: str | None = None
 
 
 class AssignableAgent(CamelModel):
@@ -170,6 +221,8 @@ class CompanyUpdate(CamelModel):
     rag_threshold: float | None = Field(default=None, ge=0.1, le=1.0)
     ai_model: str | None = None   # id del catálogo (GET /modelos-ia); se valida en el router
     allowed_domains: list[str] | None = None   # se normaliza y valida en el router
+    security: SecurityConfig | None = None
+    schedule: Schedule | None = None           # se valida en el router
     brand_color: str | None = None
     brand_bg: str | None = None
     logo_initials: str | None = None
@@ -186,6 +239,11 @@ class SurveyAnswer(CamelModel):
 
 class AgentReply(CamelModel):
     text: str = Field(min_length=1)  # el remitente sale del usuario autenticado, no del cuerpo
+
+
+class RatingIn(CamelModel):
+    rating: Literal["up", "down"] | None = None   # null = quitar la valoración
+    comment: str | None = Field(default=None, max_length=500)
 
 
 class ChatRequest(CamelModel):
@@ -210,9 +268,33 @@ class UserOut(CamelModel):
     id: str
     email: str
     name: str
-    role: Role
+    role: Role | Literal["registrado"]   # «registrado» = cuenta creada que aún no registra su empresa
     company_id: str | None = None      # slug de la empresa (None = superadmin)
     active: bool = True
+
+
+class RegisterUser(CamelModel):
+    """Registro de una persona (paso 1). Queda como `registrado`, sin empresa, hasta que registre la suya."""
+    email: str = Field(min_length=5, max_length=255)
+    name: str = Field(min_length=2, max_length=120)
+    password: str = Field(min_length=10, max_length=128)
+    website: str = Field(default="", max_length=200)   # trampa para bots (campo oculto): una persona nunca lo llena
+
+
+class RegisterCompany(CamelModel):
+    """Registro de la empresa (paso 2) por quien se acaba de registrar: pasa a ser su admin."""
+    name: str = Field(min_length=2, max_length=120)
+    industry: str | None = Field(default=None, max_length=160)
+    site_url: str | None = Field(default=None, max_length=255)
+
+
+class ChatbotCreate(CamelModel):
+    """Creación del chatbot de la empresa (paso 3). Cada empresa tiene uno solo."""
+    agent_name: str = Field(min_length=2, max_length=80)
+    tone: Tone = "cercano"
+    custom_instructions: str | None = Field(default=None, max_length=2000)
+    brand_color: str = Field(default="#D20A2E", pattern=r"^#[0-9A-Fa-f]{6}$")
+    spend_plan: "SpendPlanUpdate"        # obligatorio: quien crea el chatbot elige si su gasto es ilimitado o tiene un límite
 
 
 class TokenOut(CamelModel):
@@ -254,6 +336,16 @@ class AnalyticsCompany(CamelModel):
     bot_rate: float
     escalated: int
     escalation_rate: float
+    satisfaction: float | None = None     # % de valoraciones positivas; null si nadie ha valorado
+
+
+class Satisfaction(CamelModel):
+    """Valoraciones (👍/👎) que dejan los clientes a las respuestas del bot."""
+    rated: int
+    up: int
+    down: int
+    rate: float | None = None             # % positivas
+    coverage: float | None = None         # % de respuestas del bot que fueron valoradas
 
 
 class Analytics(CamelModel):
@@ -265,6 +357,7 @@ class Analytics(CamelModel):
     escalation_rate: float
     conversations_delta: float | None = None  # % vs el periodo anterior; null si no hay base
     avg_human_resolution: str
+    satisfaction: Satisfaction
     daily: list[AnalyticsDay]
     companies: list[AnalyticsCompany]
 
@@ -347,6 +440,8 @@ class ConversationListItem(CamelModel):
     first_message: str = ""
     last_message: str = ""
     cost_usd: float = 0.0
+    thumbs_up: int = 0
+    thumbs_down: int = 0
 
 
 class ConversationList(CamelModel):
@@ -360,6 +455,54 @@ class ConversationDetail(CamelModel):
     input_tokens: int
     output_tokens: int
     ai_calls: int
+
+
+# ---------- Seguridad de la IA, preguntas sin respuesta ----------
+class SecurityEvent(CamelModel):
+    id: str
+    type: str                  # inyeccion | tema_prohibido | pii | fuga_salida | salida_saneada | fragmento_sospechoso | limite_conversacion
+    severity: Literal["baja", "media", "alta"]
+    detail: str                # ya enmascarado
+    signals: list[str] = []
+    conversation_id: str | None = None
+    created_at: str
+
+
+class SecurityCount(CamelModel):
+    type: str
+    count: int
+
+
+class SecurityOverview(CamelModel):
+    days: int
+    total: int
+    high: int
+    by_type: list[SecurityCount]
+    events: list[SecurityEvent]
+
+
+class UnansweredQuestion(CamelModel):
+    question: str
+    at: str
+    conversation_id: str
+
+
+class UnansweredGroup(CamelModel):
+    """Preguntas parecidas que el bot no pudo resolver: son los temas que le faltan a la documentación."""
+    topic: str                              # la pregunta más representativa
+    count: int
+    last_at: str
+    reason: Literal["sin_informacion", "modelo_no_sabe", "baja_valoracion"]
+    closest_document: str | None = None     # el documento que más se acerca (aunque no alcanzó)
+    closest_confidence: float | None = None
+    suggestion: str
+    questions: list[UnansweredQuestion]
+
+
+class UnansweredReport(CamelModel):
+    days: int
+    total_questions: int
+    groups: list[UnansweredGroup]
 
 
 # ---------- Pruebas del agente (golden sets) y base de conocimiento ----------
@@ -655,3 +798,7 @@ class KbQuality(CamelModel):
     issues: list[KbIssue]
     documents_checked: int
     fragments_checked: int
+
+
+for _m in (Company, PublicAgent, Ticket, ChatbotCreate):
+    _m.model_rebuild()

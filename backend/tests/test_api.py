@@ -200,7 +200,7 @@ def test_chat_publico_por_slug(anon, client, crear_empresa):
     subir_txt(client, "acme", "manual.txt", "Los reembolsos de consultas medicas tardan cinco dias habiles en llegar.")
     # config pública: solo marca y estado, nunca documentos ni claves
     cfg = anon.get("/publico/acme").json()
-    assert set(cfg) == {"name", "agentName", "logoInitials", "brandColor", "brandBg", "agentStatus"}
+    assert set(cfg) == {"name", "agentName", "logoInitials", "brandColor", "brandBg", "agentStatus", "humanSupport"}   # humanSupport = solo si hay atención humana y su horario
     assert cfg["agentStatus"] == "en_configuracion"
     assert anon.get("/publico/no-existe").status_code == 404
     # agente aún no activo -> no responde

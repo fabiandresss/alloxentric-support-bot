@@ -93,6 +93,8 @@ def actualizar(uid: str, body: s.UserUpdate, actor: m.Usuario = Depends(requiere
         raise HTTPException(403, "No puedes modificar a un superadmin")
     if body.role is not None:
         _puede_asignar(actor, body.role)
+        if u.rol == "registrado":
+            raise HTTPException(422, "Esta cuenta aún no registra su empresa: no se le puede asignar un rol")
         if (body.role == SUPERADMIN) != (u.empresa_id is None):
             raise HTTPException(422, "No se puede convertir un usuario de empresa en superadmin (ni al revés)")
         if u.id == actor.id and body.role != u.rol:

@@ -5,15 +5,13 @@ from sqlalchemy.orm import Session
 from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import empresa_con_rol, ADMIN, SUPERADMIN
+from app.mappers import plan_out
 from app.services import finops
 
 router = APIRouter(prefix="/empresas/{slug}", tags=["finops"])
 
 
-def _plan(e: m.Empresa) -> s.SpendPlan:
-    limite = float(e.limite_mensual_usd) if e.plan_gasto == "limitado" and e.limite_mensual_usd is not None else None
-    diario = float(e.limite_diario_usd) if e.plan_gasto == "limitado" and e.limite_diario_usd is not None else None
-    return s.SpendPlan(mode=e.plan_gasto, monthly_limit_usd=limite, daily_limit_usd=diario)
+_plan = plan_out
 
 
 @router.get("/finops", response_model=s.FinOpsSummary, response_model_exclude_none=True)
@@ -30,15 +28,12 @@ def resumen(desde: date | None = Query(None, description="Primer día del rango 
 
 
 @router.patch("/plan", response_model=s.SpendPlan, response_model_exclude_none=True)
-def cambiar_plan(body: s.SpendPlanUpdate, e: m.Empresa = Depends(empresa_con_rol(SUPERADMIN)), db: Session = Depends(get_db)):
-    """Las condiciones comerciales (límite mensual o sin límite) las define solo la plataforma (superadmin)."""
-    if body.mode == "limitado" and body.monthly_limit_usd is None:
-        raise HTTPException(422, "El plan limitado necesita un monto mensual (monthlyLimitUsd)")
-    if body.mode == "limitado" and body.daily_limit_usd is not None and body.daily_limit_usd > body.monthly_limit_usd:
-        raise HTTPException(422, "El límite diario no puede superar al mensual")
-    e.plan_gasto = body.mode
-    e.limite_mensual_usd = body.monthly_limit_usd if body.mode == "limitado" else None
-    e.limite_diario_usd = body.daily_limit_usd if body.mode == "limitado" else None
+def cambiar_plan(body: s.SpendPlanUpdate, e: m.Empresa = Depends(empresa_con_rol(*ADMIN)), db: Session = Depends(get_db)):
+    """El admin de la empresa (o el superadmin) decide si el gasto del chatbot es ilimitado o tiene un tope mensual (y diario opcional)."""
+    try:
+        finops.aplicar_plan(e, body.mode, body.monthly_limit_usd, body.daily_limit_usd)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
     e.version += 1
     db.commit()
     return _plan(e)

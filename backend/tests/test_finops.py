@@ -126,8 +126,11 @@ def test_permisos_de_finops_y_plan(client, empresas, usuario_como):
                               usuario_como("alfa", "encargado_tickets"))
     assert admin.get("/empresas/alfa/finops").status_code == 200
     assert agente.get("/empresas/alfa/finops").status_code == 403 and tickets.get("/empresas/alfa/finops").status_code == 403
-    assert admin.patch("/empresas/alfa/plan", json={"mode": "sin_limite"}).status_code == 403          # el plan lo fija la plataforma
+    assert admin.patch("/empresas/alfa/plan", json={"mode": "limitado", "monthlyLimitUsd": 40}).status_code == 200   # el admin de la empresa define su plan
+    assert agente.patch("/empresas/alfa/plan", json={"mode": "sin_limite"}).status_code == 403 and tickets.patch("/empresas/alfa/plan", json={"mode": "sin_limite"}).status_code == 403
     ajeno = usuario_como("beta", "admin_empresa")
+    assert ajeno.patch("/empresas/alfa/plan", json={"mode": "sin_limite"}).status_code == 403   # y solo el de la suya
+    assert admin.get("/empresas/alfa").json()["spendPlan"] == {"mode": "limitado", "monthlyLimitUsd": 40.0}
     assert ajeno.get("/empresas/alfa/finops").status_code == 403                                      # aislamiento entre empresas
 
 

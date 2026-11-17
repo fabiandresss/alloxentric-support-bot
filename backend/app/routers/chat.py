@@ -23,5 +23,5 @@ def chat_widget(body: s.ChatRequest, e: m.Empresa = Depends(empresa_por_api_key)
 @router.post("/empresas/{slug}/probar", response_model=s.ChatResponse, response_model_exclude_none=True)
 def chat_probar(body: s.ChatRequest, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)),
                 db: Session = Depends(get_db)):
-    """Simulador del panel de administración (no exige agente activo ni API key)."""
-    return procesar_mensaje(db, e, body)
+    """Simulador del panel de administración (no exige agente activo ni API key). Ve las fuentes completas, como el equipo."""
+    return procesar_mensaje(db, e, body, publico=False)

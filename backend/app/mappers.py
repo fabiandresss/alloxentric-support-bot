@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app import models as m
 from app import schemas as s
 from app.config import PUBLIC_CHAT_BASE_URL
+from app.services import horario, seguridad
 from app.utils import ahora, tiempo_relativo, fecha_corta, hora, fecha_exacta, tamano
 
 ROL_A_SENDER = {"usuario": "user", "bot": "bot", "agente": "agent"}
@@ -34,19 +35,63 @@ def empresa_out(db: Session, e: m.Empresa, api_key: str | None = None) -> s.Comp
         brand_color=e.color_marca or "#D20A2E", brand_bg=e.color_fondo or "#FCEDEF",
         agent_name=e.nombre_agente or f"{e.nombre} Assistant", agent_status=e.estado_agente,
         documents_count=len(docs), documents=[documento_out(d) for d in docs],
-        tone=e.tono, custom_instructions=e.instrucciones or "",
+        tone=e.tono, custom_instructions=e.instrucciones or "", chatbot_created=not e.chatbot_pendiente, spend_plan=plan_out(e), security=seguridad_out(e), schedule=horario_out(e),
         web_chat_url=f"{PUBLIC_CHAT_BASE_URL}/{e.slug}",
         monthly_queries=consultas, bot_resolution_rate=tasa, rag_threshold=e.umbral_rag, ai_model=e.modelo_ia, allowed_domains=list(e.dominios_permitidos or []),
         last_updated=tiempo_relativo(e.actualizada_en).replace("hace ", "Hace ", 1),
         version=f"v{e.version}.0.0", api_key=api_key)
 
 
-def mensaje_out(x: m.Mensaje) -> s.ChatMessage:
+def plan_out(e: m.Empresa) -> s.SpendPlan:
+    """Plan de gasto de la empresa: sin límite, o límite mensual (y diario opcional) en USD."""
+    limite = float(e.limite_mensual_usd) if e.plan_gasto == "limitado" and e.limite_mensual_usd is not None else None
+    diario = float(e.limite_diario_usd) if e.plan_gasto == "limitado" and e.limite_diario_usd is not None else None
+    return s.SpendPlan(mode=e.plan_gasto, monthly_limit_usd=limite, daily_limit_usd=diario)
+
+
+def seguridad_out(e: m.Empresa) -> s.SecurityConfig:
+    c = seguridad.config_de(e)
+    return s.SecurityConfig(pii=c["pii"], injection=c["inyeccion"], forbidden_topics=c["temasProhibidos"], public_sources=c["fuentesPublicas"])
+
+
+def horario_out(e: m.Empresa) -> s.Schedule:
+    c = horario.config_de(e)
+    raw = (e.horario or {})
+    return s.Schedule(enabled=c["activo"], days=c["dias"], out_of_hours_message=(raw.get("mensajeFuera") or "")[:300])
+
+
+def _fuentes_para(x: m.Mensaje, publico_modo: str | None) -> tuple[list[str] | None, list[s.SourceDetail] | None]:
+    """El equipo ve todo (ids para abrir el fragmento). El cliente ve solo lo que permite la empresa: extracto | nombre | ninguna."""
+    nombres = x.fuentes or None
+    det = x.fuentes_detalle or []
+    if publico_modo is None:
+        return nombres, ([s.SourceDetail(document_id=d.get("documentId"), document_name=d.get("documentName", ""), fragment_id=d.get("fragmentId"),
+                                          order=d.get("order"), excerpt=d.get("excerpt"), confidence=d.get("confidence")) for d in det] or None)
+    if publico_modo == "ninguna":
+        return None, None
+    if publico_modo == "nombre":
+        return nombres, ([s.SourceDetail(document_name=n) for n in (nombres or [])] or None)
+    return nombres, ([s.SourceDetail(document_name=d.get("documentName", ""), order=d.get("order"), excerpt=d.get("excerpt"),
+                                      confidence=d.get("confidence")) for d in det] or None)
+
+
+def mensaje_out(x: m.Mensaje, empresa: m.Empresa | None = None) -> s.ChatMessage:
+    """Con `empresa` el mensaje es para el cliente (chat público/widget/API key): las fuentes siguen la política de la empresa."""
+    modo = seguridad.config_de(empresa)["fuentesPublicas"] if empresa is not None else None
+    nombres, detalle = _fuentes_para(x, modo)
     return s.ChatMessage(
         id=str(x.id), sender=ROL_A_SENDER[x.rol], sender_name=x.nombre_remitente or x.rol.capitalize(),
         message=x.contenido, timestamp=hora(x.creado_en),
         is_escalation_notice=True if x.es_aviso_derivacion else None,
-        rag_sources=x.fuentes or None, confidence_score=x.confianza)
+        rag_sources=nombres, source_details=detalle, confidence_score=x.confianza,
+        rating={"arriba": "up", "abajo": "down"}.get(x.valoracion or ""), rating_comment=x.valoracion_comentario)
+
+
+def resumen_out(r: dict | None) -> s.TicketSummary | None:
+    if not r or not r.get("summary"):
+        return None
+    return s.TicketSummary(summary=r["summary"], reason=r.get("reason", ""), urgency=r.get("urgency", "baja"),
+                           source=r.get("source", "reglas"), generated_at=r.get("generatedAt"))
 
 
 def ticket_out(t: m.Ticket) -> s.Ticket:
@@ -63,6 +108,7 @@ def ticket_out(t: m.Ticket) -> s.Ticket:
         exact_timestamp=fecha_exacta(t.creado_en),
         customer_name=conv.nombre_cliente or "Usuario web", customer_email=conv.email_cliente or "",
         customer_channel=conv.canal, transcript=[mensaje_out(x) for x in msgs],
+        ai_summary=resumen_out(t.resumen_ia),
         ai_suggestion=s.AiSuggestion(confidence=sug.get("confidence", 0.0),
                                      source_doc=sug.get("sourceDoc", ""),
                                      summary=sug.get("summary", ""),

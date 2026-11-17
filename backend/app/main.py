@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import CORS_ORIGINS, EMBEDDINGS_WARMUP
-from app.routers import auth, empresas, tickets, documentos, chat, publico, metricas, modelos, finops, conversaciones, testing, kb, notificaciones
+from app.routers import auth, empresas, tickets, documentos, chat, publico, metricas, modelos, finops, conversaciones, testing, kb, notificaciones, seguridad, registro
 from app.services import embeddings
 
 @asynccontextmanager
@@ -17,7 +17,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Chatbot de Soporte Alloxentric", version="0.2.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"],
                    expose_headers=["Content-Disposition"])   # el front lee el nombre del CSV exportado
-for r in (auth, empresas, tickets, documentos, chat, publico, metricas, modelos, finops, conversaciones, testing, kb, notificaciones):
+for r in (auth, empresas, tickets, documentos, chat, publico, metricas, modelos, finops, conversaciones, testing, kb, notificaciones, seguridad, registro):
     app.include_router(r.router)
 
 
