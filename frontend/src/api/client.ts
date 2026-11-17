@@ -28,6 +28,9 @@ import {
   TestRunBrief,
   TestRunDetail,
   KbSummary,
+  PipelineConfig,
+  PipelineReprocess,
+  PipelineState,
   KbChunkList,
   KbDocument,
   AppNotification,
@@ -331,6 +334,10 @@ export const getKbChunks = (slug: string, f: { q?: string; documentId?: string; 
   if (f.offset) qs.set('offset', String(f.offset));
   return request<KbChunkList>(`/empresas/${slug}/kb/fragmentos${qs.toString() ? `?${qs}` : ''}`);
 };
+
+export const getPipeline = (slug: string) => request<PipelineState>(`/empresas/${slug}/kb/pipeline`);
+export const savePipeline = (slug: string, cfg: PipelineConfig) => request<PipelineState>(`/empresas/${slug}/kb/pipeline`, json('PUT', cfg));
+export const reprocessKb = (slug: string) => request<PipelineReprocess>(`/empresas/${slug}/kb/reprocesar`, { method: 'POST' });
 
 // ---------- Notificaciones (campana) ----------
 export const getNotifications = (slug: string, soloNuevas = false) => request<AppNotification[]>(`/empresas/${slug}/notificaciones${soloNuevas ? '?solo_nuevas=true' : ''}`);

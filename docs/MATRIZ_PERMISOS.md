@@ -30,6 +30,7 @@ Hay **cuatro roles** de trabajo y un estado previo. Tres roles pertenecen siempr
 | Ver la **base de conocimiento** (documentos ingestados y sus fragmentos) | todas | la suya | | la suya |
 | **Pruebas del agente**: crear golden sets (manuales o con IA), ejecutarlos, ver resultados y exportar CSV | todas | las suyas | | las suyas |
 | Subir, **reemplazar** (con historial de versiones) y restaurar versiones de documentos; ver la **salud de la KB** | todas | las suyas | | las suyas |
+| Ver y cambiar el **pipeline de ingesta y recuperación** (tamaño de fragmentos, top-k, búsqueda híbrida, OCR) y **reprocesar** los documentos | todas | las suyas | | las suyas |
 | Comparar modelos con un golden set, etiquetar respuestas y **calibrar al juez** | todas | las suyas | | las suyas |
 | Elegir los **sitios autorizados** del widget de la empresa | todas | la suya | | la suya |
 | Ver las **notificaciones** (campana): cambios en las pruebas | todas | las suyas | | las suyas |

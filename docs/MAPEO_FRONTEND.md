@@ -51,6 +51,7 @@ No tienen tabla: se calculan con COUNT/AVG sobre tickets y mensajes (endpoint GE
    POST /empresas/{slug}/testing/conjuntos/{id}/comparar, GET .../comparativas/{grupo}            -> ComparisonView (`TestComparison`)
    PUT  .../testing/resultados/{id}/etiqueta, GET .../testing/etiquetas, .../testing/calibraciones -> TestRunView (etiquetas), CalibrationPanel (`CalibrationRun`)
    POST /documentos/{id}/reemplazar, GET /documentos/{id}/versiones, POST .../versiones/{n}/restaurar -> KnowledgeBaseView, VersionsModal (`DocVersion`)
+   GET|PUT /empresas/{slug}/kb/pipeline, POST /empresas/{slug}/kb/reprocesar                        -> PipelinePanel en KnowledgeBaseView (`PipelineState`, `PipelineConfig`, `PipelineReprocess`)
    GET  /empresas/{slug}/kb/calidad                                                                -> KnowledgeBaseView «Salud de la base» (`KbQuality`)
    PATCH /empresas/{slug} {allowedDomains}                                                         -> AgentConfigModal (sitios autorizados del widget)
    GET  /modelos-ia (catálogo de modelos de IA: `AiModelOption`)    -> ModelPicker (dentro de AgentConfigModal)

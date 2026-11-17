@@ -726,6 +726,30 @@ class KbSummary(CamelModel):
     by_type: list[KbTypeCount]
 
 
+class PipelineConfig(CamelModel):
+    """Ajustes de ingesta y recuperación de una empresa (ver services/pipeline.py). Los rangos válidos los devuelve GET .../kb/pipeline."""
+    chunk_max: int                  # caracteres máximos por fragmento
+    chunk_min: int                  # los fragmentos más cortos se unen al siguiente
+    chunk_overlap: int              # caracteres del fragmento anterior que se repiten al inicio del siguiente
+    top_k: int                      # fragmentos que se pasan al modelo
+    hybrid: bool                    # vectores + palabras clave
+    ocr: bool                       # transcribir PDFs escaneados con visión
+
+
+class PipelineState(CamelModel):
+    config: PipelineConfig          # la vigente (defecto + lo que cambió la empresa)
+    defaults: PipelineConfig
+    limits: dict[str, list[int]]    # clave → [mínimo, máximo]
+    customized: bool                # ¿difiere del defecto?
+    reprocessable: int              # documentos con archivo, que se pueden volver a fragmentar
+    documents: int
+
+
+class PipelineReprocess(CamelModel):
+    queued: int
+    skipped: int                    # documentos sin archivo (p. ej. los del seed)
+
+
 class KbDocument(CamelModel):
     """Un documento de la base de conocimiento con lo que REALMENTE quedó ingestado (los fragmentos se cuentan, no se confía en un contador)."""
     id: str

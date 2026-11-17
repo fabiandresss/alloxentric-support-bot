@@ -16,7 +16,8 @@ from app.services import evaluacion, ingesta
 log = logging.getLogger("documentos")
 
 router = APIRouter(tags=["documentos"])
-TIPOS = {"pdf", "docx", "txt", "faq", "csv"}
+TIPOS = {"pdf", "docx", "txt", "faq", "csv", "md"}
+ALIAS_TIPO = {"markdown": "md"}        # .markdown se guarda como md
 
 
 def _ingestar(bg: BackgroundTasks, doc_id, motivo: str) -> None:
@@ -36,6 +37,7 @@ async def _leer(archivo: UploadFile) -> tuple[str, str, bytes]:
     """Valida extensión y tamaño del archivo subido y devuelve (nombre, tipo, bytes)."""
     nombre = Path(archivo.filename or "").name
     tipo = nombre.rsplit(".", 1)[-1].lower() if "." in nombre else ""
+    tipo = ALIAS_TIPO.get(tipo, tipo)
     if tipo not in TIPOS:
         raise HTTPException(415, f"Tipo no soportado. Permitidos: {', '.join(sorted(TIPOS))}")
     datos = await archivo.read()

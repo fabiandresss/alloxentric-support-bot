@@ -1,4 +1,5 @@
-"""Base de conocimiento: qué documentación está ingestada y cómo quedó fragmentada. Solo lectura (subir y borrar documentos sigue en /empresas/{slug}/documentos)."""
+"""Base de conocimiento: qué documentación está ingestada y cómo quedó fragmentada, su salud y los ajustes del pipeline de ingesta/recuperación.
+Subir y borrar documentos sigue en /empresas/{slug}/documentos."""
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -7,10 +8,11 @@ from app.db import get_db
 from app.deps import empresa_con_rol, GESTION_AGENTE
 from app.routers.testing import _uuid
 from app.routers.documentos import _ingestar
-from app.services import embeddings, faq, vacios as vacios_srv
+from app.services import embeddings, evaluacion, faq, pipeline, vacios as vacios_srv
 from app.utils import ahora
 from datetime import timedelta
 import re
+from pathlib import Path
 
 router = APIRouter(prefix="/empresas/{slug}/kb", tags=["kb"])
 
@@ -191,3 +193,56 @@ def descartar_faq(pid: str, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGEN
         raise HTTPException(409, "Esta propuesta ya fue resuelta")
     faq.resolver(p, "descartada")
     db.commit()
+
+
+# ------------------------------------------------------------------------------------------ pipeline de ingesta y recuperación
+def _estado_pipeline(db: Session, e: m.Empresa) -> s.PipelineState:
+    docs = db.scalars(select(m.Documento).where(m.Documento.empresa_id == e.id)).all()          # <- tenant
+    cfg, defecto = pipeline.config_de(e), pipeline.defectos()
+    return s.PipelineState(config=s.PipelineConfig.model_validate(cfg), defaults=s.PipelineConfig.model_validate(defecto),
+                           limits={k: list(v) for k, v in pipeline.LIMITES.items()}, customized=cfg != defecto,
+                           reprocessable=sum(1 for d in docs if Path(d.ruta_local).is_file()), documents=len(docs))
+
+
+@router.get("/pipeline", response_model=s.PipelineState)
+def ver_pipeline(e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Session = Depends(get_db)):
+    """Ajustes vigentes de ingesta (chunking, OCR) y recuperación (top-k, búsqueda híbrida) de la empresa, sus defectos y rangos válidos."""
+    return _estado_pipeline(db, e)
+
+
+@router.put("/pipeline", response_model=s.PipelineState)
+def guardar_pipeline(body: s.PipelineConfig, bg: BackgroundTasks, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)),
+                     db: Session = Depends(get_db)):
+    """Guarda los ajustes. Top-k, híbrido y OCR aplican desde el siguiente mensaje/documento; el chunking solo a lo que se ingeste desde
+    ahora (para lo ya ingestado, POST .../kb/reprocesar). Cambia la huella de la caché y vuelve a correr los golden sets automáticos."""
+    try:
+        cfg = pipeline.validar(body.model_dump(by_alias=True))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    defecto = pipeline.defectos()
+    nuevo = {k: v for k, v in cfg.items() if v != defecto[k]}          # solo lo que difiere del defecto
+    if nuevo != pipeline.guardada(e):
+        e.pipeline = nuevo
+        e.version += 1
+        db.commit()
+        if e.estado_agente == "activo":
+            bg.add_task(evaluacion.disparar_automaticas, e.id, "cambio del pipeline de ingesta y recuperación")
+    return _estado_pipeline(db, e)
+
+
+@router.post("/reprocesar", response_model=s.PipelineReprocess, status_code=202)
+def reprocesar(bg: BackgroundTasks, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Session = Depends(get_db)):
+    """Vuelve a extraer, fragmentar y vectorizar los documentos de la empresa con los ajustes vigentes (los que no tienen archivo, como los del
+    seed, se omiten; los que ya se están procesando, también). Al terminar corre los golden sets automáticos una sola vez."""
+    docs = db.scalars(select(m.Documento).where(m.Documento.empresa_id == e.id)).all()          # <- tenant
+    cola = [d for d in docs if d.estado != "procesando" and Path(d.ruta_local).is_file()]
+    for d in cola:
+        d.estado = "procesando"
+    if cola:
+        e.version += 1              # la caché de respuestas deja de valer
+    db.commit()
+    for d in cola:
+        _ingestar(bg, d.id, "reprocesado")
+    if cola:
+        bg.add_task(evaluacion.disparar_automaticas, e.id, "reprocesado de la base de conocimiento")
+    return s.PipelineReprocess(queued=len(cola), skipped=len(docs) - len(cola))

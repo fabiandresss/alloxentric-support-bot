@@ -187,6 +187,28 @@ def test_ingesta_pdf_y_docx(client, crear_empresa):
     assert "soporte tecnico" in client.get(f"/documentos/{docs['manual.docx']['id']}/fragmentos").json()[0]["text"]
 
 
+def test_ingesta_markdown(client, crear_empresa):
+    """Se aceptan .md y .markdown: la sintaxis se limpia y cada título abre un fragmento; otra empresa no los ve."""
+    crear_empresa("Acme")
+    crear_empresa("Beta")
+    md = ("---\ntitle: Manual\n---\n# Garantías\n\nLas **garantías** cubren `dos años` desde la compra, siempre que el producto se use según el manual y no tenga daños por golpes. Ver [política](https://x.cl/p).\n\n"
+          "## Soporte\n\nEl soporte técnico atiende de lunes a viernes de 9 a 18 horas, salvo feriados nacionales.\n\n"
+          "| Plan | Precio |\n|---|---|\n| Básico | 10 |\n")
+    for nombre in ("manual.md", "otro.markdown"):
+        r = client.post("/empresas/acme/documentos", files={"archivo": (nombre, io.BytesIO(md.encode()), "text/markdown")})
+        assert r.status_code == 201, r.text
+        assert r.json()["type"] == "md"
+    docs = {x["name"]: x for x in client.get("/empresas/acme/documentos").json()}
+    assert docs["manual.md"]["status"] == "procesado" and docs["manual.md"]["chunkCount"] >= 2
+    texto = " ".join(f["text"] for f in client.get(f"/documentos/{docs['manual.md']['id']}/fragmentos").json())
+    assert "garantías cubren dos años" in texto and "política" in texto
+    for basura in ("**", "`", "https://", "# ", "---", "title: Manual"):
+        assert basura not in texto
+    assert "Básico · 10" in texto
+    assert client.post("/empresas/acme/documentos", files={"archivo": ("x.rtf", io.BytesIO(b"x"), "text/plain")}).status_code == 415
+    assert client.get("/empresas/beta/documentos").json() == []      # aislamiento por empresa
+
+
 def test_documento_corrupto_queda_en_error(client, crear_empresa):
     crear_empresa("Acme")
     r = client.post("/empresas/acme/documentos", files={"archivo": ("roto.pdf", io.BytesIO(b"esto no es un pdf"), "application/pdf")})

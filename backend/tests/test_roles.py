@@ -63,6 +63,8 @@ PERMISOS = [
     ("POST /empresas/acme/probar",    dict(admin_empresa=1, encargado_tickets=0, encargado_agente=1)),
     # documentos (base de conocimiento)
     ("GET /empresas/acme/documentos", dict(admin_empresa=1, encargado_tickets=0, encargado_agente=1)),
+    ("GET /empresas/acme/kb/pipeline", dict(admin_empresa=1, encargado_tickets=0, encargado_agente=1)),
+    ("POST /empresas/acme/kb/reprocesar", dict(admin_empresa=1, encargado_tickets=0, encargado_agente=1)),
     # tickets
     ("GET /tickets",                  dict(admin_empresa=1, encargado_tickets=1, encargado_agente=0)),
     ("GET /tickets/agentes",          dict(admin_empresa=1, encargado_tickets=1, encargado_agente=0)),

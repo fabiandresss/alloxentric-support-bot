@@ -9,6 +9,7 @@ import { Select } from './Select';
 import { Modal } from './Modal';
 import { UnansweredPanel } from './UnansweredPanel';
 import { FaqProposals } from './FaqProposals';
+import { PipelinePanel } from './PipelinePanel';
 
 interface KnowledgeBaseViewProps {
   me: AuthUser;
@@ -175,8 +176,8 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
           <button onClick={() => uploadRef.current?.click()} disabled={busy === 'subir'} data-testid="kb-upload" className="whitespace-nowrap px-4 py-2.5 rounded-xl bg-[#D20A2E] hover:bg-[#B00825] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50">
             {busy === 'subir' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Subir documento
           </button>
-          <input ref={uploadRef} type="file" accept=".pdf,.docx,.txt,.faq,.csv" className="hidden" data-testid="kb-upload-input" onChange={(e) => subir(e.target.files?.[0])} />
-          <input ref={replaceRef} type="file" accept=".pdf,.docx,.txt,.faq,.csv" className="hidden" data-testid="kb-replace-input" onChange={(e) => reemplazar(e.target.files?.[0])} />
+          <input ref={uploadRef} type="file" accept=".pdf,.docx,.txt,.faq,.csv,.md,.markdown" className="hidden" data-testid="kb-upload-input" onChange={(e) => subir(e.target.files?.[0])} />
+          <input ref={replaceRef} type="file" accept=".pdf,.docx,.txt,.faq,.csv,.md,.markdown" className="hidden" data-testid="kb-replace-input" onChange={(e) => reemplazar(e.target.files?.[0])} />
         </div>
       </div>
 
@@ -204,6 +205,8 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
             <Stat icon={Database} label="Vectores" value={`${fmtInt(summary.embeddedFragments)}/${fmtInt(summary.fragments)}`} hint={summary.models.length ? summary.models.join(' · ') : 'Sin vectores aún'} delay={150} />
             <Stat icon={Clock} label="Última subida" value={summary.lastUpdated ? fmtDate(summary.lastUpdated) : '—'} hint={summary.byType.map((t) => `${t.count} ${t.type.toUpperCase()}`).join(' · ') || 'Sin documentos'} delay={200} />
           </div>
+
+          <PipelinePanel slug={slug} onToast={onToast} onReprocessed={() => loadBase(true)} />
 
           {/* Salud de la base */}
           {quality && (

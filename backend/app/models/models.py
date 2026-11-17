@@ -44,6 +44,7 @@ class Empresa(Base):
     chatbot_pendiente: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")   # empresa registrada por su dueño que aún no crea su chatbot (uno por empresa)
     seguridad: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')   # guardarraíles de la IA (services/seguridad.py): pii, inyeccion, temasProhibidos, fuentesPublicas
     horario: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')     # atención humana: {activo, dias:{lun:[desde,hasta]…}, mensajeFuera}
+    pipeline: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')    # ajustes de ingesta y recuperación (services/pipeline.py): solo lo que se cambió; lo demás usa el defecto
     version: Mapped[int] = mapped_column(Integer, default=1)
     # --- branding del widget ---
     iniciales_logo: Mapped[str | None] = mapped_column(String(4))
@@ -84,7 +85,7 @@ class Documento(Base):
     id: Mapped[uuid.UUID] = _id()
     empresa_id: Mapped[uuid.UUID] = _empresa_fk()
     nombre: Mapped[str] = mapped_column(String(255))
-    tipo: Mapped[str] = mapped_column(String(10))            # pdf | docx | txt | faq | csv
+    tipo: Mapped[str] = mapped_column(String(10))            # pdf | docx | txt | faq | csv | md
     tamano_bytes: Mapped[int] = mapped_column(Integer, default=0)
     ruta_local: Mapped[str] = mapped_column(String(500))     # storage/<empresa_id>/...
     estado: Mapped[str] = mapped_column(String(20), default="procesando")  # procesando|procesado|error

@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m
 from app.config import RAG_HIBRIDO, RAG_SEARCH, RAG_TOP_K
+from app.services import pipeline as pipeline_cfg
 from app.services import cache, embeddings, finops, hibrido, llm, modelos, seguridad
 
 log = logging.getLogger("rag.motor")
@@ -101,8 +102,10 @@ def buscar(db: Session, empresa: m.Empresa, texto: str, k: int | None = None, ve
         return []
     emb = embeddings.get_embedder()
     consulta = vector if vector is not None else emb.embed([texto])[0]
-    k = k or RAG_TOP_K
-    kc = k * 3 if RAG_HIBRIDO else k           # candidatos por vectores: más que k para que el reordenamiento tenga de dónde elegir
+    ajustes = pipeline_cfg.guardada(empresa)               # lo que la empresa cambió; si no, el defecto global
+    k = k or ajustes.get("topK") or RAG_TOP_K
+    hibrido_activo = ajustes.get("hybrid", RAG_HIBRIDO)
+    kc = k * 3 if hibrido_activo else k           # candidatos por vectores: más que k para que el reordenamiento tenga de dónde elegir
     F, D = m.FragmentoEmbedding, m.Documento
     # filtros comunes: SIEMPRE la empresa (tenant), el embedder activo y documentos ya procesados
     donde = (F.empresa_id == empresa.id, D.empresa_id == empresa.id,
@@ -117,7 +120,7 @@ def buscar(db: Session, empresa: m.Empresa, texto: str, k: int | None = None, ve
     cand: dict[str, dict] = {ids[0]: {"txt": txt, "doc": doc, "sim": sim, "ids": ids, "rl": None} for txt, doc, sim, ids in sims}
 
     claves: list[str] = []
-    if RAG_HIBRIDO:
+    if hibrido_activo:
         claves = hibrido.palabras(texto)
         # primero los que contienen un código o cifra de la pregunta (son poco frecuentes: no deben quedar fuera por tener pocas palabras comunes)
         cods = [w for w in claves if any(ch.isdigit() for ch in w)]

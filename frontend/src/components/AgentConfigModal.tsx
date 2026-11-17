@@ -244,7 +244,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                   ref={fileInputRef}
                   onChange={(e) => handleFileUpload(e.target.files)}
                   className="hidden"
-                  accept=".pdf,.docx,.txt,.csv,.faq"
+                  accept=".pdf,.docx,.txt,.csv,.faq,.md,.markdown"
                 />
                 <div className="w-10 h-10 rounded-full bg-[color:var(--c-ch100)] text-[#D20A2E] flex items-center justify-center mx-auto mb-2">
                   <UploadCloud className="w-5 h-5" />

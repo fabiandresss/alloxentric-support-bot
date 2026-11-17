@@ -35,7 +35,7 @@ El front **nunca** habla con la base de datos: todo pasa por la API.
 | Backend | Python 3.11+, FastAPI, Uvicorn |
 | Base de datos | PostgreSQL 16 + extensión pgvector (Docker) |
 | ORM y migraciones | SQLAlchemy 2 + Alembic |
-| Documentos | `pypdf` (PDF), `python-docx` (DOCX), texto plano (TXT, CSV, FAQ) |
+| Documentos | `pypdf` (PDF), `python-docx` (DOCX), texto plano (TXT, CSV, FAQ); Markdown (MD) se limpia a texto plano y cada título abre un fragmento |
 | Frontend | React 19 + TypeScript + Vite + Tailwind (prototipo de Google AI Studio) |
 | Pruebas | pytest (API contra Postgres real) y Playwright (navegador) |
 | Orquestación local | Docker Compose |
@@ -116,7 +116,7 @@ El encargado **no cierra** los tickets: cuando responde, el cliente recibe una *
 
 ### 6.2 Ingesta de documentos
 
-`POST /empresas/{slug}/documentos` → valida tipo (pdf, docx, txt, faq, csv) y tamaño (máx. 20 MB) → guarda el archivo en
+`POST /empresas/{slug}/documentos` → valida tipo (pdf, docx, txt, faq, csv, md) y tamaño (máx. 20 MB) → guarda el archivo en
 `storage/<empresa_id>/` → crea el documento en estado `procesando` → en segundo plano extrae el texto, lo divide en fragmentos de
 ~800 caracteres por párrafos y los guarda → estado `procesado` (o `error` si el archivo está corrupto). El panel consulta cada
 1,5 s hasta que termina.
@@ -395,6 +395,8 @@ latencia, tokens, costo, motivo y veredicto anterior). `excel` separa con «;» 
 
 Solo lectura: `GET /empresas/{slug}/kb/resumen` (documentos por estado y tipo, fragmentos, caracteres, vectores y embedders, última subida) y
 `GET /empresas/{slug}/kb/fragmentos` (los fragmentos con su documento; filtros `q`, `documento_id`, paginación). Subir y borrar documentos sigue en Empresas y agentes.
+
+**Pipeline de ingesta y recuperación (por empresa).** Panel plegable en esta vista (`services/pipeline.py`, columna `empresas.pipeline`, migración 0014). `GET|PUT /empresas/{slug}/kb/pipeline` lee/guarda los ajustes (solo se guarda lo que difiere del defecto) y `POST /empresas/{slug}/kb/reprocesar` vuelve a extraer, fragmentar y vectorizar los documentos que tienen archivo. Ajustes y rangos: `chunkMax` 200–2000 (700), `chunkMin` 20–500 (120, menor que el máximo), `chunkOverlap` 0–300 (0, hasta un tercio del máximo), `topK` 1–10 (`RAG_TOP_K`), `hybrid` (`RAG_HIBRIDO`) y `ocr` (sí). Top-k, híbrido y OCR aplican desde el siguiente mensaje o documento; el chunking solo a lo que se ingeste después (para lo anterior, reprocesar). Guardar sube la `version` de la empresa (invalida la caché de respuestas) y corre los golden sets automáticos; reprocesar los corre una sola vez al final. Roles: `superadmin`, `admin_empresa` y `encargado_agente`. El modelo de embeddings no es configurable por empresa (vectores de modelos distintos no se comparan).
 
 
 ## Ciclo de calidad (S10)

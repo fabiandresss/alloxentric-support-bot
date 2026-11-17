@@ -13,7 +13,7 @@ export type ResponseTone = 'formal' | 'cercano' | 'tecnico';
 export interface DocumentItem {
   id: string;
   name: string;
-  type: 'pdf' | 'docx' | 'txt' | 'faq' | 'csv';
+  type: 'pdf' | 'docx' | 'txt' | 'faq' | 'csv' | 'md';
   size: string;
   uploadedAt: string;
   status: 'procesado' | 'procesando' | 'error';
@@ -492,6 +492,27 @@ export interface KbSummary {
   lastUpdated?: string;
   byType: { type: string; count: number }[];
 }
+
+/** Ajustes de ingesta y recuperación de una empresa (GET/PUT /empresas/{slug}/kb/pipeline). */
+export interface PipelineConfig {
+  chunkMax: number;
+  chunkMin: number;
+  chunkOverlap: number;
+  topK: number;
+  hybrid: boolean;
+  ocr: boolean;
+}
+
+export interface PipelineState {
+  config: PipelineConfig;
+  defaults: PipelineConfig;
+  limits: Record<string, [number, number]>;
+  customized: boolean;
+  reprocessable: number;
+  documents: number;
+}
+
+export interface PipelineReprocess { queued: number; skipped: number }
 
 export interface KbDocument {
   id: string;
