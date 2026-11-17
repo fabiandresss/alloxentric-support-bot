@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WellQ | Salud Digital & Telemedicina Corporativa B2B</title>
+  <meta name="description" content="Plataforma de telemedicina y bienestar corporativo con atención 24/7, más de 18 especialidades médicas y soporte inteligente asistido por IA con WellQ CareBot.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --primary-light: #38bdf8;
+      --primary-bg: #e0f2fe;
+      --accent: #10b981;
+      --dark: #0f172a;
+      --dark-card: #1e293b;
+      --slate-text: #475569;
+      --gray-bg: #f8fafc;
+      --border: #e2e8f0;
+      --shadow-sm: 0 2px 8px rgba(2, 132, 199, 0.08);
+      --shadow-md: 0 10px 30px -10px rgba(2, 132, 199, 0.18);
+      --shadow-lg: 0 20px 40px -15px rgba(15, 23, 42, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: var(--dark);
+      background-color: #ffffff;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, .brand-font {
+      font-family: 'Outfit', sans-serif;
+      letter-spacing: -0.02em;
+    }
+
+    /* Top Banner */
+    .top-banner {
+      background: linear-gradient(90deg, #0369a1, #0284c7, #0d9488);
+      color: white;
+      text-align: center;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .top-banner .badge {
+      background: rgba(255, 255, 255, 0.25);
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--dark);
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+    }
+
+    .brand-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .brand-title span {
+      color: #0284c7;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: #334155;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--primary);
+    }
+
+    .nav-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: white;
+      box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #075985);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(2, 132, 199, 0.45);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #0369a1;
+      border-color: #bae6fd;
+    }
+
+    .btn-secondary:hover {
+      background: #f0f9ff;
+      border-color: #7dd3fc;
+    }
+
+    .btn-chat-hero {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.25);
+    }
+
+    .btn-chat-hero:hover {
+      background: linear-gradient(135deg, #1e293b, #334155);
+      transform: translateY(-2px);
+      border-color: #38bdf8;
+    }
+
+    /* Hero Section */
+    .hero {
+      position: relative;
+      padding: 80px 32px 100px;
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      align-items: center;
+      gap: 60px;
+    }
+
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #0369a1;
+      margin-bottom: 24px;
+    }
+
+    .hero-pill .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #0284c7;
+      box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.7);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(2, 132, 199, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0); }
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      line-height: 1.12;
+      color: #0f172a;
+      margin-bottom: 20px;
+      font-weight: 800;
+    }
+
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, #0284c7 0%, #0d9488 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.15rem;
+      color: #475569;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 44px;
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      padding-top: 32px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .stat-item h3 {
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    .stat-item p {
+      font-size: 0.85rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    /* Hero Visual Card */
+    .hero-card {
+      background: linear-gradient(145deg, #ffffff, #f8fafc);
+      border-radius: 24px;
+      border: 1px solid #e2e8f0;
+      padding: 32px;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.14);
+      position: relative;
+    }
+
+    .card-header-badge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .badge-status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #16a34a;
+    }
+
+    .doctor-preview {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: white;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+      margin-bottom: 20px;
+    }
+
+    .doctor-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: #e0f2fe;
+      color: #0284c7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: 700;
+    }
+
+    .doctor-info h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .doctor-info p {
+      font-size: 0.82rem;
+      color: #64748b;
+    }
+
+    .chat-bubble-demo {
+      background: #f1f5f9;
+      border-radius: 16px 16px 16px 4px;
+      padding: 16px;
+      font-size: 0.88rem;
+      color: #1e293b;
+      margin-bottom: 16px;
+      line-height: 1.5;
+      border-left: 3px solid #0284c7;
+    }
+
+    .chat-bubble-demo strong {
+      color: #0284c7;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .interactive-launch-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35);
+      transition: all 0.2s ease;
+    }
+
+    .interactive-launch-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(2, 132, 199, 0.45);
+    }
+
+    /* Trust / Integrations Bar */
+    .trust-bar {
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 36px 32px;
+      text-align: center;
+    }
+
+    .trust-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    .trust-logos {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+    }
+
+    .trust-badge {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s ease;
+    }
+
+    .trust-badge:hover {
+      color: #0284c7;
+    }
+
+    /* Specialties Grid */
+    .section {
+      padding: 90px 32px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto 56px;
+    }
+
+    .section-tag {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #0284c7;
+      margin-bottom: 12px;
+    }
+
+    .section-header h2 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    .section-header p {
+      font-size: 1.05rem;
+      color: #64748b;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 28px;
+    }
+
+    .feature-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 32px;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+      position: relative;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 35px -10px rgba(2, 132, 199, 0.15);
+      border-color: #bae6fd;
+    }
+
+    .feature-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      background: #f0f9ff;
+      color: #0284c7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin-bottom: 20px;
+      transition: background 0.2s ease;
+    }
+
+    .feature-card:hover .feature-icon {
+      background: #0284c7;
+      color: white;
+    }
+
+    .feature-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 10px;
+    }
+
+    .feature-card p {
+      font-size: 0.92rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    /* AI Spotlight Banner */
+    .ai-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: white;
+      border-radius: 28px;
+      padding: 60px 48px;
+      margin: 40px auto;
+      max-width: 1280px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      align-items: center;
+      gap: 48px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .ai-banner::after {
+      content: '';
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.25) 0%, rgba(14, 165, 233, 0) 70%);
+      border-radius: 50%;
+    }
+
+    .ai-banner h2 {
+      font-size: 2.3rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .ai-banner p {
+      color: #94a3b8;
+      font-size: 1.05rem;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .ai-features-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+
+    .ai-feature-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.95rem;
+      color: #cbd5e1;
+    }
+
+    .check-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+
+    .widget-code-preview {
+      background: #0b1120;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 24px;
+      font-family: monospace;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .widget-code-preview .comment {
+      color: #64748b;
+    }
+
+    .widget-code-preview .attr {
+      color: #a78bfa;
+    }
+
+    .widget-code-preview .val {
+      color: #fde047;
+    }
+
+    /* FAQ Section */
+    .faq-container {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .faq-item {
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 22px 28px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .faq-item:hover {
+      border-color: #bae6fd;
+    }
+
+    .faq-question {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .faq-answer {
+      margin-top: 12px;
+      font-size: 0.92rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    /* Footer */
+    .footer {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 60px 32px 30px;
+      border-top: 1px solid #1e293b;
+    }
+
+    .footer-content {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand h4 {
+      color: white;
+      font-size: 1.3rem;
+      margin-bottom: 12px;
+    }
+
+    .footer-links h5 {
+      color: white;
+      font-size: 0.95rem;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .footer-links ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-links a {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: #38bdf8;
+    }
+
+    .footer-bottom {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding-top: 24px;
+      border-top: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.85rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 992px) {
+      .hero {
+        grid-template-columns: 1fr;
+        padding-top: 40px;
+      }
+      .ai-banner {
+        grid-template-columns: 1fr;
+      }
+      .footer-content {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 {
+        font-size: 2.4rem;
+      }
+      .nav-links {
+        display: none;
+      }
+      .footer-content {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Announcement Bar -->
+  <div class="top-banner">
+    <span class="badge">Nuevo MVP</span>
+    <span>Atención 24/7 impulsada por <strong>WellQ CareBot</strong> con IA Alloxentric SupportHub</span>
+    <a href="#asistente-ia" style="color: #fef08a; text-decoration: underline; font-weight: 600;">Ver cómo funciona →</a>
+  </div>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <a href="#" class="nav-brand">
+      <div class="brand-logo">WQ</div>
+      <div class="brand-title">Well<span>Q</span></div>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#especialidades">Especialidades</a></li>
+      <li><a href="#empresas">Empresas</a></li>
+      <li><a href="#coberturas">Isapres & Fonasa</a></li>
+      <li><a href="#asistente-ia">Asistente IA (RAG)</a></li>
+      <li><a href="#faq">Preguntas</a></li>
+    </ul>
+    <div class="nav-cta">
+      <button id="navChatBtn" class="btn btn-secondary" onclick="abrirWidgetChat()">
+        💬 Abrir Asistente
+      </button>
+      <a href="#empresas" class="btn btn-primary">Contratar Plan B2B</a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <div class="hero-pill">
+          <span class="pulse-dot"></span>
+          <span>Red médica conectada en tiempo real</span>
+        </div>
+        <h1>
+          Telemedicina corporativa y salud digital <span class="highlight">sin fricción</span>.
+        </h1>
+        <p class="hero-desc">
+          Brinda a tus colaboradores acceso inmediato a médicos generales, especialistas y psicólogos en menos de 3 minutos. Con emisión de recetas electrónicas y soporte inteligente 24/7 a través de nuestro chatbot clínico asistido por IA.
+        </p>
+        <div class="hero-actions">
+          <button id="heroChatBtn" class="btn btn-primary" onclick="abrirWidgetChat()" style="padding: 14px 28px; font-size: 1rem;">
+            💬 Hablar con WellQ CareBot
+          </button>
+          <a href="#especialidades" class="btn btn-chat-hero" style="padding: 14px 24px; font-size: 1rem;">
+            Ver Especialidades Disponibles
+          </a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-item">
+            <h3>+150K</h3>
+            <p>Consultas resueltas</p>
+          </div>
+          <div class="stat-item">
+            <h3>98.4%</h3>
+            <p>Satisfacción de pacientes</p>
+          </div>
+          <div class="stat-item">
+            <h3>89.2%</h3>
+            <p>Resolución con RAG Alloxentric</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero Visual Card -->
+      <div class="hero-card">
+        <div class="card-header-badge">
+          <span class="brand-font" style="font-size: 0.95rem; font-weight: 700; color: #0284c7;">Módulo de Atención Virtual</span>
+          <span class="badge-status">En línea 24/7</span>
+        </div>
+        
+        <div class="doctor-preview">
+          <div class="doctor-avatar">🩺</div>
+          <div class="doctor-info">
+            <h4>Dra. Camila Morales</h4>
+            <p>Medicina General • Registro SIS Nº 481920</p>
+          </div>
+        </div>
+
+        <div class="chat-bubble-demo">
+          <strong>WellQ CareBot (IA Alloxentric):</strong>
+          "¡Hola! Soy el asistente clínico y administrativo de WellQ. Puedo ayudarte con agendamiento inmediato, orientación médica preventiva, o resolver tus dudas sobre coberturas y reembolsos con tu Isapre."
+        </div>
+
+        <button class="interactive-launch-btn" onclick="abrirWidgetChat()">
+          <span>🚀 Probar Chatbot Integrado en Vivo</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Trust / Isapres Bar -->
+    <section class="trust-bar" id="coberturas">
+      <div class="trust-title">Cobertura directa, bonos I-Med y convenios automáticos</div>
+      <div class="trust-logos">
+        <span class="trust-badge">🏥 Banmédica</span>
+        <span class="trust-badge">🩺 Colmena Golden Cross</span>
+        <span class="trust-badge">⚕️ Consalud</span>
+        <span class="trust-badge">🛡️ CruzBlanca</span>
+        <span class="trust-badge">💼 Vida Tres</span>
+        <span class="trust-badge">🇨🇱 Fonasa Nivel 3</span>
+      </div>
+    </section>
+
+    <!-- Specialties Section -->
+    <section class="section" id="especialidades">
+      <div class="section-header">
+        <span class="section-tag">Nuestras Especialidades</span>
+        <h2>Atención integral para cada necesidad de salud</h2>
+        <p>Especialistas colegiados listos para atender consultas desde cualquier dispositivo, en el trabajo o desde el hogar.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🩺</div>
+          <h3>Medicina General 24/7</h3>
+          <p>Atención médica sin espera previa. Diagnóstico oportuno, emisión de órdenes de exámenes, recetas electrónicas con firma válida en farmacias de todo Chile.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🧠</div>
+          <h3>Salud Mental & Psicología</h3>
+          <p>Terapias preventivas y de seguimiento para estrés, ansiedad laboral y burnout. Sesiones individuales con psicólogos clínicos certificados.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">👶</div>
+          <h3>Pediatría Express</h3>
+          <p>Tranquilidad para los colaboradores con hijos. Consultas pediátricas de urgencia y orientación para cuadros respiratorios o gastrointestinales.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🥗</div>
+          <h3>Nutrición & Bienestar</h3>
+          <p>Planes de alimentación personalizados para mejorar la energía y prevenir enfermedades metabólicas en equipos de trabajo.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔍</div>
+          <h3>Dermatología Digital</h3>
+          <p>Evaluación de lesiones, alergias y afecciones de la piel mediante consulta fotográfica y videollamada de alta resolución.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Triaje con IA (WellQ CareBot)</h3>
+          <p>Filtro previo inteligente que analiza los síntomas del usuario con RAG, derivando automáticamente al especialista idóneo o abriendo ticket en Corestream.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Integration Spotlight (Capstone Demonstration) -->
+    <section class="section" id="asistente-ia" style="padding-top: 0;">
+      <div class="ai-banner">
+        <div>
+          <span style="display:inline-block; font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#38bdf8; margin-bottom:12px;">Arquitectura RAG Multi-Tenant (RF-29)</span>
+          <h2>Integración nativa con Alloxentric SupportHub</h2>
+          <p>
+            Esta landing page de WellQ demuestra el <strong>Widget Embebible (RF-29)</strong> desarrollado en el Capstone. 
+            El chatbot responde consultando directamente la base de conocimiento vectorial de WellQ en PostgreSQL con <em>pgvector</em> y <em>sentence-transformers</em>.
+          </p>
+
+          <div class="ai-features-list">
+            <div class="ai-feature-row">
+              <span class="check-icon">✓</span>
+              <span><strong>Aislamiento Multi-Tenant:</strong> Respuestas estrictamente limitadas al conocimiento clínico de WellQ.</span>
+            </div>
+            <div class="ai-feature-row">
+              <span class="check-icon">✓</span>
+              <span><strong>Derivación a Corestream:</strong> Creación automática de tickets si se detectan consultas complejas o urgencias.</span>
+            </div>
+            <div class="ai-feature-row">
+              <span class="check-icon">✓</span>
+              <span><strong>Encuesta de Satisfacción:</strong> Ciclo completo del ticket con cierre por parte del afiliado o escalamiento a supervisores.</span>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="abrirWidgetChat()" style="padding: 12px 24px;">
+            Probar Widget Embebido Ahora
+          </button>
+        </div>
+
+        <div>
+          <div class="widget-code-preview">
+            <div class="comment">&lt;!-- Integración en 1 sola línea de código --&gt;</div>
+            &lt;<span class="attr">script</span><br>
+            &nbsp;&nbsp;<span class="attr">src</span>=<span class="val">"http://localhost:3000/widget.min.js"</span><br>
+            &nbsp;&nbsp;<span class="attr">data-tenant-id</span>=<span class="val">"wellq"</span><br>
+            &nbsp;&nbsp;<span class="attr">data-agent-name</span>=<span class="val">"WellQ CareBot"</span><br>
+            &nbsp;&nbsp;<span class="attr">data-primary-color</span>=<span class="val">"#0284C7"</span><br>
+            &nbsp;&nbsp;<span class="attr">data-position</span>=<span class="val">"right"</span><br>
+            &nbsp;&nbsp;<span class="attr">defer</span>&gt;<br>
+            &lt;/<span class="attr">script</span>&gt;
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="section" id="faq">
+      <div class="section-header">
+        <span class="section-tag">Resolución de Dudas Frecuentes</span>
+        <h2>Preguntas Frecuentes sobre el Servicio</h2>
+        <p>Estas son las mismas consultas que el asistente inteligente <strong>WellQ CareBot</strong> resuelve en el chat.</p>
+      </div>
+
+      <div class="faq-container">
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Cómo reembolsar una consulta con mi Isapre o Fonasa?</span>
+            <span>+</span>
+          </div>
+          <div class="faq-answer">
+            Al finalizar tu teleconsulta, recibirás en tu correo electrónico el comprobante de atención y la boleta electrónica. Con estos documentos puedes solicitar el reembolso directamente en el portal web o app de tu Isapre (Banmédica, Colmena, Consalud, CruzBlanca, Vida Tres). Para Fonasa, aplica según convenio I-Med en sucursales o plataforma digital.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Qué sucede si tengo una urgencia médica con riesgo vital?</span>
+            <span>+</span>
+          </div>
+          <div class="faq-answer">
+            Si presentas síntomas de gravedad (dolor opresivo al pecho, pérdida de conciencia, dificultad respiratoria severa), debes llamar de inmediato al SAMU (131) o dirigirte al centro de urgencias más cercano. Nuestro bot detecta estas palabras clave y genera una alerta URGENTE con derivación inmediata a la mesa médica.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Cómo recibo mis recetas médicas y órdenes de exámenes?</span>
+            <span>+</span>
+          </div>
+          <div class="faq-answer">
+            Todas las recetas médicas emitidas en WellQ son 100% digitales y cuentan con firma electrónica avanzada autorizada por el Ministerio de Salud (MINSAL), válidas en todas las farmacias del país y laboratorios clínicos.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Cómo puede mi empresa contratar WellQ para los colaboradores?</span>
+            <span>+</span>
+          </div>
+          <div class="faq-answer">
+            Contamos con planes corporativos escalables según el número de colaboradores, con reportes mensuales anonimizados de salud ocupacional, acceso al bot de triaje y jornadas de salud preventiva.
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <h4>WellQ Salud Digital B2B</h4>
+        <p style="font-size: 0.9rem; margin-bottom: 16px;">
+          Plataforma líder en telemedicina y salud ocupacional corporativa. Integrada con la infraestructura de soporte inteligente de Alloxentric.
+        </p>
+        <p style="font-size: 0.8rem; color: #64748b;">
+          Proyecto Capstone PTY4614 • Duoc UC • Fabián Armijo & Vicente Balladares
+        </p>
+      </div>
+
+      <div class="footer-links">
+        <h5>Plataforma</h5>
+        <ul>
+          <li><a href="#especialidades">Especialidades</a></li>
+          <li><a href="#coberturas">Isapres</a></li>
+          <li><a href="#asistente-ia">Asistente IA</a></li>
+          <li><a href="http://localhost:3000/chat/wellq" target="_blank">Chat Público</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links">
+        <h5>Administración</h5>
+        <ul>
+          <li><a href="http://localhost:3000" target="_blank">Consola Alloxentric</a></li>
+          <li><a href="http://localhost:8000/docs" target="_blank">Swagger API</a></li>
+          <li><a href="http://localhost:8000/health" target="_blank">Métricas / Health</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links">
+        <h5>Contacto & Soporte</h5>
+        <ul>
+          <li><a href="mailto:soporte@wellq.demo">soporte@wellq.demo</a></li>
+          <li><a href="tel:+56220000000">+56 2 2000 0000</a></li>
+          <li><span>Santiago, Chile</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>© 2026 WellQ SpA. Todos los derechos reservados. Desarrollado para el ecosistema Alloxentric SupportHub.</p>
+      <p>Modo MVP • Capstone Ingeniería Informática</p>
+    </div>
+  </footer>
+
+  <script>
+    function toggleFaq(item) {
+      const answer = item.querySelector('.faq-answer');
+      const icon = item.querySelector('.faq-question span:last-child');
+      if (answer.style.display === 'none' || !answer.style.display) {
+        answer.style.display = 'block';
+        icon.textContent = '−';
+      } else {
+        answer.style.display = 'none';
+        icon.textContent = '+';
+      }
+    }
+
+    // Inicializar FAQs colapsadas excepto la primera
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.faq-item').forEach((item, idx) => {
+        const answer = item.querySelector('.faq-answer');
+        const icon = item.querySelector('.faq-question span:last-child');
+        if (idx !== 0) {
+          answer.style.display = 'none';
+          icon.textContent = '+';
+        } else {
+          icon.textContent = '−';
+        }
+      });
+    });
+
+    // Función para activar el botón del widget integrado o redirigir al chat
+    function abrirWidgetChat() {
+      // Buscar botón inyectado por widget.min.js
+      const widgetBtn = document.querySelector('button[aria-label*="chat"], button[aria-label*="Chat"], button[aria-label*="WellQ"]');
+      if (widgetBtn) {
+        widgetBtn.click();
+      } else {
+        // Respaldo directo en caso de navegar de forma independiente
+        window.open('http://localhost:3000/chat/wellq', '_blank', 'width=420,height=680');
+      }
+    }
+  </script>
+
+  <!-- Inyección oficial del Widget Embebible Alloxentric SupportHub (RF-29) -->
+  <script
+    src="/widget.min.js"
+    data-tenant-id="wellq"
+    data-agent-name="WellQ CareBot"
+    data-primary-color="#0284C7"
+    data-position="right"
+    defer>
+  </script>
+
+</body>
+</html>

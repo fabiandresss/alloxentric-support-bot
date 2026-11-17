@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XubiMMA | Centro de Alto Rendimiento & Deportes de Contacto</title>
+  <meta name="description" content="Academia líder de Artes Marciales Mixtas, Brazilian Jiu-Jitsu, Muay Thai y Boxeo en Santiago de Chile. Clases formativas y de competición con soporte inteligente 24/7 con XubiBot MMA.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #dc2626;
+      --primary-dark: #991b1b;
+      --primary-light: #ef4444;
+      --primary-bg: #fef2f2;
+      --accent: #f59e0b;
+      --dark: #09090b;
+      --dark-card: #18181b;
+      --slate-text: #71717a;
+      --gray-bg: #fafafa;
+      --border: #e4e4e7;
+      --border-dark: #27272a;
+      --shadow-sm: 0 2px 8px rgba(220, 38, 38, 0.08);
+      --shadow-md: 0 10px 30px -10px rgba(220, 38, 38, 0.2);
+      --shadow-lg: 0 20px 40px -15px rgba(9, 9, 11, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: var(--dark);
+      background-color: #ffffff;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, .brand-font {
+      font-family: 'Outfit', sans-serif;
+      letter-spacing: -0.02em;
+    }
+
+    /* Top Announcement Bar */
+    .top-banner {
+      background: linear-gradient(90deg, #7f1d1d, #b91c1c, #dc2626, #b91c1c);
+      color: white;
+      text-align: center;
+      padding: 9px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      letter-spacing: 0.02em;
+    }
+
+    .top-banner .badge {
+      background: rgba(255, 255, 255, 0.25);
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--dark);
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #b91c1c, #dc2626);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 900;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .brand-title {
+      font-size: 1.45rem;
+      font-weight: 900;
+      color: #09090b;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-title span {
+      color: var(--primary);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: #3f3f46;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: color 0.15s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--primary);
+    }
+
+    .nav-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: white;
+      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #b91c1c, #991b1b);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(220, 38, 38, 0.45);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #18181b;
+      border-color: #d4d4d8;
+    }
+
+    .btn-secondary:hover {
+      background: #f4f4f5;
+      border-color: #a1a1aa;
+    }
+
+    .btn-chat-hero {
+      background: linear-gradient(135deg, #18181b, #09090b);
+      color: white;
+      border: 1px solid #3f3f46;
+      box-shadow: 0 4px 20px rgba(9, 9, 11, 0.35);
+    }
+
+    .btn-chat-hero:hover {
+      background: linear-gradient(135deg, #27272a, #18181b);
+      transform: translateY(-2px);
+      border-color: #ef4444;
+      box-shadow: 0 6px 24px rgba(220, 38, 38, 0.3);
+    }
+
+    /* Hero Section */
+    .hero {
+      position: relative;
+      padding: 70px 32px 90px;
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      align-items: center;
+      gap: 60px;
+    }
+
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #b91c1c;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-pill .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #dc2626;
+      box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      line-height: 1.1;
+      color: #09090b;
+      margin-bottom: 20px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.12rem;
+      color: #52525b;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border);
+    }
+
+    .stat-item h3 {
+      font-size: 1.85rem;
+      font-weight: 900;
+      color: #09090b;
+      margin-bottom: 2px;
+    }
+
+    .stat-item p {
+      font-size: 0.82rem;
+      color: #71717a;
+      font-weight: 600;
+    }
+
+    /* Hero Visual Card */
+    .hero-card {
+      background: linear-gradient(145deg, #18181b, #09090b);
+      border-radius: 24px;
+      border: 1px solid #27272a;
+      padding: 32px;
+      color: #f4f4f5;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 250px;
+      height: 250px;
+      background: radial-gradient(circle, rgba(220, 38, 38, 0.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .card-badge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .card-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .card-coach {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .coach-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #dc2626, #7f1d1d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: white;
+      border: 2px solid #ef4444;
+    }
+
+    .coach-info h4 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: white;
+    }
+
+    .coach-info p {
+      font-size: 0.8rem;
+      color: #a1a1aa;
+    }
+
+    .card-schedule {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      border: 1px solid #27272a;
+    }
+
+    .schedule-header {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .schedule-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      padding: 4px 0;
+      color: #d4d4d8;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+    }
+    .schedule-row:last-child { border-bottom: none; }
+
+    .card-bot-preview {
+      background: rgba(220, 38, 38, 0.12);
+      border: 1px solid rgba(220, 38, 38, 0.3);
+      padding: 14px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Trust / Features Bar */
+    .trust-bar {
+      background: #fafafa;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+    }
+
+    .trust-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #3f3f46;
+    }
+
+    .trust-item svg {
+      color: var(--primary);
+    }
+
+    /* Common Section Styles */
+    .section {
+      padding: 90px 32px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 56px;
+    }
+
+    .section-tag {
+      display: inline-block;
+      background: var(--primary-bg);
+      color: var(--primary-dark);
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      margin-bottom: 14px;
+      border: 1px solid #fecaca;
+    }
+
+    .section-title {
+      font-size: 2.6rem;
+      color: #09090b;
+      font-weight: 900;
+      line-height: 1.18;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      font-size: 1.08rem;
+      color: #52525b;
+      line-height: 1.6;
+    }
+
+    /* Disciplines Grid */
+    .disciplines-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+
+    .discipline-card {
+      background: white;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 28px;
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .discipline-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 36px -10px rgba(220, 38, 38, 0.15);
+      border-color: #fca5a5;
+    }
+
+    .card-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: #fef2f2;
+      color: #dc2626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .discipline-card h3 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #09090b;
+    }
+
+    .discipline-card p {
+      font-size: 0.92rem;
+      color: #52525b;
+      margin-bottom: 18px;
+      line-height: 1.55;
+    }
+
+    .gear-list {
+      background: #f4f4f5;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      color: #3f3f46;
+      margin-bottom: 20px;
+    }
+    .gear-list strong { color: #18181b; }
+
+    /* Pricing Section */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+
+    .pricing-card {
+      background: white;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      padding: 32px 24px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+    }
+
+    .pricing-card.featured {
+      background: #09090b;
+      color: white;
+      border-color: #dc2626;
+      box-shadow: 0 20px 45px -10px rgba(220, 38, 38, 0.35);
+      transform: scale(1.03);
+      z-index: 2;
+    }
+
+    .popular-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, #dc2626, #ea580c);
+      color: white;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .pricing-card h4 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .pricing-card p.tier-desc {
+      font-size: 0.85rem;
+      color: #71717a;
+      margin-bottom: 20px;
+    }
+    .pricing-card.featured p.tier-desc { color: #a1a1aa; }
+
+    .price-tag {
+      font-size: 2.2rem;
+      font-weight: 900;
+      margin-bottom: 4px;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .price-period {
+      font-size: 0.82rem;
+      color: #71717a;
+      margin-bottom: 24px;
+    }
+    .pricing-card.featured .price-period { color: #a1a1aa; }
+
+    .pricing-features {
+      list-style: none;
+      margin-bottom: 28px;
+    }
+
+    .pricing-features li {
+      font-size: 0.86rem;
+      padding: 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* AI Assistant Feature Highlight */
+    .ai-banner {
+      background: linear-gradient(135deg, #18181b 0%, #09090b 100%);
+      border-radius: 28px;
+      border: 1px solid #27272a;
+      padding: 60px 48px;
+      color: white;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      align-items: center;
+      gap: 50px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .ai-banner::after {
+      content: '';
+      position: absolute;
+      bottom: -60px;
+      left: 20%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(220, 38, 38, 0.22) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* FAQ Accordion */
+    .faq-container {
+      max-width: 840px;
+      margin: 0 auto;
+    }
+
+    .faq-item {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 14px;
+      overflow: hidden;
+      transition: all 0.15s ease;
+    }
+
+    .faq-question {
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 700;
+      font-size: 1.02rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .faq-answer {
+      padding: 0 24px 20px;
+      font-size: 0.94rem;
+      color: #52525b;
+      line-height: 1.6;
+      border-top: 1px solid transparent;
+    }
+
+    /* Footer */
+    .footer {
+      background: #09090b;
+      color: #a1a1aa;
+      padding: 70px 32px 30px;
+      border-top: 1px solid #27272a;
+    }
+
+    .footer-content {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 50px;
+    }
+
+    .footer-brand h4 {
+      color: white;
+      font-size: 1.4rem;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .footer-links h5 {
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+
+    .footer-links ul {
+      list-style: none;
+    }
+
+    .footer-links li {
+      margin-bottom: 10px;
+    }
+
+    .footer-links a {
+      color: #a1a1aa;
+      text-decoration: none;
+      font-size: 0.88rem;
+      transition: color 0.15s ease;
+    }
+
+    .footer-links a:hover {
+      color: #ef4444;
+    }
+
+    .footer-bottom {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding-top: 24px;
+      border-top: 1px solid #18181b;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: #71717a;
+    }
+
+    @media (max-width: 1024px) {
+      .hero { grid-template-columns: 1fr; padding: 40px 20px; }
+      .disciplines-grid { grid-template-columns: repeat(2, 1fr); }
+      .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+      .ai-banner { grid-template-columns: 1fr; }
+      .footer-content { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .disciplines-grid, .pricing-grid { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 2.4rem; }
+      .navbar { padding: 12px 16px; }
+      .nav-links { display: none; }
+      .footer-content { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Announcement Bar -->
+  <div class="top-banner">
+    <span class="badge">Temporada 2026</span>
+    <span>🔥 ¡Primera Clase de Prueba 100% Gratuita en MMA, BJJ y Muay Thai! Solicítala con nuestro Asistente Virtual XubiBot.</span>
+  </div>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <a href="#" class="nav-brand">
+      <div class="brand-logo">XM</div>
+      <div class="brand-title">Xubi<span>MMA</span></div>
+    </a>
+
+    <ul class="nav-links">
+      <li><a href="#disciplinas">Disciplinas</a></li>
+      <li><a href="#membresias">Membresías</a></li>
+      <li><a href="#asistente-ia">XubiBot IA</a></li>
+      <li><a href="#entrenadores">Staff</a></li>
+      <li><a href="#faq">Preguntas</a></li>
+    </ul>
+
+    <div class="nav-cta">
+      <a href="#asistente-ia" class="btn btn-secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        XubiBot IA
+      </a>
+      <button onclick="abrirWidgetChat()" class="btn btn-primary">
+        Reservar Clase Gratis
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <div class="hero-pill">
+          <span class="pulse-dot"></span>
+          Centro de Alto Rendimiento & Artes Marciales Mixtas
+        </div>
+        <h1>Forja tu disciplina. <br>Domina el combate. <br><span class="highlight">Entrena como campeón.</span></h1>
+        <p class="hero-desc">
+          La academia referente en deportes de contacto en Santiago de Chile. Programas de iniciación y alto rendimiento en MMA, Brazilian Jiu-Jitsu (Gi / No-Gi), Muay Thai, Boxeo, Lucha Olímpica y Acondicionamiento Físico de Combate.
+        </p>
+
+        <div class="hero-actions">
+          <button onclick="abrirWidgetChat()" class="btn btn-primary" style="padding: 14px 28px; font-size: 1rem;">
+            🔥 Solicitar Clase de Prueba
+          </button>
+          <button onclick="abrirWidgetChat()" class="btn btn-chat-hero" style="padding: 14px 26px; font-size: 1rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Consultar a XubiBot MMA
+          </button>
+        </div>
+
+        <div class="hero-stats">
+          <div class="stat-item">
+            <h3>1.200 m²</h3>
+            <p>Jaula Oficial, Ring & Tatami Olímpico</p>
+          </div>
+          <div class="stat-item">
+            <h3>6</h3>
+            <p>Disciplinas de Combate & Fuerza</p>
+          </div>
+          <div class="stat-item">
+            <h3>24/7</h3>
+            <p>Soporte con IA Alloxentric</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero Visual Card -->
+      <div class="hero-card">
+        <div class="card-badge">
+          <span class="card-status">● TATAMI PRINCIPAL EN VIVO</span>
+          <span style="font-size: 0.8rem; color: #a1a1aa;">Santiago • Providencia</span>
+        </div>
+
+        <div class="card-coach">
+          <div class="coach-avatar">VB</div>
+          <div class="coach-info">
+            <h4>Vicente "El Tanque" Balladares</h4>
+            <p>Head Coach • Faixa Preta 2º Grado BJJ • Ex-MMA Pro</p>
+          </div>
+        </div>
+
+        <div class="card-schedule">
+          <div class="schedule-header">
+            <span>Sesión en curso</span>
+            <span>19:30 - 21:00 hrs</span>
+          </div>
+          <div class="schedule-row">
+            <span>Disciplina</span>
+            <strong style="color: white;">Brazilian Jiu-Jitsu (Gi)</strong>
+          </div>
+          <div class="schedule-row">
+            <span>Intensidad</span>
+            <span style="color: #4ade80;">Técnica & Drills de Pasaje</span>
+          </div>
+          <div class="schedule-row">
+            <span>Atletas en Tatami</span>
+            <span>26 participantes activos</span>
+          </div>
+        </div>
+
+        <div class="card-bot-preview">
+          <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: #f87171; font-weight: 800;">Asistente Virtual</div>
+            <div style="font-size: 0.9rem; font-weight: 700; color: white;">XubiBot MMA está en línea</div>
+          </div>
+          <button onclick="abrirWidgetChat()" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.8rem;">
+            Chatear
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trust / Badges Bar -->
+    <section class="trust-bar">
+      <div class="trust-container">
+        <div class="trust-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Seguridad Deportiva & Tap-Out Estricto
+        </div>
+        <div class="trust-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+          Instructores Certificados IBJJF & WMC
+        </div>
+        <div class="trust-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Convenio Estudiantes Duoc UC (15% OFF)
+        </div>
+        <div class="trust-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+          Soporte IA Alloxentric Multi-Tenant
+        </div>
+      </div>
+    </section>
+
+    <!-- Disciplines Section -->
+    <section class="section" id="disciplinas">
+      <div class="section-header">
+        <span class="section-tag">Disciplinas de Combate</span>
+        <h2 class="section-title">Elige tu disciplina. Domina el tatami.</h2>
+        <p class="section-subtitle">
+          Desde tus primeros pasos en defensa personal hasta el campamento de preparación para peleas profesionales. Metodología progresiva y libre de egos.
+        </p>
+      </div>
+
+      <div class="disciplines-grid">
+        <!-- MMA -->
+        <div class="discipline-card">
+          <div>
+            <div class="card-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+            </div>
+            <h3>Artes Marciales Mixtas (MMA)</h3>
+            <p>
+              Integración total de striking, lucha olímpica, control contra la jaula (wall-work) y finalizaciones en el suelo.
+            </p>
+          </div>
+          <div>
+            <div class="gear-list">
+              <strong>Equipamiento:</strong> Guantillas MMA 7 oz, bucal, vendas y rashguard sin cierres.
+            </div>
+            <button onclick="preguntarDisciplina('Artes Marciales Mixtas (MMA)')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Horarios con XubiBot
+            </button>
+          </div>
+        </div>
+
+        <!-- BJJ -->
+        <div class="discipline-card">
+          <div>
+            <div class="card-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A7.002 7.002 0 0 1 5.07 11H5a1 1 0 0 1 0-2h.07A7.002 7.002 0 0 1 11 3.07V3a1 1 0 0 1 2 0v.07A7.002 7.002 0 0 1 18.93 9H19a1 1 0 0 1 0 2h-.07A7.002 7.002 0 0 1 13 16.93z"/></svg>
+            </div>
+            <h3>Brazilian Jiu-Jitsu (Gi & No-Gi)</h3>
+            <p>
+              El arte suave. Domina el control posicional, estrangulaciones y palancas articulares. Graduación oficial IBJJF.
+            </p>
+          </div>
+          <div>
+            <div class="gear-list">
+              <strong>Equipamiento:</strong> Kimono oficial (blanco, azul o negro) para Gi; rashguard y short para No-Gi.
+            </div>
+            <button onclick="preguntarDisciplina('Brazilian Jiu-Jitsu (BJJ)')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Horarios con XubiBot
+            </button>
+          </div>
+        </div>
+
+        <!-- Muay Thai -->
+        <div class="discipline-card">
+          <div>
+            <div class="card-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            </div>
+            <h3>Muay Thai & Kickboxing</h3>
+            <p>
+              El arte de las 8 extremidades. Puñetazos, patadas a la canilla, rodillas, codos y dominio de clinch tailandés.
+            </p>
+          </div>
+          <div>
+            <div class="gear-list">
+              <strong>Equipamiento:</strong> Guantes 14-16 oz, vendas 4.5m, canilleras rígidas y bucal.
+            </div>
+            <button onclick="preguntarDisciplina('Muay Thai y Kickboxing')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Horarios con XubiBot
+            </button>
+          </div>
+        </div>
+
+        <!-- Boxeo -->
+        <div class="discipline-card">
+          <div>
+            <div class="card-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m14 15-4-4 4-4"/></svg>
+            </div>
+            <h3>Boxeo Tradicional</h3>
+            <p>
+              Perfecciona tu pegada, desplazamientos en el ring, esquivas y combinaciones. Cardio de altísima quema calórica.
+            </p>
+          </div>
+          <div>
+            <div class="gear-list">
+              <strong>Equipamiento:</strong> Guantes 12-16 oz, vendas elásticas de 4.5 metros y protector bucal.
+            </div>
+            <button onclick="preguntarDisciplina('Boxeo Tradicional')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Horarios con XubiBot
+            </button>
+          </div>
+        </div>
+
+        <!-- Wrestling -->
+        <div class="discipline-card">
+          <div>
+            <div class="card-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            </div>
+            <h3>Lucha Olímpica (Wrestling)</h3>
+            <p>
+              Técnicas de control corporal, proyecciones (takedowns), single legs, double legs y defensa contra derribos (sprawl).
+            </p>
+          </div>
+          <div>
+            <div class="gear-list">
+              <strong>Equipamiento:</strong> Rashguard, zapatillas de lucha (opcional) y rodilleras acolchadas.
+            </div>
+            <button onclick="preguntarDisciplina('Lucha Olímpica (Wrestling)')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Horarios con XubiBot
+            </button>
+          </div>
+        </div>
+
+        <!-- Strength & Conditioning -->
+        <div class="discipline-card">
+          <div>
+            <div class="card-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
+            </div>
+            <h3>Strength & Conditioning</h3>
+            <p>
+              Acondicionamiento físico de combate: fuerza explosiva, resistencia anaeróbica de alta intensidad y prevención de lesiones.
+            </p>
+          </div>
+          <div>
+            <div class="gear-list">
+              <strong>Equipamiento:</strong> Ropa deportiva, zapatillas de training y toalla obligatoria.
+            </div>
+            <button onclick="preguntarDisciplina('Acondicionamiento Físico S&C')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Horarios con XubiBot
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="section" id="membresias" style="background: #fafafa; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); max-width: 100%;">
+      <div style="max-width: 1280px; margin: 0 auto;">
+        <div class="section-header">
+          <span class="section-tag">Planes & Membresías</span>
+          <h2 class="section-title">Elige el plan para alcanzar tu máximo potencial</h2>
+          <p class="section-subtitle">
+            Sin contratos abusivos. Todos los planes incluyen uso de camarines, casilleros individuales y evaluación física diagnóstica inicial.
+          </p>
+        </div>
+
+        <div class="pricing-grid">
+          <!-- Striker -->
+          <div class="pricing-card">
+            <div>
+              <h4>Plan Striker</h4>
+              <p class="tier-desc">Para amantes del golpeo de pie</p>
+              <div class="price-tag">$45.000</div>
+              <div class="price-period">CLP / mes • 3 días por semana</div>
+              <ul class="pricing-features">
+                <li>✓ Boxeo o Muay Thai (a elección)</li>
+                <li>✓ Acceso a zona de sacos libres</li>
+                <li>✓ Camarines y duchas de agua caliente</li>
+                <li>✕ Clases de suelo (BJJ/Lucha)</li>
+              </ul>
+            </div>
+            <button onclick="preguntarPlan('Plan Striker ($45.000/mes)')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Plan
+            </button>
+          </div>
+
+          <!-- Grappler -->
+          <div class="pricing-card">
+            <div>
+              <h4>Plan Grappler</h4>
+              <p class="tier-desc">Para apasionados del suelo y sumisiones</p>
+              <div class="price-tag">$45.000</div>
+              <div class="price-period">CLP / mes • 3 días por semana</div>
+              <ul class="pricing-features">
+                <li>✓ Brazilian Jiu-Jitsu (Gi y No-Gi)</li>
+                <li>✓ Clases de Lucha Olímpica (Takedowns)</li>
+                <li>✓ Graduación oficial de cinturones IBJJF</li>
+                <li>✕ Clases de golpeo (Boxeo/Muay Thai)</li>
+              </ul>
+            </div>
+            <button onclick="preguntarPlan('Plan Grappler ($45.000/mes)')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Plan
+            </button>
+          </div>
+
+          <!-- Fighter Pro (Featured) -->
+          <div class="pricing-card featured">
+            <span class="popular-badge">MÁS POPULAR</span>
+            <div>
+              <h4>Plan Fighter Pro</h4>
+              <p class="tier-desc">All-Access total para el atleta integral</p>
+              <div class="price-tag" style="color: #ef4444;">$65.000</div>
+              <div class="price-period">CLP / mes • Lunes a Sábado ilimitado</div>
+              <ul class="pricing-features">
+                <li>✓ <strong>Todas las 6 disciplinas ilimitadas</strong></li>
+                <li>✓ Acceso a Jaula Oficial y Tatami Libre</li>
+                <li>✓ Strength & Conditioning incluido</li>
+                <li>✓ <strong>Matrícula 100% GRATIS</strong></li>
+              </ul>
+            </div>
+            <button onclick="preguntarPlan('Plan Fighter Pro All-Access ($65.000/mes)')" class="btn btn-primary" style="width: 100%;">
+              Inscribirme en Fighter Pro
+            </button>
+          </div>
+
+          <!-- Black Belt Anual -->
+          <div class="pricing-card">
+            <div>
+              <h4>Black Belt Anual</h4>
+              <p class="tier-desc">Compromiso total con tu evolución</p>
+              <div class="price-tag">$50.000</div>
+              <div class="price-period">CLP / mes ($600.000 anual)</div>
+              <ul class="pricing-features">
+                <li>✓ Acceso total ilimitado por 12 meses</li>
+                <li>✓ 2 meses de ahorro frente al mensual</li>
+                <li>✓ 45 días de congelamiento por vacaciones</li>
+                <li>✓ Polera oficial XubiMMA de regalo</li>
+              </ul>
+            </div>
+            <button onclick="preguntarPlan('Plan Black Belt Anual ($600.000/año)')" class="btn btn-secondary" style="width: 100%;">
+              Consultar Plan Anual
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Assistant Section -->
+    <section class="section" id="asistente-ia">
+      <div class="ai-banner">
+        <div>
+          <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(220, 38, 38, 0.2); border: 1px solid rgba(220, 38, 38, 0.4); padding: 4px 12px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; color: #f87171; margin-bottom: 16px;">
+            ✦ POTENCIADO POR ALLOXENTRIC SUPPORTHUB (RAG MULTI-TENANT)
+          </div>
+          <h2 style="font-size: 2.3rem; font-weight: 900; line-height: 1.15; margin-bottom: 16px;">
+            Conoce a <span style="color: #ef4444;">XubiBot MMA</span>: tu coach virtual 24/7
+          </h2>
+          <p style="font-size: 1.05rem; color: #d4d4d8; line-height: 1.6; margin-bottom: 28px;">
+            ¿Dudas sobre qué indumentaria llevar a tu primera clase? ¿Quieres saber los horarios de BJJ No-Gi o los requisitos para hacer sparring? 
+            XubiBot responde al instante basándose en nuestra documentación oficial. Y si requieres congelar tu plan por licencia médica o cotizar un convenio para tu empresa, genera automáticamente un ticket a nuestra mesa de ayuda humana en Corestream.
+          </p>
+          <div style="display: flex; gap: 14px; flex-wrap: wrap;">
+            <button onclick="abrirWidgetChat()" class="btn btn-primary" style="padding: 12px 24px; font-size: 0.95rem;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Abrir Chat con XubiBot
+            </button>
+            <a href="http://localhost:3000/chat/xubimma" target="_blank" class="btn btn-secondary" style="padding: 12px 24px; font-size: 0.95rem;">
+              Ver Pantalla Completa
+            </a>
+          </div>
+        </div>
+
+        <div style="background: rgba(0, 0, 0, 0.5); border: 1px solid #3f3f46; border-radius: 20px; padding: 24px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid #27272a; padding-bottom: 12px;">
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444;"></div>
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #eab308;"></div>
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #22c55e;"></div>
+            <span style="font-size: 0.8rem; color: #a1a1aa; margin-left: 8px;">XubiBot MMA • Canal Público</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.88rem;">
+            <div style="background: #27272a; padding: 10px 14px; border-radius: 12px 12px 12px 2px; max-width: 85%;">
+              ¡Hola! Soy <strong>XubiBot MMA</strong>. ¿En qué te puedo ayudar hoy? ¿Quieres reservar tu primera clase gratis o revisar los valores de las membresías?
+            </div>
+            <div style="background: #dc2626; color: white; padding: 10px 14px; border-radius: 12px 12px 2px 12px; align-self: flex-end; max-width: 80%;">
+              ¿Qué necesito para mi primera clase de Muay Thai?
+            </div>
+            <div style="background: #27272a; padding: 10px 14px; border-radius: 12px 12px 12px 2px; max-width: 88%;">
+              Para tu clase de prueba necesitas ropa deportiva cómoda, agua, toalla y sandalias para el tatami. En recepción te prestaremos guantes desinfectados. ¡La primera sesión es 100% gratuita!
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Coaches Section -->
+    <section class="section" id="entrenadores">
+      <div class="section-header">
+        <span class="section-tag">Staff Técnico</span>
+        <h2 class="section-title">Instructores de Élite y Experiencia Real</h2>
+        <p class="section-subtitle">
+          Aprende con atletas de trayectoria comprobada, cinturones negros y entrenadores certificados internacionalmente.
+        </p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;">
+        <div style="background: white; border: 1px solid var(--border); border-radius: 18px; padding: 24px; text-align: center;">
+          <div style="width: 80px; height: 80px; border-radius: 50%; background: #dc2626; color: white; font-size: 1.8rem; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+            VB
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 4px;">Vicente Balladares</h3>
+          <p style="font-size: 0.85rem; color: #dc2626; font-weight: 700; margin-bottom: 12px;">Head Coach • Director Deportivo</p>
+          <p style="font-size: 0.88rem; color: #52525b; line-height: 1.55;">
+            Faixa Preta 2º Grado BJJ, ex-peleador profesional de MMA. Especialista en Lucha de Sumisión No-Gi y transición contra la jaula.
+          </p>
+        </div>
+
+        <div style="background: white; border: 1px solid var(--border); border-radius: 18px; padding: 24px; text-align: center;">
+          <div style="width: 80px; height: 80px; border-radius: 50%; background: #b91c1c; color: white; font-size: 1.8rem; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+            FA
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 4px;">Fabián Armijo</h3>
+          <p style="font-size: 0.85rem; color: #dc2626; font-weight: 700; margin-bottom: 12px;">Head Striking Coach</p>
+          <p style="font-size: 0.88rem; color: #52525b; line-height: 1.55;">
+            Certificado por el World Muay Thai Council (WMC), Cinturón Negro de Kickboxing WAKO. Más de 12 años formando competidores de ring.
+          </p>
+        </div>
+
+        <div style="background: white; border: 1px solid var(--border); border-radius: 18px; padding: 24px; text-align: center;">
+          <div style="width: 80px; height: 80px; border-radius: 50%; background: #18181b; color: white; font-size: 1.8rem; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+            CM
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 4px;">Dra. Camila Morales</h3>
+          <p style="font-size: 0.85rem; color: #dc2626; font-weight: 700; margin-bottom: 12px;">Médico Deportiva & Protocolos</p>
+          <p style="font-size: 0.88rem; color: #52525b; line-height: 1.55;">
+            Traumatóloga deportiva especializada en prevención de conmociones cerebrales y retorno seguro al entrenamiento en deportes de combate.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="section" id="faq">
+      <div class="section-header">
+        <span class="section-tag">Resolución de Dudas</span>
+        <h2 class="section-title">Preguntas Frecuentes</h2>
+        <p class="section-subtitle">
+          Todo lo que necesitas saber antes de subirte al tatami por primera vez.
+        </p>
+      </div>
+
+      <div class="faq-container">
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Puedo tomar una clase de prueba gratuita?</span>
+            <span style="font-size: 1.3rem; color: #dc2626;">+</span>
+          </div>
+          <div class="faq-answer">
+            Sí. En XubiMMA ofrecemos una primera clase de prueba 100% gratuita para residentes de la Región Metropolitana que no hayan sido alumnos antes. Puedes solicitar tu pase directamente con nuestro asistente virtual XubiBot en esta misma página o agendar en la recepción de la sede.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Necesito experiencia previa o condición física para empezar?</span>
+            <span style="font-size: 1.3rem; color: #dc2626;">+</span>
+          </div>
+          <div class="faq-answer">
+            Absolutamente no. Más del 70% de nuestros alumnos ingresan desde cero. Disponemos de programas de Fundamentos donde aprenderás las posturas, respiración y técnica básica paso a paso y a tu propio ritmo, sin riesgos.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Es obligatorio hacer combate o sparring?</span>
+            <span style="font-size: 1.3rem; color: #dc2626;">+</span>
+          </div>
+          <div class="faq-answer">
+            No. El combate es 100% opcional. Puedes entrenar todas las disciplinas con fines recreativos, defensa personal o acondicionamiento físico sin jamás combatir. Para quienes deseen hacer sparring, se requieren mínimo 2 meses de técnica previa y protecciones completas obligatorias.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Tienen convenios para estudiantes universitarios o empresas?</span>
+            <span style="font-size: 1.3rem; color: #dc2626;">+</span>
+          </div>
+          <div class="faq-answer">
+            Sí. Estudiantes de Duoc UC, Inacap y universidades disfrutan de un 15% de descuento permanente en planes mensuales presentando certificado de alumno regular. Para empresas ofrecemos convenios corporativos con hasta 25% de descuento institucional.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Cómo funciona el congelamiento por lesión médica o vacaciones?</span>
+            <span style="font-size: 1.3rem; color: #dc2626;">+</span>
+          </div>
+          <div class="faq-answer">
+            Si sufres una lesión o enfermedad acreditada médicamente, tu membresía se congela sin costo por el tiempo indicado en el certificado. Además, los planes anuales y semestrales permiten congelamiento por viajes y vacaciones (hasta 45 días en el Plan Black Belt).
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>¿Cómo se comunica XubiBot con el soporte del gimnasio?</span>
+            <span style="font-size: 1.3rem; color: #dc2626;">+</span>
+          </div>
+          <div class="faq-answer">
+            XubiBot MMA utiliza la plataforma Alloxentric SupportHub. Cuando tu consulta requiere atención humana (trámites de seguros, congelamientos o facturación), crea un ticket en Corestream con un código COR-XXXX. El equipo administrativo te contactará en menos de 2 horas hábiles.
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <h4>XubiMMA Training Center</h4>
+        <p style="font-size: 0.9rem; margin-bottom: 16px;">
+          Centro de Alto Rendimiento en Deportes de Contacto y Artes Marciales Mixtas. Afiliado a la infraestructura multi-tenant Alloxentric SupportHub.
+        </p>
+        <p style="font-size: 0.8rem; color: #71717a;">
+          Proyecto Capstone PTY4614 • Duoc UC • Fabián Armijo & Vicente Balladares
+        </p>
+      </div>
+
+      <div class="footer-links">
+        <h5>Disciplinas</h5>
+        <ul>
+          <li><a href="#disciplinas">Artes Marciales Mixtas</a></li>
+          <li><a href="#disciplinas">Brazilian Jiu-Jitsu (Gi/No-Gi)</a></li>
+          <li><a href="#disciplinas">Muay Thai & Kickboxing</a></li>
+          <li><a href="#disciplinas">Boxeo Tradicional</a></li>
+          <li><a href="#disciplinas">Strength & Conditioning</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links">
+        <h5>Plataforma Alloxentric</h5>
+        <ul>
+          <li><a href="http://localhost:3000/chat/xubimma" target="_blank">Chat Público XubiMMA</a></li>
+          <li><a href="http://localhost:3000" target="_blank">Consola de Soporte</a></li>
+          <li><a href="http://localhost:8000/docs" target="_blank">Swagger API Backend</a></li>
+          <li><a href="http://localhost:8000/health" target="_blank">Métricas / Health</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links">
+        <h5>Contacto & Sedes</h5>
+        <ul>
+          <li><a href="mailto:soporte@xubimma.demo">soporte@xubimma.demo</a></li>
+          <li><a href="tel:+56229998888">+56 2 2999 8888</a></li>
+          <li><span>Av. Combate 1240, Providencia</span></li>
+          <li><span>Santiago de Chile</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>© 2026 XubiMMA SpA. Todos los derechos reservados. Tenant de demostración para Alloxentric SupportHub.</p>
+      <p>Modo MVP • Capstone Ingeniería en Informática Duoc UC</p>
+    </div>
+  </footer>
+
+  <script>
+    function toggleFaq(item) {
+      const answer = item.querySelector('.faq-answer');
+      const icon = item.querySelector('.faq-question span:last-child');
+      if (answer.style.display === 'none' || !answer.style.display) {
+        answer.style.display = 'block';
+        icon.textContent = '−';
+      } else {
+        answer.style.display = 'none';
+        icon.textContent = '+';
+      }
+    }
+
+    // Inicializar FAQs colapsadas excepto la primera
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.faq-item').forEach((item, idx) => {
+        const answer = item.querySelector('.faq-answer');
+        const icon = item.querySelector('.faq-question span:last-child');
+        if (idx !== 0) {
+          answer.style.display = 'none';
+          icon.textContent = '+';
+        } else {
+          icon.textContent = '−';
+        }
+      });
+    });
+
+    // Activar botón del widget o fallback al chat público
+    function abrirWidgetChat() {
+      const widgetBtn = document.querySelector('button[aria-label*="chat"], button[aria-label*="Chat"], button[aria-label*="XubiBot"], button[aria-label*="Soporte"]');
+      if (widgetBtn) {
+        widgetBtn.click();
+      } else {
+        window.open('http://localhost:3000/chat/xubimma', '_blank', 'width=420,height=680');
+      }
+    }
+
+    function preguntarDisciplina(nombre) {
+      abrirWidgetChat();
+    }
+
+    function preguntarPlan(nombre) {
+      abrirWidgetChat();
+    }
+  </script>
+
+  <!-- Inyección oficial del Widget Embebible Alloxentric SupportHub (RF-29) -->
+  <script
+    src="/widget.min.js"
+    data-tenant-id="xubimma"
+    data-base-url="http://localhost:3000"
+    data-agent-name="XubiBot MMA"
+    data-primary-color="#DC2626"
+    data-position="right"
+    defer>
+  </script>
+
+</body>
+</html>
