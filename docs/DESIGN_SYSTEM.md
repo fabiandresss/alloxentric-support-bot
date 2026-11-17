@@ -55,3 +55,6 @@ El color de cada empresa (`brandColor`/`brandBg`) sigue siendo por tenant (widge
 - `components/Select.tsx` reemplaza al `<select>` nativo en toda la app: botón con anillo cherry al abrir, chevron que gira, menú animado (resorte + aparición escalonada de opciones), opción activa en tinte cherry y marca de selección. Admite icono o logo y una línea de ayuda por opción.
 - Teclado completo (flechas, Inicio/Fin, Enter, Esc) y atributos `combobox`/`listbox`. El menú va en un portal con posición fija, así tablas y modales con scroll no lo recortan; se abre hacia arriba si abajo no hay espacio.
 - Ids de prueba: `testId` en el botón y `${testId}-option-${valor}` en cada opción.
+
+## Landing (/landing)
+Página de presentación en `frontend/src/components/Landing.tsx`, siempre en tema claro. Referencias: píldora de navegación flotante, titular con una línea en gris y cursiva serif (**Instrument Serif**, solo para acentos), resplandores cherry, abanico de tarjetas de producto, marquee de empresas y bento de cifras. Animaciones con `motion` (aparición al hacer scroll, conteo de cifras, chat de demostración que se escribe solo, tarjetas flotantes, línea de pasos que se dibuja); respeta `prefers-reduced-motion`. Las cifras son reales del proyecto (5 modelos, 4 roles, 20/20 ataques de la auditoría, 72 h); las tarjetas del hero están rotuladas como datos de ejemplo.

@@ -49,6 +49,20 @@ Vista de un **encargado del agente IA** (empresas y agentes, sin consola ni usua
 
 ---
 
+## 0.1 Registrarse y crear tu chatbot (primera vez)
+
+Cualquier persona puede crear su cuenta, registrar su empresa y crear su chatbot sin pedir nada a nadie:
+
+1. **Tu cuenta:** entra a `/registro` (o a «Crear cuenta» en la landing `/landing`). Escribe tu nombre, correo y una contraseña de 10 o más caracteres con letras y números.
+2. **Tu empresa:** nombre, rubro y sitio web (los dos últimos son opcionales). Quedas como **administrador** de la empresa y desde el panel puedes invitar a tu equipo en «Usuarios y roles».
+3. **Tu chatbot:** al entrar al panel se te pide crearlo: nombre, tono, instrucciones, color de marca y **cuánto quieres gastar**:
+   - **Con un límite mensual** (en USD, y un tope diario opcional): al llegar, el chatbot sigue respondiendo con la documentación pero sin IA, hasta el mes siguiente.
+   - **Sin límite:** nunca se corta; se cobra lo que se consuma.
+   Puedes cambiarlo cuando quieras en **Consumo y costos → Cambiar plan**; además aparece en la tarjeta de tu empresa en «Empresas y agentes».
+4. **Publicar:** en «Empresas y agentes → Configurar agente» sube tu documentación (PDF, DOCX, TXT o FAQ) y publica el agente.
+
+**Un solo chatbot por empresa.** Si necesitas otro, escríbele a Alloxentric: el aviso con el enlace de contacto aparece en «Empresas y agentes». Si cierras la ventana a mitad del registro, al iniciar sesión el panel retoma desde el paso que faltaba.
+
 ## 1. Encargado de tickets — Consola de soporte
 
 ### Ver los casos derivados

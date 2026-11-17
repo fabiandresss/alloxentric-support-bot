@@ -22,6 +22,9 @@ creando un ticket en **Corestream**. Todo corre en local; el único servicio ext
 | Analítica real por empresa y rol; asignación de tickets a usuarios | Hecho |
 | Ciclo del ticket con encuesta de resolución (Sí cierra, No escala a gestión, 72 h cierra) | Hecho |
 | Rate limiting de endpoints sin sesión; scripts de arranque (`iniciar.ps1`); batería de calidad del RAG | Hecho |
+| Seguridad de la IA (guardarraíles, PII, inyección, auditoría), valoración 👍/👎, fuentes con fragmento, horario de atención, resumen del ticket con IA y preguntas sin respuesta (ver [`docs/AUDITORIA_SEGURIDAD_IA.md`](docs/AUDITORIA_SEGURIDAD_IA.md)) | Hecho |
+| **Registro en autoservicio** (`/registro`): cuenta → empresa → chatbot (uno por empresa) con plan de gasto ilimitado o con límite; módulo apagable con `REGISTRO_ABIERTO=false` | Hecho |
+| **Landing** (`/landing`) | Hecho |
 | Bedrock en vivo · Corestream real · validar Celery con un Redis real | Pendiente |
 
 ## Roles
@@ -32,6 +35,7 @@ creando un ticket en **Corestream**. Todo corre en local; el único servicio ext
 | `admin_empresa` | Responsable de su empresa: ve todo lo suyo y gestiona sus usuarios |
 | `encargado_tickets` | Atiende los tickets derivados de su empresa |
 | `encargado_agente` | Configura el bot IA de su empresa y su base de conocimiento |
+| `registrado` | Se creó una cuenta y aún no registra su empresa (solo puede registrarla; luego pasa a `admin_empresa`) |
 
 Matriz completa y garantías de seguridad en [`docs/MATRIZ_PERMISOS.md`](docs/MATRIZ_PERMISOS.md).
 

@@ -435,3 +435,14 @@ una barrera real exigiría `frame-ancestors` en el servidor web que sirve el fro
 **Celery + Redis.** Con `INGESTA_BACKEND=celery` la ingesta va a una tarea de Celery (`app/tasks.py`) y existe una tarea periódica que cierra los tickets con encuesta vencida cada 15 min en todas las empresas
 (RF-39); si Redis no responde se cae a `BackgroundTasks`. Worker: `celery -A app.celery_app worker -l info -P solo` (Windows) y programador: `celery -A app.celery_app beat -l info`. Por defecto sigue `background`.
 **No está validado contra un Redis real** (no hay Docker en el entorno de desarrollo): las pruebas usan el modo `task_always_eager`.
+
+
+## Registro en autoservicio (cuenta → empresa → chatbot)
+
+Flujo: `/registro` (o «Crear cuenta» en la landing) → **1. cuenta** (`POST /registro/usuario`, sin sesión) → **2. empresa** (`POST /registro/empresa`) → entra al panel y **3. crea su chatbot** (`POST /empresas/{slug}/chatbot`) eligiendo su **plan de gasto** (ilimitado o con límite mensual y tope diario opcional) → sube su documentación y publica el agente.
+
+- **Rol `registrado`:** cuenta sin empresa (`empresa_id` NULL; la constraint pasó a `rol IN ('superadmin','registrado') = (empresa_id IS NULL)`, migración 0012). Solo puede `GET /auth/me` y `POST /registro/empresa`; el resto de los endpoints responde 403. Al registrar la empresa pasa a `admin_empresa` (el rol se lee de la BD, el mismo token sigue valiendo). Nadie puede asignarlo ni convertirlo en otro rol por `/usuarios`.
+- **Un chatbot por empresa:** `empresas.chatbot_pendiente` es verdadero desde que se registra la empresa hasta que se crea el chatbot; después `POST …/chatbot` responde 409 («contacta a Alloxentric»). Las empresas creadas por el superadmin traen su chatbot. Activar el agente exige haberlo creado.
+- **Plan de gasto:** obligatorio al crear el chatbot (`spendPlan`); lo cambia después el admin de la empresa (o el superadmin) con `PATCH /empresas/{slug}/plan`. Se ve en la tarjeta de la empresa y en «Consumo y costos».
+- **Abuso:** límites por IP (5 cuentas/h, 5 empresas/h) y por correo (3 intentos/h), campo trampa para bots, contraseña de 10+ caracteres con letras y números que no contenga el correo ni el nombre, nombres saneados. `REGISTRO_ABIERTO=false` apaga el módulo.
+- **Riesgos conocidos:** no hay verificación del correo (SMTP es opcional): quien se registra con un correo ajeno solo obtiene acceso a la empresa que él mismo registre. Las cuentas `registrado` abandonadas quedan en la BD (el superadmin las ve en Usuarios). Los nombres de empresa son únicos: alguien podría registrar primero un nombre ajeno (se resuelve contactando a Alloxentric).

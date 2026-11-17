@@ -1,6 +1,6 @@
 # Roles y matriz de permisos (RF-28 y RF-30)
 
-Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin pertenece a la plataforma.
+Hay **cuatro roles** de trabajo y un estado previo. Tres roles pertenecen siempre a una empresa; el superadmin pertenece a la plataforma; y `registrado` es la cuenta recién creada que todavía no registra su empresa.
 
 | Rol | Quién es | Pertenece a |
 |---|---|---|
@@ -8,6 +8,7 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 | `admin_empresa` | Responsable de la cuenta de una empresa cliente | Una empresa |
 | `encargado_tickets` | Atiende la cola de tickets derivados de su empresa (Corestream) | Una empresa |
 | `encargado_agente` | Configura el agente/bot IA de su empresa y su base de conocimiento | Una empresa |
+| `registrado` | Persona que se registró por su cuenta y aún no registra su empresa. Al registrarla pasa a `admin_empresa` | Ninguna (todavía) |
 
 ## Matriz
 
@@ -34,7 +35,17 @@ Hay **cuatro roles**. Tres pertenecen siempre a una empresa; el superadmin perte
 | Ver las **notificaciones** (campana): cambios en las pruebas | todas | las suyas | | las suyas |
 | Ver las **alertas de gasto** (80 %, 100 %, tope diario) | todas | las suyas | | |
 | Ver el **consumo de IA (FinOps)**: tokens, costo, por modelo y estado del plan | todas | la suya | | |
-| Definir el **plan de gasto** de una empresa (límite mensual y tope diario en USD, o sin límite) | ✔ | | | |
+| Definir el **plan de gasto** del chatbot (ilimitado, o límite mensual y tope diario en USD): al crear el chatbot y después en «Consumo y costos» | ✔ | ✔ (el de su empresa) | | |
+| Ver el registro de **seguridad de la IA** (intentos de inyección, datos enmascarados, fugas evitadas) | todos | los de su empresa | | los de su empresa |
+| **Cambiar las defensas de la IA** (datos personales, inyección, temas prohibidos, fuentes visibles al cliente) | ✔ | ✔ | | |
+| Definir el **horario de atención humana** | ✔ | ✔ | | ✔ |
+| Ver las **preguntas sin respuesta** de la KB (qué documentación falta) | todas | las suyas | | las suyas |
+| **Resumen con IA** de un ticket (verlo y regenerarlo) | todos | los de su empresa | los de su empresa | |
+| Valorar una respuesta del bot 👍/👎 | el **cliente** del chat (sin sesión; solo respuestas del bot de su propia conversación) | | | |
+| **Crear cuenta** (`POST /registro/usuario`, sin sesión; 5 por hora y por IP) | cualquiera | | | |
+| **Registrar una empresa** (`POST /registro/empresa`): pasa a ser su admin; una sola por cuenta | solo `registrado` | | | |
+| **Crear el chatbot** de la empresa (`POST /empresas/{slug}/chatbot`): **uno por empresa**; otro se pide a Alloxentric | ✔ | ✔ (solo el de su empresa) | | |
+| Activar (publicar) el agente | ✔ | ✔ | | ✔ — solo si la empresa ya creó su chatbot |
 | Ver métricas y analítica | globales (todas las empresas) | las de su empresa | las de su empresa | las de su empresa |
 | Gestionar usuarios | todos | los de su empresa | | |
 | Crear superadmins | ✔ | | | |
