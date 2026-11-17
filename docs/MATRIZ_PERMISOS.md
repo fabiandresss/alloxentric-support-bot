@@ -46,6 +46,10 @@ Hay **cuatro roles** de trabajo y un estado previo. Tres roles pertenecen siempr
 | **Registrar una empresa** (`POST /registro/empresa`): pasa a ser su admin; una sola por cuenta | solo `registrado` | | | |
 | **Crear el chatbot** de la empresa (`POST /empresas/{slug}/chatbot`): **uno por empresa**; otro se pide a Alloxentric | ✔ | ✔ (solo el de su empresa) | | |
 | Activar (publicar) el agente | ✔ | ✔ | | ✔ — solo si la empresa ya creó su chatbot |
+| Ver el **rendimiento de la IA** (latencia p50/p95, errores, modelo de respaldo, ahorro de la caché) | todas | la suya | | la suya |
+| **Propuestas de FAQ** desde las respuestas de los agentes humanos: ver, aceptar (editando) o descartar | todas | las suyas | | las suyas |
+| Pedir que el chatbot **olvide** los datos de un visitante (`DELETE /publico/{slug}/memoria/{id}`) | el **cliente** del chat (sin sesión, limitado por IP) | | | |
+| Activar o apagar la **memoria del cliente** y la **moderación de contenido** | ✔ | ✔ | | |
 | Ver métricas y analítica | globales (todas las empresas) | las de su empresa | las de su empresa | las de su empresa |
 | Gestionar usuarios | todos | los de su empresa | | |
 | Crear superadmins | ✔ | | | |

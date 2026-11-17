@@ -1,10 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Send, Bot, User, Headphones, X, AlertTriangle, CheckCircle2, Loader2, ThumbsUp, ThumbsDown, RotateCcw, ChevronDown, FileText, Clock } from 'lucide-react';
 import { ChatMessage, PublicAgent, SourceDetail, TicketStatus } from '../types';
-import { answerSurvey, getPublicAgent, getPublicConversation, rateMessage, sendPublicChat } from '../api/client';
+import { ApiError, answerSurvey, forgetVisitor, getPublicAgent, getPublicConversation, rateMessage, sendPublicChat, streamPublicChat } from '../api/client';
 
 const POLL_MS = 5000; // cada cuánto se consulta si el agente humano respondió
 const storeKey = (slug: string) => `alloxentric_chat_${slug}`;
+const visitorKey = (slug: string) => `alloxentric_visitor_${slug}`;
+
+/** Identificador anónimo de este navegador para esta empresa: le permite al chatbot recordar el nombre y las últimas consultas de quien vuelve. */
+const readVisitor = (slug: string, renovar = false): string => {
+  try {
+    const guardado = localStorage.getItem(visitorKey(slug));
+    if (guardado && !renovar) return guardado;
+    const nuevo = crypto.randomUUID();
+    localStorage.setItem(visitorKey(slug), nuevo);
+    return nuevo;
+  } catch {
+    return crypto.randomUUID(); // sin almacenamiento: vale solo para esta visita
+  }
+};
 
 /** La conversación se recuerda en este navegador para que el cliente vuelva y vea la respuesta. */
 const readStored = (slug: string): string | null => {
@@ -42,6 +56,9 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const [commentFor, setCommentFor] = useState<string | null>(null); // respuesta a la que se le está dejando un comentario 👎
+  const [pendingUser, setPendingUser] = useState<string | null>(null); // mensaje del cliente ya enviado, esperando la respuesta
+  const [streamText, setStreamText] = useState<string | null>(null); // lo que el modelo lleva escrito (null = no hay respuesta en curso)
+  const [info, setInfo] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
   useEffect(() => {
@@ -52,7 +69,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, sending]);
+  }, [messages, sending, streamText]);
 
   // Mezcla lo que dice el servidor con lo que ya se ve (por id) y avisa al widget si llegó algo del agente.
   const applyServer = (c: { messages: ChatMessage[]; derived: boolean; ticketNumber?: string; ticketStatus?: TicketStatus }) => {
@@ -127,8 +144,18 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
     if (!message.trim() || sending) return;
     setError(null);
     setSending(true);
+    setPendingUser(message);
+    setStreamText('');
+    const payload = { message, conversationId, escalate, customerName: 'Visitante web', visitorId: readVisitor(slug) };
     try {
-      const res = await sendPublicChat(slug, { message, conversationId, escalate, customerName: 'Visitante web' });
+      let res;
+      try {
+        // la respuesta aparece a medida que el modelo la escribe; el texto final (ya filtrado) la reemplaza
+        res = await streamPublicChat(slug, payload, (t) => setStreamText((prev) => (prev ?? '') + t));
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;   // solo si el streaming no se pudo abrir se reintenta sin él
+        res = await sendPublicChat(slug, payload);
+      }
       setConversationId(res.conversationId);
       writeStored(slug, res.conversationId);
       setMessages((prev) => [...prev, ...res.messages]);
@@ -140,6 +167,21 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSending(false);
+      setPendingUser(null);
+      setStreamText(null);
+    }
+  };
+
+  // «Olvídame»: el chatbot borra lo que recordaba de este navegador (nombre y últimas consultas) y empieza con un identificador nuevo
+  const olvidarme = async () => {
+    if (!window.confirm('¿Quieres que el asistente olvide tu nombre y tus consultas anteriores?')) return;
+    try {
+      await forgetVisitor(slug, readVisitor(slug));
+      readVisitor(slug, true);
+      setInfo('Listo: el asistente olvidó lo que recordaba de ti.');
+      setTimeout(() => setInfo(null), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -248,7 +290,9 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
             {m.message}
           </Bubble>
         ))}
-        {sending && <p className="text-xs text-[color:var(--c-muted)] pl-1">{agent.agentName} está escribiendo…</p>}
+        {pendingUser && <Bubble name="Tú" color={agent.brandColor}>{pendingUser}</Bubble>}
+        {sending && streamText ? <Bubble bot name={agent.agentName} color={agent.brandColor}>{streamText}</Bubble>
+          : sending && <p className="text-xs text-[color:var(--c-muted)] pl-1">{agent.agentName} está escribiendo…</p>}
         {derived && !finalizado && ticketStatus !== 'esperando_cliente' && (
           <div className="p-3 rounded-xl bg-[color:var(--c-ch50)] border border-[color:var(--c-ch150)] text-xs text-[#8F0720] flex gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
@@ -300,6 +344,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
           </div>
         )}
         {error && <p className="text-xs text-[color:var(--c-rtx)]">{error}</p>}
+        {info && <p role="status" className="text-xs text-[color:var(--c-gtx)]">{info}</p>}
         <div ref={endRef} />
       </main>
 
@@ -332,7 +377,7 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <p className="text-[10px] text-center text-[color:var(--c-faint)]">Con tecnología de Alloxentric SupportHub</p>
+        <p className="text-[10px] text-center text-[color:var(--c-faint)]">Con tecnología de Alloxentric SupportHub · <button type="button" onClick={olvidarme} data-testid="forget-me" className="underline underline-offset-2 hover:text-[color:var(--c-ink)]">Olvidar mis datos</button></p>
       </footer>
     </div>
   );
@@ -362,7 +407,7 @@ const Sources: React.FC<{ details: SourceDetail[]; color: string }> = ({ details
         <ul className="mt-1.5 space-y-1.5">
           {details.map((d, i) => (
             <li key={i} className="text-[11px] rounded-lg bg-white border border-[color:var(--c-line)] p-2 text-left" style={{ borderLeft: `3px solid ${color}` }}>
-              <p className="font-semibold text-[color:var(--c-ink)] truncate">{d.documentName}</p>
+              <p className="font-semibold text-[color:var(--c-ink)] truncate">{d.documentName}{d.page ? <span className="font-normal text-[color:var(--c-muted)]"> · p. {d.page}</span> : null}</p>
               {d.excerpt && <p className="mt-0.5 text-[color:var(--c-muted)] leading-snug">«{d.excerpt}{d.excerpt.length >= 240 ? '…' : ''}»</p>}
             </li>
           ))}

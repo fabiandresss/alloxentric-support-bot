@@ -25,6 +25,7 @@ creando un ticket en **Corestream**. Todo corre en local; el único servicio ext
 | Seguridad de la IA (guardarraíles, PII, inyección, auditoría), valoración 👍/👎, fuentes con fragmento, horario de atención, resumen del ticket con IA y preguntas sin respuesta (ver [`docs/AUDITORIA_SEGURIDAD_IA.md`](docs/AUDITORIA_SEGURIDAD_IA.md)) | Hecho |
 | **Registro en autoservicio** (`/registro`): cuenta → empresa → chatbot (uno por empresa) con plan de gasto ilimitado o con límite; módulo apagable con `REGISTRO_ABIERTO=false` | Hecho |
 | **Landing** (`/landing`) | Hecho |
+| **IA avanzada**: memoria (resumen de conversaciones largas, cliente que vuelve, propuestas de FAQ), RAG híbrido + OCR + cita con página, guardarraíles nuevos (ataque en varios mensajes, PII libre, moderación, documentos, rate limit en Redis), modelo de respaldo, caché, trazas, golden sets automáticos, streaming y CI (ver [`docs/AUDITORIA_SEGURIDAD_IA.md`](docs/AUDITORIA_SEGURIDAD_IA.md)) | Hecho |
 | Bedrock en vivo · Corestream real · validar Celery con un Redis real | Pendiente |
 
 ## Roles

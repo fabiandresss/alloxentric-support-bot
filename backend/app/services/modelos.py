@@ -7,7 +7,7 @@ Los IDs se probaron en vivo (us-east-1, perfil `chatbot`) con una pregunta con r
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from app.config import BEDROCK_MODEL_ID
+from app.config import BEDROCK_MODEL_ID, BEDROCK_RESPALDO
 
 
 @dataclass(frozen=True)
@@ -77,3 +77,13 @@ def forzando(modelo_id: str | None):
 def del_agente(empresa) -> Modelo:
     """El modelo con el que responde el agente de la empresa (o el forzado por una comparativa)."""
     return obtener(_forzado.get() or empresa.modelo_ia)
+
+
+def respaldo_de(modelo: Modelo) -> Modelo | None:
+    """El modelo que responde si el de la empresa falla (BEDROCK_RESPALDO; si es el mismo, el recomendado). None = sin respaldo."""
+    if not BEDROCK_RESPALDO:
+        return None
+    r = _POR_ID.get(BEDROCK_RESPALDO)
+    if r is None or r.id == modelo.id:
+        r = _POR_ID[DEFECTO] if modelo.id != DEFECTO else next((x for x in CATALOGO if x.id != modelo.id), None)
+    return r

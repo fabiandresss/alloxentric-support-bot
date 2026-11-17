@@ -13,6 +13,10 @@ const TIPOS: Record<string, { label: string; hint: string; icon: LucideIcon }> =
   fragmento_sospechoso: { label: 'Documento con órdenes ocultas', hint: 'Un fragmento de la documentación traía instrucciones dirigidas al modelo; no se usó. Revisa ese documento.', icon: FileWarning },
   pii: { label: 'Datos personales enmascarados', hint: 'Un cliente escribió RUT, tarjeta, correo, teléfono o clave; se enmascararon antes del modelo y del registro.', icon: EyeOff },
   tema_prohibido: { label: 'Tema prohibido', hint: 'La consulta tocaba un tema que la empresa no atiende por este canal.', icon: MessageSquareOff },
+  inyeccion_multiturno: { label: 'Ataque repartido en varios mensajes', hint: 'Un ataque partido en fragmentos que juntos intentan manipular al bot. Se bloqueó sin llamar al modelo.', icon: ShieldX },
+  conversacion_bloqueada: { label: 'Conversación cerrada', hint: 'Tras varios intentos de ataque, la conversación dejó de responder. Una nueva consulta funciona normal.', icon: ShieldAlert },
+  salida_danina: { label: 'Respuesta dañina descartada', hint: 'La respuesta del modelo traía insultos, amenazas o instrucciones para dañar y no se mostró.', icon: ShieldAlert },
+  documento_sospechoso: { label: 'Documento con órdenes ocultas', hint: 'Al subir un documento se detectaron órdenes dirigidas al modelo. Revísalo en la base de conocimiento.', icon: FileWarning },
   salida_saneada: { label: 'Respuesta saneada', hint: 'Se quitaron imágenes, HTML o enlaces que no estaban en la documentación.', icon: Link2Off },
   limite_conversacion: { label: 'Conversación al tope', hint: 'Una conversación llegó al máximo de mensajes (protege el gasto).', icon: Gauge },
 };

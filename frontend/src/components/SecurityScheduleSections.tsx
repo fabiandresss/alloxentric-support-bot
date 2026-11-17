@@ -74,6 +74,10 @@ export const SecurityScheduleSections: React.FC<{
           hint="Enmascara RUT, tarjetas, correos, teléfonos y claves antes de enviarlos al modelo y de guardarlos en la conversación." />
         <Switch on={security.injection} disabled={!canEditSecurity} onChange={(v) => onSecurity({ ...security, injection: v })} testId="security-injection" label="Bloquear inyección de prompt"
           hint="Detecta intentos de hacer que el bot ignore sus reglas, revele sus instrucciones o cambie de rol; no llama al modelo y lo deja registrado." />
+        <Switch on={security.moderation} disabled={!canEditSecurity} onChange={(v) => onSecurity({ ...security, moderation: v })} testId="security-moderation" label="Moderar contenido dañino"
+          hint="Si la respuesta trae insultos, amenazas o instrucciones para dañar, no se muestra (salvo que el término esté en tu propia documentación)." />
+        <Switch on={security.customerMemory} disabled={!canEditSecurity} onChange={(v) => onSecurity({ ...security, customerMemory: v })} testId="security-memory" label="Recordar a quien vuelve"
+          hint="El chatbot recuerda el nombre de pila y las últimas consultas (enmascaradas) de cada navegador. El cliente puede pedir que lo olvide con «Olvidar mis datos»." />
         <div className="text-xs font-semibold text-[color:var(--c-ink)]">Qué ve el cliente de las fuentes
           <div className="mt-1.5"><Select value={security.publicSources} onChange={(v) => onSecurity({ ...security, publicSources: v as SecurityConfig['publicSources'] })} ariaLabel="Fuentes visibles para el cliente" disabled={!canEditSecurity}
             options={[{ value: 'extracto', label: 'Documento y extracto', hint: 'Más transparente' }, { value: 'nombre', label: 'Solo el nombre del documento' }, { value: 'ninguna', label: 'Nada', hint: 'Más reservado' }]} /></div>

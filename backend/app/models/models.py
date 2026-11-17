@@ -2,7 +2,7 @@
 Toda consulta del backend debe filtrar por empresa_id (RNF-01)."""
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, ForeignKey, DateTime, Boolean, Float, Integer, Index, CheckConstraint, Numeric, func
+from sqlalchemy import String, Text, text, ForeignKey, DateTime, Boolean, Float, Integer, Index, CheckConstraint, Numeric, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
@@ -90,6 +90,7 @@ class Documento(Base):
     estado: Mapped[str] = mapped_column(String(20), default="procesando")  # procesando|procesado|error
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')   # sube cada vez que se reemplaza el archivo
     num_fragmentos: Mapped[int] = mapped_column(Integer, default=0)
+    advertencia: Mapped[str | None] = mapped_column(String(200))   # p. ej. «contiene órdenes ocultas dirigidas al modelo»
     subido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     fragmentos: Mapped[list["FragmentoEmbedding"]] = relationship(cascade="all, delete-orphan")
 
@@ -101,6 +102,7 @@ class FragmentoEmbedding(Base):
     documento_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("documentos.id", ondelete="CASCADE"), index=True)
     orden: Mapped[int]
+    pagina: Mapped[int | None] = mapped_column(Integer)      # página del PDF de la que sale el fragmento (None en otros formatos)
     texto: Mapped[str] = mapped_column(Text)
     embedding = mapped_column(Vector(EMBED_DIM))
     # id del embedder que generó el vector (p. ej. st:paraphrase-multilingual-MiniLM-L12-v2 o hash-v1): la búsqueda solo
@@ -111,6 +113,8 @@ class FragmentoEmbedding(Base):
               postgresql_using="hnsw",
               postgresql_with={"m": 16, "ef_construction": 64},
               postgresql_ops={"embedding": "vector_cosine_ops"}),
+        # búsqueda por palabras clave (RAG híbrido): texto completo en español sin tildes; misma expresión que services/hibrido.py
+        Index("ix_fragmentos_fts", text("to_tsvector('spanish', translate(lower(texto), 'áéíóúüñ', 'aeiouun'))"), postgresql_using="gin"),
     )
 
 
@@ -123,6 +127,9 @@ class Conversacion(Base):
     canal: Mapped[str] = mapped_column(String(30), default="Web Chat")  # Web Chat | WhatsApp API | Portal Clientes
     derivada: Mapped[bool] = mapped_column(Boolean, default=False)
     iniciada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    visitante_id: Mapped[str | None] = mapped_column(String(64), index=True)   # identificador anónimo del navegador: permite reconocer a quien vuelve
+    resumen_memoria: Mapped[str | None] = mapped_column(Text)                  # resumen de lo ya dicho en una conversación larga
+    memoria_hasta: Mapped[int] = mapped_column(Integer, default=0, server_default="0")   # cuántos mensajes cubre el resumen
     mensajes: Mapped[list["Mensaje"]] = relationship(
         cascade="all, delete-orphan", order_by="Mensaje.creado_en")
 
@@ -187,6 +194,10 @@ class UsoIA(Base):
     tokens_entrada: Mapped[int] = mapped_column(Integer, default=0)
     tokens_salida: Mapped[int] = mapped_column(Integer, default=0)
     costo_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=0)
+    latencia_ms: Mapped[int] = mapped_column(Integer, default=0, server_default="0")          # traza: lo que tardó la llamada
+    exito: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")         # traza: false = el modelo no respondió
+    error: Mapped[str | None] = mapped_column(String(60))                                    # tipo de error (p. ej. ThrottlingException)
+    respaldo: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")   # la respondió el modelo de respaldo
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
@@ -336,3 +347,51 @@ class EventoSeguridad(Base):
     detalle: Mapped[str] = mapped_column(String(300), default="")
     senales: Mapped[list] = mapped_column(JSONB, default=list)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+
+
+
+class PerfilCliente(Base):
+    """Lo que se sabe de un visitante que vuelve (por el identificador anónimo de su navegador): su nombre de pila y de qué consultó.
+    Sin datos personales sensibles (todo va enmascarado) y el cliente puede pedir que se borre."""
+    __tablename__ = "perfiles_cliente"
+    __table_args__ = (Index("uq_perfiles_cliente", "empresa_id", "visitante_id", unique=True),)
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    visitante_id: Mapped[str] = mapped_column(String(64))
+    nombre: Mapped[str | None] = mapped_column(String(80))
+    temas: Mapped[list] = mapped_column(JSONB, default=list)          # sus últimas consultas, abreviadas y enmascaradas
+    conversaciones: Mapped[int] = mapped_column(Integer, default=1)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    ultima_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class PropuestaFaq(Base):
+    """Lo que respondió un agente humano en un ticket, propuesto como FAQ para la base de conocimiento (la persona lo revisa)."""
+    __tablename__ = "propuestas_faq"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    ticket_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), unique=True)
+    pregunta: Mapped[str] = mapped_column(Text)
+    respuesta: Mapped[str] = mapped_column(Text)
+    estado: Mapped[str] = mapped_column(String(10), default="pendiente")      # pendiente | aceptada | descartada
+    documento_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("documentos.id", ondelete="SET NULL"))
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    resuelta_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CacheRespuesta(Base):
+    """Respuestas ya dadas a preguntas independientes: si llega una casi idéntica y nada cambió (documentos y configuración), se reutiliza
+    sin llamar al modelo (ahorra costo y latencia). `version` cambia cuando se toca la base de conocimiento o la configuración del agente."""
+    __tablename__ = "cache_respuestas"
+    id: Mapped[uuid.UUID] = _id()
+    empresa_id: Mapped[uuid.UUID] = _empresa_fk()
+    modelo: Mapped[str] = mapped_column(String(40))
+    version: Mapped[str] = mapped_column(String(80))
+    pregunta: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list] = mapped_column(Vector(EMBED_DIM))
+    respuesta: Mapped[str] = mapped_column(Text)
+    fuentes: Mapped[list | None] = mapped_column(JSONB)
+    fuentes_detalle: Mapped[list | None] = mapped_column(JSONB)
+    confianza: Mapped[float] = mapped_column(Float, default=0.0)
+    aciertos: Mapped[int] = mapped_column(Integer, default=0)
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)

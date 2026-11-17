@@ -68,3 +68,14 @@ No tienen tabla: se calculan con COUNT/AVG sobre tickets y mensajes (endpoint GE
 - AgentConfigModal.handleFileUpload / handlePublish simulan con setTimeout: cambiar por subida real.
 - Quitar de package.json: @google/genai, express, dotenv, tsx (no se usan en src/). Borrar GEMINI_API_KEY de .env.example.
 - El dev server corre en el puerto 3000 (no 5173): CORS en FastAPI debe permitir http://localhost:3000.
+
+## Semana 11: seguridad de la IA, registro, memoria y operación (endpoint -> componente / tipo)
+7. POST /registro/usuario, POST /registro/empresa, POST /empresas/{slug}/chatbot -> Onboarding (Signup, CompanyStep, ChatbotStep) y PlanPicker; tipos Company.chatbotCreated / spendPlan, Role "registrado"
+8. PATCH /empresas/{slug}/plan -> FinOpsView (PlanEditor); Company.spendPlan se ve en AgentDeploymentPanel
+9. Company.security (SecurityConfig: pii, injection, forbiddenTopics, publicSources, customerMemory, moderation) y Company.schedule -> SecurityScheduleSections dentro de AgentConfigModal
+10. GET /empresas/{slug}/seguridad/eventos -> SecurityView (SecurityOverview)
+11. PUT /publico/{slug}/conversaciones/{id}/mensajes/{mid}/valoracion -> PublicChat (ChatMessage.rating); SourceDetail (con page) en PublicChat, TicketDetailModal y ConversationsView
+12. POST /publico/{slug}/chat/stream (SSE: delta / done / error) -> api.streamPublicChat usado por PublicChat; DELETE /publico/{slug}/memoria/{visitorId} -> «Olvidar mis datos»; ChatPayload.visitorId
+13. GET /empresas/{slug}/kb/vacios -> UnansweredPanel; GET|POST /empresas/{slug}/kb/propuestas-faq[/{id}/aceptar|descartar] -> FaqProposals (FaqProposalList)
+14. GET /empresas/{slug}/ia/rendimiento -> PerformancePanel dentro de FinOpsView (Performance)
+15. KbDocument.warning y KbChunk.page -> KnowledgeBaseView; POST /tickets/{id}/resumen -> TicketDetailModal (TicketSummary)

@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app import models as m, schemas as s
 from app.db import get_db
-from app.deps import empresa_con_rol, ADMIN, SUPERADMIN
+from app.deps import empresa_con_rol, ADMIN, GESTION_AGENTE, SUPERADMIN
 from app.mappers import plan_out
-from app.services import finops
+from app.services import finops, rendimiento
 
 router = APIRouter(prefix="/empresas/{slug}", tags=["finops"])
 
@@ -25,6 +25,12 @@ def resumen(desde: date | None = Query(None, description="Primer día del rango 
         return finops.resumen(db, e, desde, hasta, modelo, agrupar)
     except ValueError as exc:
         raise HTTPException(422, str(exc))
+
+
+@router.get("/ia/rendimiento", response_model=s.Performance)
+def rendimiento_ia(dias: int = Query(7, ge=1, le=90), e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Session = Depends(get_db)):
+    """Latencia (p50/p95), errores, uso del modelo de respaldo y ahorro de la caché de las llamadas a la IA de la empresa en los últimos `dias`."""
+    return rendimiento.resumen(db, e, dias)
 
 
 @router.patch("/plan", response_model=s.SpendPlan, response_model_exclude_none=True)

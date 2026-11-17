@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m, schemas as s
@@ -9,7 +9,10 @@ from app.deps import (empresa_con_rol, hash_key, nueva_api_key, requiere_rol, us
                       ADMIN, GESTION_AGENTE, TODOS)
 from app.deps import normalizar_dominios
 from app.mappers import empresa_out
-from app.services import horario, modelos, seguridad
+from app.services import evaluacion, horario, modelos, seguridad
+
+# campos de la configuración que cambian lo que responde el agente: al tocarlos corren solos los golden sets marcados como automáticos
+CAMBIOS_QUE_AFECTAN = {"ai_model", "rag_threshold", "tone", "custom_instructions", "agent_name", "security"}
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
@@ -60,11 +63,12 @@ def obtener(e: m.Empresa = Depends(empresa_con_rol(*TODOS)), db: Session = Depen
 
 
 @router.patch("/{slug}", response_model=s.Company, response_model_exclude_none=True)
-def actualizar(body: s.CompanyUpdate, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)),
+def actualizar(body: s.CompanyUpdate, bg: BackgroundTasks, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)),
                u: m.Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
     # Los datos de la empresa (nombre, industria) los cambia solo su admin o el superadmin; el encargado
     # del agente configura el agente. Reenviar el mismo valor no cuenta como cambio.
     cambios = body.model_dump(exclude_unset=True)
+    afectan = CAMBIOS_QUE_AFECTAN & set(cambios)     # antes de sacar security/schedule del diccionario
     if u.rol not in ADMIN and (cambios.get("name", e.nombre) != e.nombre
                                or (cambios.get("industry", e.industria) or "") != (e.industria or "")):
         raise HTTPException(403, "Solo el admin de la empresa puede cambiar su nombre o industria")
@@ -88,8 +92,12 @@ def actualizar(body: s.CompanyUpdate, e: m.Empresa = Depends(empresa_con_rol(*GE
     if seg is not None:
         if u.rol not in ADMIN:    # bajar las defensas de la IA es decisión del admin, no del encargado del agente
             raise HTTPException(403, "Solo el admin de la empresa puede cambiar la configuración de seguridad de la IA")
-        e.seguridad = {"pii": bool(seg["pii"]), "inyeccion": bool(seg["injection"]),
-                       "temasProhibidos": seguridad.limpiar_temas(seg["forbidden_topics"]), "fuentesPublicas": seg["public_sources"]}
+        actual = seguridad.config_de(e)       # lo que el cliente no envía (p. ej. un front antiguo) conserva su valor actual
+        e.seguridad = {"pii": bool(seg.get("pii", actual["pii"])), "inyeccion": bool(seg.get("injection", actual["inyeccion"])),
+                       "temasProhibidos": seguridad.limpiar_temas(seg.get("forbidden_topics", actual["temasProhibidos"])),
+                       "fuentesPublicas": seg.get("public_sources", actual["fuentesPublicas"]),
+                       "memoriaCliente": bool(seg.get("customer_memory", actual["memoriaCliente"])),
+                       "moderacion": bool(seg.get("moderation", actual["moderacion"]))}
     if hor is not None:
         try:
             dias = horario.validar(hor["days"])
@@ -106,6 +114,9 @@ def actualizar(body: s.CompanyUpdate, e: m.Empresa = Depends(empresa_con_rol(*GE
         e.version += 1
     db.commit()
     db.refresh(e)
+    # un cambio que puede alterar las respuestas (modelo, umbral, tono, instrucciones, seguridad…) vuelve a correr los golden sets automáticos
+    if afectan and e.estado_agente == "activo":
+        bg.add_task(evaluacion.disparar_automaticas, e.id, "cambio de configuración del agente (" + ", ".join(sorted(afectan)) + ")")
     return empresa_out(db, e)
 
 

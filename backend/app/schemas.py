@@ -78,6 +78,8 @@ class SecurityConfig(CamelModel):
     injection: bool = True                             # bloquear intentos de inyección de prompt y jailbreak
     forbidden_topics: list[str] = Field(default_factory=list, max_length=30)
     public_sources: Literal["extracto", "nombre", "ninguna"] = "extracto"   # qué ve el cliente de las fuentes de una respuesta
+    customer_memory: bool = True       # recordar el nombre y las últimas consultas de quien vuelve (con su identificador anónimo)
+    moderation: bool = True            # filtrar contenido dañino (insultos, amenazas, instrucciones para dañar) en la respuesta
 
 
 class Schedule(CamelModel):
@@ -103,6 +105,7 @@ class SourceDetail(CamelModel):
     order: int | None = None
     excerpt: str | None = None
     confidence: float | None = None
+    page: int | None = None            # página del PDF de la que sale el fragmento
 
 
 class ChatMessage(CamelModel):
@@ -253,6 +256,7 @@ class ChatRequest(CamelModel):
     customer_email: str | None = None
     channel: str = "Web Chat"
     escalate: bool = False  # el usuario pidió hablar con un humano
+    visitor_id: str | None = Field(default=None, pattern=r"^[0-9a-fA-F\-]{16,64}$")   # identificador anónimo del navegador (memoria del cliente que vuelve)
 
 
 # ---------- autenticación y usuarios ----------
@@ -455,6 +459,62 @@ class ConversationDetail(CamelModel):
     input_tokens: int
     output_tokens: int
     ai_calls: int
+
+
+# ---------- Rendimiento de la IA (trazas) ----------
+class PerfModelRow(CamelModel):
+    model_id: str
+    name: str
+    calls: int
+    errors: int
+    p50_ms: int
+    p95_ms: int
+
+
+class PerfTypeCount(CamelModel):
+    type: str          # respuesta | sugerencia | resumen | memoria | ocr | cache
+    count: int
+
+
+class PerfError(CamelModel):
+    error: str
+    count: int
+
+
+class Performance(CamelModel):
+    days: int
+    calls: int                    # llamadas al modelo (sin contar las servidas desde la caché)
+    errors: int
+    error_rate: float             # %
+    p50_ms: int
+    p95_ms: int
+    fallbacks: int                # respondió el modelo de respaldo porque el de la empresa falló
+    cache_hits: int               # respuestas reutilizadas sin llamar al modelo
+    cache_entries: int
+    cache_saved_usd: float        # ahorro estimado de la caché
+    by_model: list[PerfModelRow]
+    by_type: list[PerfTypeCount]
+    top_errors: list[PerfError]
+
+
+# ---------- Propuestas de FAQ (lo que respondió un humano, para la base de conocimiento) ----------
+class FaqProposal(CamelModel):
+    id: str
+    ticket_number: str
+    question: str
+    answer: str
+    created_at: str
+
+
+class FaqProposalList(CamelModel):
+    pending: list[FaqProposal]
+    accepted: int
+    discarded: int
+
+
+class FaqProposalAccept(CamelModel):
+    question: str = Field(min_length=3, max_length=500)
+    answer: str = Field(min_length=10, max_length=2000)
 
 
 # ---------- Seguridad de la IA, preguntas sin respuesta ----------
@@ -677,6 +737,7 @@ class KbDocument(CamelModel):
     fragments: int
     characters: int
     embedded_fragments: int
+    warning: str | None = None       # p. ej. «2 fragmento(s) con posibles órdenes ocultas dirigidas al modelo»
 
 
 class KbChunk(CamelModel):
@@ -688,6 +749,7 @@ class KbChunk(CamelModel):
     characters: int
     embedded: bool
     model: str | None = None
+    page: int | None = None          # página del PDF
 
 
 class KbChunkList(CamelModel):

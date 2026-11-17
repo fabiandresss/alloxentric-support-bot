@@ -53,6 +53,16 @@ SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() == "true"
 INGESTA_BACKEND = os.getenv("INGESTA_BACKEND", "background")
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
+# --- IA: búsqueda híbrida, OCR, caché de respuestas, modelo de respaldo y rate limit compartido ---
+RAG_HIBRIDO = os.getenv("RAG_HIBRIDO", "true").lower() == "true"            # vectores + palabras clave (Postgres FTS) + reordenamiento
+OCR_HABILITADO = os.getenv("OCR_HABILITADO", "true").lower() == "true"      # PDFs escaneados: se transcriben con visión de Bedrock (cuesta tokens)
+OCR_MAX_PAGINAS = int(os.getenv("OCR_MAX_PAGINAS", "15"))
+CACHE_RESPUESTAS = os.getenv("CACHE_RESPUESTAS", "true").lower() == "true"  # respuestas a preguntas casi idénticas sin volver a llamar al modelo
+CACHE_SIM_MIN = float(os.getenv("CACHE_SIM_MIN", "0.93"))                  # similitud mínima entre preguntas para reutilizar la respuesta
+BEDROCK_RESPALDO = os.getenv("BEDROCK_RESPALDO", "nova-lite")               # id del catálogo que responde si falla el modelo de la empresa ('' = sin respaldo)
+RATELIMIT_BACKEND = os.getenv("RATELIMIT_BACKEND", "memory")                # memory | redis (compartido entre procesos; cae a memoria si Redis no responde)
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+
 # Registro abierto: cualquiera puede crear una cuenta, registrar su empresa y crear su chatbot (uno por empresa). false = solo el superadmin crea empresas y usuarios.
 REGISTRO_ABIERTO = os.getenv("REGISTRO_ABIERTO", "true").lower() == "true"
 

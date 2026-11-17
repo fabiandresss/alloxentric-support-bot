@@ -55,6 +55,8 @@ export interface SecurityConfig {
   injection: boolean; // bloquear intentos de inyección de prompt y jailbreak
   forbiddenTopics: string[];
   publicSources: 'extracto' | 'nombre' | 'ninguna'; // qué ve el cliente de las fuentes de una respuesta
+  customerMemory: boolean; // recordar el nombre y las últimas consultas de quien vuelve (con su identificador anónimo)
+  moderation: boolean; // filtrar contenido dañino (insultos, amenazas, instrucciones para dañar) en la respuesta
 }
 
 /** Horario de atención humana: days = día (lun…dom) -> [desde, hasta] en HH:MM; un día ausente no tiene atención. */
@@ -79,6 +81,7 @@ export interface SourceDetail {
   order?: number;
   excerpt?: string;
   confidence?: number;
+  page?: number; // página del PDF de la que sale el fragmento
 }
 
 export interface ChatMessage {
@@ -500,6 +503,7 @@ export interface KbDocument {
   fragments: number; // fragmentos que realmente existen
   characters: number;
   embeddedFragments: number;
+  warning?: string; // p. ej. «2 fragmento(s) con posibles órdenes ocultas dirigidas al modelo»
 }
 
 export interface KbChunk {
@@ -511,6 +515,36 @@ export interface KbChunk {
   characters: number;
   embedded: boolean;
   model?: string;
+  page?: number; // página del PDF
+}
+
+// ---------- Propuestas de FAQ y rendimiento de la IA ----------
+export interface FaqProposal {
+  id: string;
+  ticketNumber: string;
+  question: string;
+  answer: string;
+  createdAt: string;
+}
+export interface FaqProposalList {
+  pending: FaqProposal[];
+  accepted: number;
+  discarded: number;
+}
+export interface Performance {
+  days: number;
+  calls: number; // llamadas al modelo (sin contar las servidas desde la caché)
+  errors: number;
+  errorRate: number; // %
+  p50Ms: number;
+  p95Ms: number;
+  fallbacks: number; // respondió el modelo de respaldo
+  cacheHits: number; // respuestas reutilizadas sin llamar al modelo
+  cacheEntries: number;
+  cacheSavedUsd: number;
+  byModel: { modelId: string; name: string; calls: number; errors: number; p50Ms: number; p95Ms: number }[];
+  byType: { type: string; count: number }[];
+  topErrors: { error: string; count: number }[];
 }
 
 export interface KbChunkList {
@@ -608,5 +642,5 @@ export interface KbQuality {
   fragmentsChecked: number;
 }
 
-export const DEFAULT_SECURITY: SecurityConfig = { pii: true, injection: true, forbiddenTopics: [], publicSources: 'extracto' };
+export const DEFAULT_SECURITY: SecurityConfig = { pii: true, injection: true, forbiddenTopics: [], publicSources: 'extracto', customerMemory: true, moderation: true };
 export const DEFAULT_SCHEDULE: Schedule = { enabled: false, days: {}, outOfHoursMessage: '' };

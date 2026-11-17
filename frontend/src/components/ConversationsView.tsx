@@ -234,7 +234,7 @@ const ConversationModal: React.FC<{ id: string; slug: string; onClose: () => voi
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5" data-testid="conv-sources">
                       {m.sourceDetails.map((s, i) => onOpenSource && s.documentId ? (
                         <button key={i} onClick={() => onOpenSource(slug, s.documentId!, s.fragmentId)} title="Abrir el fragmento en la base de conocimiento"
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[color:var(--c-soft)] text-[10px] font-medium text-[color:var(--c-ink)] hover:text-[#D20A2E]"><FileText className="w-3 h-3" />{s.documentName}{s.order !== undefined ? ` #${s.order}` : ''}</button>
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[color:var(--c-soft)] text-[10px] font-medium text-[color:var(--c-ink)] hover:text-[#D20A2E]"><FileText className="w-3 h-3" />{s.documentName}{s.order !== undefined ? ` #${s.order}` : ''}{s.page ? ` · p. ${s.page}` : ''}</button>
                       ) : <span key={i} className="text-[10px] text-[color:var(--c-muted)]">{s.documentName}</span>)}
                       {m.confidenceScore !== undefined && <span className="text-[10px] text-[color:var(--c-muted)]">confianza {Math.round(m.confidenceScore * 100)}%</span>}
                     </div>

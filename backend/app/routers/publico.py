@@ -3,17 +3,22 @@
 No lleva autenticación: el slug de la ruta identifica a la empresa (es el mismo que expone `webChatUrl`).
 Solo responde si el agente está `activo` y solo devuelve datos de marca, nunca documentos ni API keys.
 """
+import json
+import queue
+import re
+import threading
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app import models as m, schemas as s
-from app.db import get_db
+from app.db import SessionLocal, get_db
 from app.deps import empresa_por_slug
 from app.mappers import mensaje_out
 from app.ratelimit import limite, verificar
-from app.services import ciclo_ticket, horario, seguridad
+from app.services import ciclo_ticket, horario, memoria, motor_rag, seguridad
 from app.services.chat import procesar_mensaje
 
 router = APIRouter(prefix="/publico", tags=["publico"])
@@ -104,6 +109,57 @@ def valorar_respuesta(conversation_id: str, message_id: str, body: s.RatingIn, e
     db.commit()
     db.refresh(msg)
     return mensaje_out(msg, e)
+
+
+@router.post("/{slug}/chat/stream", dependencies=[Depends(limite("chat", 20, 60, por=("slug",)))])
+def chat_publico_stream(request: Request, body: s.ChatRequest, e: m.Empresa = Depends(empresa_por_slug)):
+    """Igual que POST /{slug}/chat pero la respuesta llega por SSE: eventos `delta` (texto a medida que se escribe) y uno final `done` con la
+    misma respuesta que devuelve el chat normal (el cliente debe reemplazar lo mostrado por ese texto: ya pasó los filtros de seguridad)."""
+    if not body.conversation_id:
+        verificar(request, "nueva_conv", 6, 60, extra=e.slug)
+    if e.estado_agente != "activo":
+        raise HTTPException(403, "El agente de esta empresa no está activo")
+    cola: queue.Queue = queue.Queue()
+    empresa_id = e.id
+
+    def trabajo():
+        try:
+            with SessionLocal() as db:      # sesión propia: este hilo no comparte la de la petición
+                empresa = db.get(m.Empresa, empresa_id)
+                with motor_rag.emitiendo(lambda t: cola.put(("delta", t))):
+                    cola.put(("done", procesar_mensaje(db, empresa, body)))
+        except HTTPException as ex:
+            cola.put(("error", {"status": ex.status_code, "detail": ex.detail}))
+        except Exception:   # noqa: BLE001
+            cola.put(("error", {"status": 500, "detail": "No se pudo responder. Intenta de nuevo."}))
+        finally:
+            cola.put(None)
+
+    threading.Thread(target=trabajo, daemon=True).start()
+
+    def eventos():
+        while (item := cola.get()) is not None:
+            tipo, dato = item
+            if tipo == "delta":
+                carga = {"type": "delta", "text": dato}
+            elif tipo == "done":
+                carga = {"type": "done", "data": dato.model_dump(by_alias=True, exclude_none=True)}
+            else:
+                carga = {"type": "error", **dato}
+            yield f"data: {json.dumps(carga, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(eventos(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.delete("/{slug}/memoria/{visitor_id}", status_code=204,
+               dependencies=[Depends(limite("olvidar", 10, 60, por=("slug",)))])
+def olvidar_cliente(visitor_id: str, e: m.Empresa = Depends(empresa_por_slug), db: Session = Depends(get_db)):
+    """El cliente pide que el chatbot lo olvide: se borra su perfil (nombre y últimas consultas) y se desvinculan sus conversaciones de su
+    identificador. Es idempotente. El identificador es el que su navegador generó; solo afecta a esta empresa."""
+    if not re.fullmatch(r"[0-9a-fA-F\-]{16,64}", visitor_id):
+        raise HTTPException(404, "Identificador no válido")
+    memoria.olvidar(db, e, visitor_id)
+    db.commit()
 
 
 @router.post("/{slug}/conversaciones/{conversation_id}/encuesta", response_model=s.PublicConversation,

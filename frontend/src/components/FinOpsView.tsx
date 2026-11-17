@@ -8,6 +8,7 @@ import { AiModelOption, AuthUser, Company, FinOpsGroup, FinOpsSummary } from '..
 import { addDays, fmtDay, fmtInt, fmtRange, fmtTokens, fmtUsd, isoDay, monthLabel } from '../lib/format';
 import { ProviderLogo } from './ProviderLogo';
 import { Select } from './Select';
+import { PerformancePanel } from './PerformancePanel';
 
 interface FinOpsViewProps {
   me: AuthUser;
@@ -300,6 +301,8 @@ export const FinOpsView: React.FC<FinOpsViewProps> = ({ me, companies, onToast }
             <Stat icon={ArrowUpFromLine} label="Tokens de salida" value={fmtTokens(data.outputTokens)} hint="Texto generado por el modelo" delay={120} />
             <Stat icon={MessagesSquare} label="Costo por conversación" value={data.avgCostPerConversationUsd !== undefined ? fmtUsd(data.avgCostPerConversationUsd) : '—'} hint={`${fmtInt(data.conversations)} conversaciones con IA`} delay={180} />
           </div>
+
+          <PerformancePanel slug={slug} />
 
           {/* Gasto en el tiempo */}
           <section className={`${card} p-5 animate-fade-up`}>

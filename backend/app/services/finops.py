@@ -113,7 +113,8 @@ def registrar(db: Session, empresa: m.Empresa, conv: m.Conversacion | None, usos
         mod = modelos.obtener(u.modelo or empresa.modelo_ia)
         db.add(m.UsoIA(empresa_id=empresa.id, conversacion_id=conv.id if conv else None, modelo=mod.id, tipo=u.tipo,
                        tokens_entrada=u.entrada, tokens_salida=u.salida,
-                       costo_usd=round(modelos.costo_usd(mod, u.entrada, u.salida), 6)))
+                       costo_usd=round(modelos.costo_usd(mod, u.entrada, u.salida), 6),
+                       latencia_ms=u.latencia_ms, exito=u.exito, error=u.error, respaldo=u.respaldo))
     if usos:
         db.flush()
         _alertar(db, empresa)

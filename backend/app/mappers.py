@@ -51,7 +51,8 @@ def plan_out(e: m.Empresa) -> s.SpendPlan:
 
 def seguridad_out(e: m.Empresa) -> s.SecurityConfig:
     c = seguridad.config_de(e)
-    return s.SecurityConfig(pii=c["pii"], injection=c["inyeccion"], forbidden_topics=c["temasProhibidos"], public_sources=c["fuentesPublicas"])
+    return s.SecurityConfig(pii=c["pii"], injection=c["inyeccion"], forbidden_topics=c["temasProhibidos"], public_sources=c["fuentesPublicas"],
+                            customer_memory=c["memoriaCliente"], moderation=c["moderacion"])
 
 
 def horario_out(e: m.Empresa) -> s.Schedule:
@@ -66,13 +67,13 @@ def _fuentes_para(x: m.Mensaje, publico_modo: str | None) -> tuple[list[str] | N
     det = x.fuentes_detalle or []
     if publico_modo is None:
         return nombres, ([s.SourceDetail(document_id=d.get("documentId"), document_name=d.get("documentName", ""), fragment_id=d.get("fragmentId"),
-                                          order=d.get("order"), excerpt=d.get("excerpt"), confidence=d.get("confidence")) for d in det] or None)
+                                          order=d.get("order"), excerpt=d.get("excerpt"), confidence=d.get("confidence"), page=d.get("page")) for d in det] or None)
     if publico_modo == "ninguna":
         return None, None
     if publico_modo == "nombre":
         return nombres, ([s.SourceDetail(document_name=n) for n in (nombres or [])] or None)
     return nombres, ([s.SourceDetail(document_name=d.get("documentName", ""), order=d.get("order"), excerpt=d.get("excerpt"),
-                                      confidence=d.get("confidence")) for d in det] or None)
+                                      confidence=d.get("confidence"), page=d.get("page")) for d in det] or None)
 
 
 def mensaje_out(x: m.Mensaje, empresa: m.Empresa | None = None) -> s.ChatMessage:

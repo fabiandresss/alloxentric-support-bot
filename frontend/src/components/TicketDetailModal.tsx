@@ -294,8 +294,8 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                                 <FileText className="w-3 h-3 mt-0.5 shrink-0 text-[#B00825]" />
                                 {onOpenSource && d.documentId ? (
                                   <button onClick={() => onOpenSource(ticket.companyId, d.documentId!, d.fragmentId)} title="Abrir el fragmento en la base de conocimiento"
-                                    className="text-left font-mono text-[#B00825] hover:underline">{d.documentName}{d.order !== undefined ? ` #${d.order}` : ''}</button>
-                                ) : <span className="font-mono text-[#B00825]">{d.documentName}{d.order !== undefined ? ` #${d.order}` : ''}</span>}
+                                    className="text-left font-mono text-[#B00825] hover:underline">{d.documentName}{d.order !== undefined ? ` #${d.order}` : ''}{d.page ? ` · p. ${d.page}` : ''}</button>
+                                ) : <span className="font-mono text-[#B00825]">{d.documentName}{d.order !== undefined ? ` #${d.order}` : ''}{d.page ? ` · p. ${d.page}` : ''}</span>}
                               </div>
                             ))}
                           </div>

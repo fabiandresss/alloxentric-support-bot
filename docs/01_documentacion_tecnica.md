@@ -446,3 +446,20 @@ Flujo: `/registro` (o «Crear cuenta» en la landing) → **1. cuenta** (`POST /
 - **Plan de gasto:** obligatorio al crear el chatbot (`spendPlan`); lo cambia después el admin de la empresa (o el superadmin) con `PATCH /empresas/{slug}/plan`. Se ve en la tarjeta de la empresa y en «Consumo y costos».
 - **Abuso:** límites por IP (5 cuentas/h, 5 empresas/h) y por correo (3 intentos/h), campo trampa para bots, contraseña de 10+ caracteres con letras y números que no contenga el correo ni el nombre, nombres saneados. `REGISTRO_ABIERTO=false` apaga el módulo.
 - **Riesgos conocidos:** no hay verificación del correo (SMTP es opcional): quien se registra con un correo ajeno solo obtiene acceso a la empresa que él mismo registre. Las cuentas `registrado` abandonadas quedan en la BD (el superadmin las ve en Usuarios). Los nombres de empresa son únicos: alguien podría registrar primero un nombre ajeno (se resuelve contactando a Alloxentric).
+
+
+## IA avanzada: memoria, RAG, guardarraíles y operación (semana 11)
+
+**Memoria (`services/memoria.py`, `faq.py`)**
+- *Resumen de conversaciones largas:* pasados 6 mensajes, lo anterior se resume (con el modelo, o una versión simple sin él) cada vez que se acumulan 6 mensajes viejos; el resumen viaja al prompt junto con los últimos turnos, marcado como dato no confiable.
+- *Cliente que vuelve:* el navegador genera un `visitor_id` anónimo; el backend guarda un perfil por (empresa, visitante) con el nombre de pila (si dijo «me llamo Ana») y sus últimas consultas enmascaradas. Se apaga por empresa (`customerMemory`) y el cliente puede pedir `DELETE /publico/{slug}/memoria/{id}`. Nunca se comparte entre empresas.
+- *Propuestas de FAQ:* las respuestas de los agentes humanos en los tickets se proponen como FAQ (enmascaradas); una persona las revisa/edita y, al aceptar, se ingestan como documento `.faq`.
+
+**RAG**
+- *Búsqueda híbrida (`services/hibrido.py`):* candidatos por vectores + por palabras clave (texto completo de Postgres, índice GIN `ix_fragmentos_fts`) y reordenamiento (0.55·semántica + 0.25·cobertura de palabras + bonos). Los códigos y cifras exactas de la pregunta ganan; sin coincidencias de palabras el orden es el de los vectores. `RAG_HIBRIDO=false` lo apaga.
+- *OCR (`services/ocr.py`):* un PDF sin texto se renderiza (pypdfium2) y cada página se transcribe con visión de Bedrock (Haiku 5.5); cuesta tokens (FinOps, tipo `ocr`), respeta el límite de gasto y `OCR_MAX_PAGINAS`. `OCR_HABILITADO=false` lo apaga.
+- *Página citada:* los fragmentos de un PDF guardan su página y las fuentes la muestran («p. 3»).
+
+**Guardarraíles nuevos:** ataque repartido en varios mensajes (se unen los mensajes cortados a la mitad), cierre de la conversación tras 3 ataques, PII en texto libre (nombre tras «me llamo», direcciones), moderación de la respuesta (insultos, amenazas, instrucciones para dañar; no cuenta si el término está en la documentación), advertencia al subir un documento con órdenes ocultas y rate limit en Redis (`RATELIMIT_BACKEND=redis`, con caída a memoria).
+
+**Operación:** modelo de respaldo si el de la empresa falla (`BEDROCK_RESPALDO`); caché semántica de respuestas (solo primera pregunta de una conversación, sin datos personales ni memoria del cliente, invalidada al cambiar documentos o configuración; `CACHE_RESPUESTAS`); trazas de cada llamada (latencia, éxito, error, respaldo) y panel de rendimiento (`GET /empresas/{slug}/ia/rendimiento`); los golden sets automáticos también corren al cambiar modelo, umbral, tono, instrucciones, nombre o seguridad del agente; streaming por SSE (`POST /publico/{slug}/chat/stream`: el texto llega a medida que se escribe, se retiene si deja de ser seguro y el mensaje final ya pasó todos los filtros); CI en GitHub Actions (`.github/workflows/ci.yml`: pytest contra pgvector real, migraciones, tipos y build).

@@ -41,6 +41,9 @@ import {
   SecurityOverview,
   UnansweredReport,
   ChatMessage,
+  FaqProposalList,
+  KbDocument as KbDoc,
+  Performance,
 } from '../types';
 
 export const API_URL: string =
@@ -215,6 +218,7 @@ export interface ChatPayload {
   customerEmail?: string;
   channel?: string;
   escalate?: boolean;
+  visitorId?: string; // identificador anónimo del navegador: permite que el chatbot reconozca a quien vuelve
 }
 /** Simulador del panel de administración (no exige agente activo ni API key). */
 export const probeChat = (slug: string, p: ChatPayload) =>
@@ -364,3 +368,54 @@ export const regenerateTicketSummary = (ticketId: string) => request<Ticket>(`/t
 export const getSecurityEvents = (slug: string, days: number, type?: string) =>
   request<SecurityOverview>(`/empresas/${slug}/seguridad/eventos?dias=${days}${type ? `&tipo=${encodeURIComponent(type)}` : ''}`);
 export const getUnanswered = (slug: string, days: number) => request<UnansweredReport>(`/empresas/${slug}/kb/vacios?dias=${days}`);
+
+// ---------- chat en streaming, memoria del cliente, propuestas de FAQ y rendimiento ----------
+/**
+ * Chat público por SSE: `onDelta` recibe el texto a medida que el modelo lo escribe; al terminar devuelve la misma respuesta que el chat normal.
+ * Lo mostrado por los deltas es un adelanto: el texto final (ya filtrado por seguridad) es el que vale y debe reemplazarlo.
+ * Si la conexión por streaming falla antes de empezar, quien llama puede reintentar con `sendPublicChat`.
+ */
+export async function streamPublicChat(slug: string, p: ChatPayload, onDelta: (texto: string) => void): Promise<ChatResponse> {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  try { const host = new URLSearchParams(window.location.search).get('host'); if (host) headers.set('X-Embed-Host', host); } catch { /* sin location */ }
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/publico/${encodeURIComponent(slug)}/chat/stream`, { method: 'POST', headers, body: JSON.stringify(p) });
+  } catch {
+    throw new ApiError(`No se pudo conectar con el backend en ${API_URL}`, 0);
+  }
+  if (!res.ok || !res.body) {
+    let detail = `Error ${res.status}`;
+    try { const b = await res.json(); if (typeof b.detail === 'string') detail = b.detail; } catch { /* sin JSON */ }
+    throw new ApiError(detail, res.status);
+  }
+  const lector = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let final: ChatResponse | null = null;
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i: number;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const bloque = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      if (!bloque.startsWith('data: ')) continue;
+      const ev = JSON.parse(bloque.slice(6));
+      if (ev.type === 'delta') onDelta(ev.text);
+      else if (ev.type === 'done') final = ev.data as ChatResponse;
+      else if (ev.type === 'error') throw new ApiError(ev.detail ?? 'No se pudo responder', ev.status ?? 500);
+    }
+  }
+  if (!final) throw new ApiError('La respuesta se cortó antes de terminar', 0);
+  return final;
+}
+/** El cliente pide que el chatbot lo olvide (borra su perfil y desvincula sus conversaciones). */
+export const forgetVisitor = (slug: string, visitorId: string) =>
+  request<void>(`/publico/${encodeURIComponent(slug)}/memoria/${encodeURIComponent(visitorId)}`, { method: 'DELETE' });
+export const getFaqProposals = (slug: string) => request<FaqProposalList>(`/empresas/${slug}/kb/propuestas-faq`);
+export const acceptFaqProposal = (slug: string, id: string, p: { question: string; answer: string }) =>
+  request<KbDoc>(`/empresas/${slug}/kb/propuestas-faq/${id}/aceptar`, json('POST', p));
+export const discardFaqProposal = (slug: string, id: string) => request<void>(`/empresas/${slug}/kb/propuestas-faq/${id}/descartar`, { method: 'POST' });
+export const getPerformance = (slug: string, days: number) => request<Performance>(`/empresas/${slug}/ia/rendimiento?dias=${days}`);

@@ -36,6 +36,13 @@ Fecha de esta versión: semana 11 (15 nov 2026).
 | Salida | Si aparece el canario o 40 caracteres seguidos del prompt → se descarta; se eliminan imágenes, HTML y enlaces que no estén en la documentación | `seguridad.filtrar_salida` | `test_si_el_modelo_filtra_el_canario…`, `test_la_respuesta_no_puede_sacar_datos…` |
 | Salida | Resumen y borrador para humanos validados (urgencia en lista cerrada, texto saneado); el modelo **no puede bajar** la urgencia detectada por reglas | `services/resumen.py` | `test_el_resumen_con_ia_se_valida…` |
 | Aislamiento | `empresa_id` en toda consulta; la valoración exige conversación y empresa del slug; eventos y vacíos por tenant | routers | `test_eventos_de_seguridad_aislados_por_empresa`, `test_solo_se_valoran_respuestas_del_bot…` |
+| Entrada | Ataque repartido en varios mensajes (se unen los mensajes cortados a la mitad) y cierre de la conversación tras 3 ataques | `seguridad.analizar_multiturno`, `chat.py` | `test_ataque_repartido_en_dos_mensajes`, `test_la_conversacion_se_cierra_tras_varios_ataques` |
+| Entrada | PII en texto libre: nombre tras «me llamo» y direcciones | `seguridad.enmascarar` | `test_nombres_y_direcciones_en_texto_libre_se_enmascaran` |
+| Documentos | Al subir un documento se revisa si trae órdenes ocultas (advertencia en la KB + evento) | `ingesta._revisar_contenido` | `test_un_documento_con_ordenes_ocultas_se_avisa_al_subirlo` |
+| Salida | Moderación: insultos, amenazas e instrucciones para dañar (salvo que estén en la documentación) | `seguridad.contenido_danino` | `test_la_respuesta_danina_no_se_muestra…` |
+| Streaming | El texto emitido se retiene si deja de ser seguro (canario, enlaces, daño); el final siempre pasa los filtros | `seguridad.parcial_seguro` | `test_en_streaming_no_se_muestra_lo_que_el_filtro…` |
+| Abuso | Límite de peticiones compartido en Redis, con caída a memoria | `ratelimit.py` | `test_el_limite_de_peticiones_vive_en_redis…` |
+| Privacidad | Memoria del cliente opcional, enmascarada, por empresa y con «olvídame» | `memoria.py` | `test_el_cliente_que_vuelve_es_reconocido_y_puede_pedir_que_lo_olviden` |
 | Gobierno | Solo el admin cambia las defensas; encargado del agente no puede apagarlas | `routers/empresas.py` | `test_solo_el_admin_cambia_la_seguridad` |
 | Auditoría | Tabla `eventos_seguridad` (extracto ya enmascarado, severidad, señales) y vista «Seguridad de la IA» | `routers/seguridad.py`, `SecurityView.tsx` | — |
 
@@ -87,15 +94,16 @@ Son 20 ataques: demuestra que las defensas funcionan contra los casos conocidos,
    la vista de seguridad.
 2. **Falsos positivos:** una consulta legítima redactada como orden («ignora mis reglas de facturación anteriores…») puede
    bloquearse. El cliente recibe una negativa amable y puede pedir un humano.
-3. **PII fuera de patrón:** solo se detectan formatos conocidos (RUT chileno válido, tarjetas Luhn, correos, teléfonos, claves).
-   Nombres, direcciones o datos de salud en texto libre **no** se enmascaran.
+3. **PII fuera de patrón:** se detectan formatos conocidos (RUT válido, tarjetas Luhn, correos, teléfonos, claves) y, con reglas, nombres tras «me llamo» y direcciones. Datos de salud, apellidos sueltos o direcciones sin las palabras habituales **no** se enmascaran.
 4. **Extractos de fuentes al cliente:** con `publicSources = extracto` el cliente ve un trozo de la documentación que ya
    cita el bot. Si un documento tiene información no pública, usar `nombre` o `ninguna`.
 5. **El chat público no tiene sesión:** la protección es el rate limiting y los topes; un atacante con muchas IP puede
    gastar hasta el límite de gasto de la empresa (cuando está configurado).
 6. **Veracidad:** los guardarraíles no impiden que el modelo malinterprete un fragmento correcto.
 7. **Bedrock:** los mensajes (ya enmascarados) salen a AWS. Revisar los términos de retención del modelo elegido.
-8. **No cubierto en esta etapa:** análisis de dependencias, pentest de la API completa, WAF y cifrado en reposo de la BD.
+8. **Ataque repartido en varios mensajes:** solo se detecta si los fragmentos quedan cortados a la mitad (sin punto final); un atacante que cierre cada trozo con punto esquiva esa regla, y solo lo frena el cierre de la conversación tras varios intentos.
+9. **Moderación por reglas:** una lista de insultos y amenazas, no un clasificador: no entiende el contexto ni otros idiomas.
+10. **No cubierto en esta etapa:** análisis de dependencias, pentest de la API completa, WAF y cifrado en reposo de la BD.
 
 ## 6. Recomendaciones
 

@@ -25,7 +25,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from app import models as m
 from app.db import SessionLocal
-from app.services import finops, llm, modelos, motor_rag
+from app.services import cache, finops, llm, modelos, motor_rag
 
 log = logging.getLogger("rag.evaluacion")
 
@@ -176,7 +176,7 @@ def ejecutar(run_id: uuid.UUID) -> None:
                 base = dict(empresa_id=run.empresa_id, ejecucion_id=run.id, caso_id=c.id, orden=i, pregunta=c.pregunta,
                             respuesta_esperada=c.respuesta_esperada, documento_esperado=c.documento_esperado, debe_derivar=c.debe_derivar)
                 try:
-                    with llm.capturando() as usos, modelos.forzando(run.modelo_ia):   # el modelo que se probó en ESTA corrida
+                    with llm.capturando() as usos, modelos.forzando(run.modelo_ia), cache.sin_cache():   # el modelo de ESTA corrida; sin caché: se prueba al modelo de verdad
                         t0 = time.perf_counter()
                         r = motor_rag.responder(db, empresa, c.pregunta, False)
                         ms = int((time.perf_counter() - t0) * 1000)

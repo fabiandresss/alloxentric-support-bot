@@ -1,12 +1,13 @@
 """Base de conocimiento: qué documentación está ingestada y cómo quedó fragmentada. Solo lectura (subir y borrar documentos sigue en /empresas/{slug}/documentos)."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from app import models as m, schemas as s
 from app.db import get_db
 from app.deps import empresa_con_rol, GESTION_AGENTE
 from app.routers.testing import _uuid
-from app.services import embeddings, vacios as vacios_srv
+from app.routers.documentos import _ingestar
+from app.services import embeddings, faq, vacios as vacios_srv
 from app.utils import ahora
 from datetime import timedelta
 import re
@@ -38,7 +39,7 @@ def documentos(e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Ses
     docs = db.scalars(select(D).where(D.empresa_id == e.id).order_by(D.subido_en.desc())).all()
     return [s.KbDocument(id=str(d.id), name=d.nombre, type=d.tipo, size_bytes=d.tamano_bytes, uploaded_at=d.subido_en.isoformat(), status=d.estado,
                          fragments=cuentas.get(d.id, (0, 0, 0))[0], characters=cuentas.get(d.id, (0, 0, 0))[1],
-                         embedded_fragments=cuentas.get(d.id, (0, 0, 0))[2]) for d in docs]
+                         embedded_fragments=cuentas.get(d.id, (0, 0, 0))[2], warning=d.advertencia) for d in docs]
 
 
 @router.get("/fragmentos", response_model=s.KbChunkList, response_model_exclude_none=True)
@@ -47,7 +48,7 @@ def fragmentos(q: str | None = Query(None, max_length=200, description="Texto a 
                e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Session = Depends(get_db)):
     """Los fragmentos (chunks) que el agente puede usar, con su documento. Filtra por documento y/o por texto."""
     F, D = m.FragmentoEmbedding, m.Documento
-    base = (select(F.id, F.documento_id, D.nombre, F.orden, F.texto, F.modelo, F.embedding.is_not(None).label("vec"))
+    base = (select(F.id, F.documento_id, D.nombre, F.orden, F.texto, F.modelo, F.embedding.is_not(None).label("vec"), F.pagina)
             .join(D, D.id == F.documento_id).where(F.empresa_id == e.id, D.empresa_id == e.id))     # <- tenant
     if documento_id:
         base = base.where(F.documento_id == _uuid(documento_id))
@@ -56,7 +57,7 @@ def fragmentos(q: str | None = Query(None, max_length=200, description="Texto a 
     total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
     filas = db.execute(base.order_by(D.nombre, F.orden).limit(limit).offset(offset)).all()
     return s.KbChunkList(total=int(total), items=[s.KbChunk(id=str(f.id), document_id=str(f.documento_id), document_name=f.nombre, order=f.orden,
-                                                            text=f.texto, characters=len(f.texto), embedded=bool(f.vec), model=f.modelo) for f in filas])
+                                                            text=f.texto, characters=len(f.texto), embedded=bool(f.vec), model=f.modelo, page=f.pagina) for f in filas])
 
 
 def _norm(t: str) -> str:
@@ -144,3 +145,49 @@ def vacios(dias: int = Query(30, ge=1, le=180), e: m.Empresa = Depends(empresa_c
                                   closest_confidence=g["closest_confidence"], suggestion=g["suggestion"],
                                   questions=[s.UnansweredQuestion(question=q["question"], at=q["at"], conversation_id=q["conversation_id"]) for q in g["questions"]])
                 for g in r["groups"]])
+
+
+# ------------------------------------------------------------------------------------------ propuestas de FAQ
+def _propuesta(db: Session, e: m.Empresa, pid: str) -> m.PropuestaFaq:
+    p = db.scalar(select(m.PropuestaFaq).where(m.PropuestaFaq.id == _uuid(pid), m.PropuestaFaq.empresa_id == e.id))   # <- tenant
+    if not p:
+        raise HTTPException(404, "Propuesta no encontrada")
+    return p
+
+
+@router.get("/propuestas-faq", response_model=s.FaqProposalList, response_model_exclude_none=True)
+def propuestas_faq(e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Session = Depends(get_db)):
+    """Respuestas que dieron los agentes humanos en los tickets de la empresa, propuestas como FAQ. Se generan al consultar."""
+    if faq.generar(db, e):
+        db.commit()
+    P, T = m.PropuestaFaq, m.Ticket
+    pend = db.execute(select(P, T.numero).join(T, T.id == P.ticket_id).where(P.empresa_id == e.id, P.estado == "pendiente")
+                      .order_by(P.creada_en.desc()).limit(50)).all()
+    cuentas = dict(db.execute(select(P.estado, func.count()).where(P.empresa_id == e.id).group_by(P.estado)).all())
+    return s.FaqProposalList(
+        pending=[s.FaqProposal(id=str(p.id), ticket_number=num, question=p.pregunta, answer=p.respuesta, created_at=p.creada_en.isoformat()) for p, num in pend],
+        accepted=int(cuentas.get("aceptada", 0)), discarded=int(cuentas.get("descartada", 0)))
+
+
+@router.post("/propuestas-faq/{pid}/aceptar", response_model=s.KbDocument, response_model_exclude_none=True, status_code=201)
+def aceptar_faq(pid: str, body: s.FaqProposalAccept, bg: BackgroundTasks, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)),
+                db: Session = Depends(get_db)):
+    """Convierte la propuesta (ya revisada y editada por una persona) en un documento FAQ de la base de conocimiento y lo ingesta."""
+    p = _propuesta(db, e, pid)
+    if p.estado != "pendiente":
+        raise HTTPException(409, "Esta propuesta ya fue resuelta")
+    d = faq.crear_documento(db, e, body.question, body.answer)
+    faq.resolver(p, "aceptada", d)
+    db.commit()
+    _ingestar(bg, d.id, "FAQ propuesta")
+    return s.KbDocument(id=str(d.id), name=d.nombre, type=d.tipo, size_bytes=d.tamano_bytes, uploaded_at=d.subido_en.isoformat(), status="procesando",
+                        fragments=0, characters=0, embedded_fragments=0)
+
+
+@router.post("/propuestas-faq/{pid}/descartar", status_code=204)
+def descartar_faq(pid: str, e: m.Empresa = Depends(empresa_con_rol(*GESTION_AGENTE)), db: Session = Depends(get_db)):
+    p = _propuesta(db, e, pid)
+    if p.estado != "pendiente":
+        raise HTTPException(409, "Esta propuesta ya fue resuelta")
+    faq.resolver(p, "descartada")
+    db.commit()

@@ -8,6 +8,7 @@ const fmtBytes = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed
 import { Select } from './Select';
 import { Modal } from './Modal';
 import { UnansweredPanel } from './UnansweredPanel';
+import { FaqProposals } from './FaqProposals';
 
 interface KnowledgeBaseViewProps {
   me: AuthUser;
@@ -239,6 +240,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
           )}
 
           <UnansweredPanel slug={slug} onSearchDoc={(name) => setDocQ(name)} />
+          <FaqProposals slug={slug} onAdded={() => loadBase(true)} onToast={onToast} />
 
           {/* Documentos */}
           <section className={`${card} overflow-hidden animate-fade-up`} aria-label="Documentos ingestados">
@@ -283,6 +285,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
                             <span className="flex items-center gap-2.5 min-w-0">
                               <span className="w-8 h-8 rounded-lg bg-[color:var(--c-ch100)] text-[#D20A2E] flex items-center justify-center shrink-0"><FileText className="w-4 h-4" /></span>
                               <span className="font-semibold text-[color:var(--c-ink)] truncate max-w-[22rem]" title={d.name}>{d.name}</span>
+                              {d.warning && <span data-testid={`kb-warning-${d.id}`} title={d.warning} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[color:var(--c-rbg2)] text-[color:var(--c-rtx2)] text-[10px] font-bold shrink-0"><AlertTriangle className="w-3 h-3" /> Revisar</span>}
                             </span>
                           </td>
                           <td className="px-5 py-3 uppercase text-[color:var(--c-muted)] font-medium">{d.type}</td>
@@ -334,6 +337,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
                   <li key={c.id} data-fragment-id={c.id} style={{ animationDelay: `${Math.min(i, 10) * 20}ms` }} className={`px-5 py-4 animate-fade-up ${hl === c.id ? 'bg-[color:var(--c-ch50)] ring-2 ring-inset ring-[#D20A2E]' : ''}`}>
                     <div className="flex items-center gap-2 flex-wrap text-[11px] mb-1.5">
                       <span className="font-semibold text-[#D20A2E] bg-[color:var(--c-ch100)] rounded-md px-2 py-0.5">#{c.order}</span>
+                      {c.page ? <span className="font-semibold text-[color:var(--c-muted)] bg-[color:var(--c-soft)] rounded-md px-2 py-0.5">p. {c.page}</span> : null}
                       <button onClick={() => setDocId(c.documentId)} className="font-semibold text-[color:var(--c-ink)] hover:text-[#D20A2E] truncate max-w-[18rem]" title={c.documentName}>{c.documentName}</button>
                       <span className="text-[color:var(--c-muted)] tabular-nums">{fmtInt(c.characters)} caracteres</span>
                       <span className={`inline-flex items-center gap-1 ${c.embedded ? 'text-[color:var(--c-gtx)]' : 'text-[color:var(--c-rtx)]'}`}><Database className="w-3 h-3" />{c.embedded ? 'con vector' : 'sin vector'}</span>

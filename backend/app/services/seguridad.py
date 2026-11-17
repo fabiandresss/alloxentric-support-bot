@@ -35,7 +35,10 @@ RECHAZO_INYECCION = ("No puedo ayudarte con esa solicitud. Si tienes una consult
 RECHAZO_TEMA = "Ese tema está fuera de lo que puedo atender por este canal. Si necesitas ayuda con otra cosa, dime."
 RECHAZO_SALIDA = "No puedo compartir eso. ¿Quieres que te derive con un agente humano?"
 
-DEFECTO = {"pii": True, "inyeccion": True, "temasProhibidos": [], "fuentesPublicas": "extracto"}
+RECHAZO_BLOQUEO = "Esta conversación se cerró por seguridad. Si necesitas ayuda, inicia una nueva consulta o pide hablar con una persona."
+MAX_INTENTOS_HOSTILES = 3          # intentos de ataque en una misma conversación antes de cerrarla
+
+DEFECTO = {"pii": True, "inyeccion": True, "temasProhibidos": [], "fuentesPublicas": "extracto", "memoriaCliente": True, "moderacion": True}
 
 
 def config_de(empresa: m.Empresa) -> dict:
@@ -47,6 +50,8 @@ def config_de(empresa: m.Empresa) -> dict:
     cfg["temasProhibidos"] = limpiar_temas(raw.get("temasProhibidos"))
     modo = raw.get("fuentesPublicas", "extracto")
     cfg["fuentesPublicas"] = modo if modo in FUENTES_MODOS else "extracto"
+    cfg["memoriaCliente"] = bool(raw.get("memoriaCliente", True))      # recordar el nombre y las últimas consultas de quien vuelve
+    cfg["moderacion"] = bool(raw.get("moderacion", True))              # filtrar contenido dañino en la respuesta
     return cfg
 
 
@@ -113,6 +118,9 @@ _RE_CLAVE = re.compile(r"(?i)\b(contrase[ñn]a|clave|password|passwd|pwd|pin|cvv
 _RE_CORREO = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
 _RE_TARJETA = re.compile(r"(?<![\d])(?:\d[ \-]?){13,19}(?![\d])")
 _RE_RUT = re.compile(r"(?<![\w.])(\d{1,2}(?:\.?\d{3}){2})\s?-\s?([\dkK])(?![\w])|(?<![\w.])(\d{7,8})([\dkK])(?![\w])")
+_RE_NOMBRE = re.compile(r"\b([Mm]e llamo|[Mm]i nombre es)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})")
+_RE_DIRECCION = re.compile(r"(?i)\b(?:vivo en|resido en|mi direcci[oó]n es|mi domicilio es)\s+[^.,;\n]{4,80}"
+                           r"|\b(?:calle|avenida|av\.?|pasaje|pje\.?|psje\.?|camino)\s+[A-Za-zÁÉÍÓÚÑáéíóúñ0-9 .]{2,40}?\s*#?\s*\d{1,5}\b")
 _RE_TELEFONO = re.compile(r"(?<![\w])(?:\+?56[ \-]?)?9[ \-]?\d{4}[ \-]?\d{4}(?![\w])|(?<![\w])\+\d{1,3}[ \-]?\(?\d{1,4}\)?[ \-]?\d{3,4}[ \-]?\d{3,4}(?![\w])")
 
 
@@ -160,6 +168,13 @@ def enmascarar(texto: str) -> tuple[str, list[str]]:
         return mo.group(0)
     t = _RE_RUT.sub(_rut, t)
     t = _RE_TELEFONO.sub(marca("telefono", "[TELEFONO]"), t)
+
+    def _nombre(mo):
+        if "nombre" not in tipos:
+            tipos.append("nombre")
+        return f"{mo.group(1)} [NOMBRE]"
+    t = _RE_NOMBRE.sub(_nombre, t)
+    t = _RE_DIRECCION.sub(marca("direccion", "[DIRECCION]"), t)
     return t, tipos
 
 
@@ -228,6 +243,30 @@ def puntaje_inyeccion(texto: str) -> tuple[int, list[str]]:
             senales.append(nombre)
             pts += 1
     return pts, senales
+
+
+_FIN_ORACION = re.compile(r"[.!?…]\s*$")
+
+
+def analizar_multiturno(empresa: m.Empresa, previos: list[str], texto: str) -> Analisis | None:
+    """Ataque repartido en varios mensajes («ignora tus» … «instrucciones anteriores»). Une los últimos mensajes del cliente que quedaron
+    partidos a la mitad (sin punto final) con el actual: si juntos son un ataque y ninguno lo es solo, se bloquea. No une mensajes que
+    terminan en oración (evita falsos positivos entre preguntas distintas). Límite: un atacante que cierre cada fragmento con punto
+    esquiva esta regla; para eso está el cierre de la conversación tras varios intentos."""
+    if not previos or not config_de(empresa)["inyeccion"]:
+        return None
+    cola: list[str] = []
+    for previo in reversed(previos[-3:]):
+        if _FIN_ORACION.search(previo.strip()):
+            break
+        cola.insert(0, previo)
+    if not cola:
+        return None
+    partes = cola + [texto]
+    pts, senales = puntaje_inyeccion(" ".join(partes))
+    if pts >= 2 and max(puntaje_inyeccion(x)[0] for x in partes) < 2:
+        return Analisis(limpiar(texto), bloqueo="inyeccion_multiturno", senales=senales, respuesta=RECHAZO_INYECCION)
+    return None
 
 
 def hay_inyeccion(texto: str) -> bool:
@@ -316,7 +355,43 @@ class Salida:
     bloqueada: bool = False
 
 
-def filtrar_salida(texto: str, canario: str, sistema: str, fragmentos: list[str], extra_dominios: list[str] | None = None) -> Salida:
+_DANINO = [
+    re.compile(r"\b(idiota|imbecil|estupid[oa]s?|pelotud[oa]|payas[oa]|hijo de puta|hijueputa|conchetumare|culiao|weon culiao|"
+               r"fuck you|asshole|stupid idiot|bitch)\b"),
+    re.compile(r"\b(?:como|pasos para)\s+(?:fabricar|hacer|construir|armar)\s+(?:una?\s+)?(?:bomba|explosivo|arma)\b"),
+    re.compile(r"\b(?:metodos?|formas?|maneras?)\s+(?:de|para)\s+(?:suicidarse|quitarse la vida|autolesionarse)\b"),
+    re.compile(r"\b(?:te voy a|te vamos a|voy a)\s+(?:matar|golpear|destruir)\b|\bkill yourself\b|\bmatate\b"),
+]
+
+
+def contenido_danino(texto: str, contexto: list[str]) -> bool:
+    """Insultos, amenazas o instrucciones para dañar en la respuesta. Si el mismo término está en la documentación que se le entregó al
+    modelo (p. ej. un protocolo de salud mental que habla de autolesiones) no cuenta: es contenido de la empresa, no del modelo."""
+    plano, ctx = _plano(texto), _plano(" ".join(contexto))
+    for rx in _DANINO:
+        for mo in rx.finditer(plano):
+            if mo.group(0) not in ctx:
+                return True
+    return False
+
+
+def parcial_seguro(texto: str, canario: str, sistema: str, contexto: list[str], moderar: bool = True) -> bool:
+    """Para el streaming: ¿lo escrito hasta ahora se puede mostrar ya? No si el modelo empieza a decir el canario o a copiar las instrucciones,
+    si trae imágenes/HTML/enlaces (se revisan contra la documentación al final) o contenido dañino. Si no es seguro se retiene el resto y el
+    cliente ve solo el texto final, ya filtrado."""
+    if canario and canario[:8] in texto:
+        return False
+    base = re.sub(r"\s+", " ", sistema or "")
+    norm = re.sub(r"\s+", " ", texto)
+    if len(norm) >= 40 and any(base[i:i + 40] in norm for i in range(0, max(0, len(base) - 40), 20)):
+        return False
+    if _RE_IMG.search(texto) or _RE_HTML.search(texto) or _RE_URL.search(texto) or "](" in texto:
+        return False
+    return not (moderar and contenido_danino(texto, contexto))
+
+
+def filtrar_salida(texto: str, canario: str, sistema: str, fragmentos: list[str], extra_dominios: list[str] | None = None,
+                   moderar: bool = True) -> Salida:
     """Última barrera: evita que la respuesta filtre las instrucciones o saque datos con enlaces/imágenes."""
     incid: list[str] = []
     t = limpiar(texto)
@@ -328,6 +403,8 @@ def filtrar_salida(texto: str, canario: str, sistema: str, fragmentos: list[str]
     for i in range(0, max(0, len(base) - 40), 20):
         if base[i:i + 40] in salida_norm:
             return Salida(RECHAZO_SALIDA, ["fuga_prompt"], True)
+    if moderar and contenido_danino(t, fragmentos):
+        return Salida(RECHAZO_SALIDA, ["salida_danina"], True)
     if _RE_IMG.search(t):
         t = _RE_IMG.sub("", t)
         incid.append("imagen_markdown")
@@ -366,7 +443,8 @@ def en_conversacion(conv_id: uuid.UUID | None):
         _conv_actual.reset(token)
 
 
-SEVERIDAD = {"inyeccion": "alta", "fuga_salida": "alta", "fragmento_sospechoso": "alta", "tema_prohibido": "baja", "pii": "media",
+SEVERIDAD = {"inyeccion_multiturno": "alta", "salida_danina": "alta", "conversacion_bloqueada": "media", "documento_sospechoso": "alta",
+             "inyeccion": "alta", "fuga_salida": "alta", "fragmento_sospechoso": "alta", "tema_prohibido": "baja", "pii": "media",
              "salida_saneada": "media", "limite_conversacion": "media", "dominio_bloqueado": "media"}
 
 

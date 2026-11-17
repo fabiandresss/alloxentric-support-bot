@@ -17,6 +17,8 @@ os.environ["DATABASE_URL"] = url
 os.environ["CORESTREAM_MOCK"] = "true"
 os.environ["EMBEDDINGS_BACKEND"] = "hash"   # sin descargar modelos; el motor RAG se prueba con el embedder léxico
 os.environ["BEDROCK_HABILITADO"] = "false"  # nunca llamar a AWS desde las pruebas
+os.environ["CACHE_RESPUESTAS"] = "false"    # la caché de respuestas se prueba aparte: aquí taparía las llamadas que otras pruebas cuentan
+os.environ["RATELIMIT_BACKEND"] = "memory"
 # Con una BD real (TEST_DATABASE_URL, p. ej. el Docker de pgvector) se prueba la búsqueda por pgvector. Con el Postgres
 # temporal sin Docker, el pgvector que trae se cae al calcular distancias en algunas CPUs: búsqueda exacta en Python.
 os.environ.setdefault("RAG_SEARCH", "pgvector" if os.getenv("TEST_DATABASE_URL") else "python")
