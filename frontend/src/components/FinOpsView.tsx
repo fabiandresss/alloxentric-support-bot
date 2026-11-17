@@ -183,7 +183,7 @@ export const FinOpsView: React.FC<FinOpsViewProps> = ({ me, companies, onToast }
                   <p className="text-sm font-bold text-[color:var(--c-ink)]" data-testid="finops-plan-name">{limited ? 'Límite mensual' : 'Sin límite mensual'}</p>
                 </div>
               </div>
-              {isSuper && !editing && (
+              {!editing && (   // el admin de la empresa (o el superadmin) define si el gasto es ilimitado o con límite
                 <button onClick={() => setEditing(true)} data-testid="finops-edit-plan" className="px-3 py-1.5 rounded-lg border border-[color:var(--c-line)] bg-white text-xs font-semibold text-[color:var(--c-ink)] flex items-center gap-1.5">
                   <Pencil className="w-3.5 h-3.5" /> Cambiar plan
                 </button>
@@ -393,7 +393,7 @@ export const FinOpsView: React.FC<FinOpsViewProps> = ({ me, companies, onToast }
   );
 };
 
-/** Editor del plan (solo superadmin): límite mensual en USD, o sin límite. */
+/** Editor del plan (admin de la empresa o superadmin): límite mensual en USD, o sin límite. */
 const PlanEditor: React.FC<{
   initial: { mode: 'limitado' | 'sin_limite'; monthlyLimitUsd?: number; dailyLimitUsd?: number };
   onCancel: () => void;

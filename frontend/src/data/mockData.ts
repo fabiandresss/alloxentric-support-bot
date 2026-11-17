@@ -1,4 +1,4 @@
-import { Company, Ticket, SystemMetrics } from '../types';
+import { Company, Ticket, SystemMetrics, DEFAULT_SECURITY, DEFAULT_SCHEDULE } from '../types';
 
 export const INITIAL_COMPANIES: Company[] = [
   {
@@ -21,7 +21,7 @@ Si el usuario reporta una urgencia médica con riesgo vital, infórmale inmediat
     botResolutionRate: 89.2,
     ragThreshold: 0.78,
     aiModel: 'haiku-5-5',
-    allowedDomains: [],
+    allowedDomains: [], security: DEFAULT_SECURITY, schedule: DEFAULT_SCHEDULE, chatbotCreated: true, spendPlan: { mode: 'sin_limite' },
     lastUpdated: 'Hace 2 horas',
     version: 'v2.4.1',
     documents: [
@@ -92,7 +92,7 @@ Si detectas fallos en servidores de producción o revocaciones de token Meta, de
     botResolutionRate: 91.5,
     ragThreshold: 0.82,
     aiModel: 'haiku-5-5',
-    allowedDomains: [],
+    allowedDomains: [], security: DEFAULT_SECURITY, schedule: DEFAULT_SCHEDULE, chatbotCreated: true, spendPlan: { mode: 'sin_limite' },
     lastUpdated: 'Hace 45 min',
     version: 'v3.1.0',
     documents: [
@@ -153,7 +153,7 @@ No proporciones asesoría financiera de inversión ni especulación. Deriva a Co
     botResolutionRate: 84.1,
     ragThreshold: 0.85,
     aiModel: 'haiku-5-5',
-    allowedDomains: [],
+    allowedDomains: [], security: DEFAULT_SECURITY, schedule: DEFAULT_SCHEDULE, chatbotCreated: true, spendPlan: { mode: 'sin_limite' },
     lastUpdated: 'Ayer',
     version: 'v1.8.3',
     documents: [
@@ -206,7 +206,7 @@ Si una consulta involucra una observación de auditoría de certificación ofici
     botResolutionRate: 87.8,
     ragThreshold: 0.80,
     aiModel: 'haiku-5-5',
-    allowedDomains: [],
+    allowedDomains: [], security: DEFAULT_SECURITY, schedule: DEFAULT_SCHEDULE, chatbotCreated: true, spendPlan: { mode: 'sin_limite' },
     lastUpdated: 'Hace 3 horas',
     version: 'v2.2.0',
     documents: [
@@ -268,7 +268,7 @@ Para reclamos sobre pagos, habilitación de módulos premium o certificados de n
     botResolutionRate: 86.4,
     ragThreshold: 0.75,
     aiModel: 'haiku-5-5',
-    allowedDomains: [],
+    allowedDomains: [], security: DEFAULT_SECURITY, schedule: DEFAULT_SCHEDULE, chatbotCreated: true, spendPlan: { mode: 'sin_limite' },
     lastUpdated: 'Hace 1 día',
     version: 'v1.2.0-beta',
     documents: [

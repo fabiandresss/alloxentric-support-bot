@@ -22,12 +22,14 @@ import { uploadDocument, deleteDocument, getDocuments } from '../api/client';
 import { EmbedWidgetModal } from './EmbedWidgetModal';
 import { ModelPicker } from './ModelPicker';
 import { DocumentDetailModal } from './DocumentDetailModal';
+import { SecurityScheduleSections } from './SecurityScheduleSections';
 
 interface AgentConfigModalProps {
   company: Company;
   onClose: () => void;
   onSaveCompany: (updated: Company) => void;
   onTestAgent?: (company: Company) => void;
+  canEditSecurity?: boolean; // solo el admin de la empresa y el superadmin cambian las defensas de la IA
 }
 
 export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
@@ -35,6 +37,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onClose,
   onSaveCompany,
   onTestAgent,
+  canEditSecurity = false,
 }) => {
   // Form states
   const [name, setName] = useState(company.name);
@@ -46,6 +49,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   const [aiModel, setAiModel] = useState(company.aiModel);
   const [domains, setDomains] = useState<string[]>(company.allowedDomains ?? []);
   const [domainInput, setDomainInput] = useState('');
+  const [security, setSecurity] = useState(company.security);
+  const [schedule, setSchedule] = useState(company.schedule);
   const [documents, setDocuments] = useState<DocumentItem[]>(company.documents);
 
   // UI helpers
@@ -116,6 +121,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
         ragThreshold,
         aiModel,
         allowedDomains: domains,
+        security,
+        schedule,
         documents,
         documentsCount: documents.length,
         agentStatus: 'activo',
@@ -497,6 +504,8 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 </div>
               </div>
             </div>
+
+            <SecurityScheduleSections security={security} onSecurity={setSecurity} schedule={schedule} onSchedule={setSchedule} canEditSecurity={canEditSecurity} />
           </div>
 
           {/* Modal Footer with "Publicar agente" button */}

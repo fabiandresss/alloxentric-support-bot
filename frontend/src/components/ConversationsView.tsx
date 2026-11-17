@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Bot, CheckCircle2, ChevronLeft, ChevronRight, FlaskConical, Loader2, MessageSquare, Search, Ticket, UserRound, X } from 'lucide-react';
+import { Bot, CheckCircle2, ChevronLeft, ChevronRight, FileText, FlaskConical, Loader2, MessageSquare, Search, ThumbsDown, ThumbsUp, Ticket, UserRound, X } from 'lucide-react';
 import * as api from '../api/client';
 import { AuthUser, Company, ConversationDetail, ConversationList, ConversationListItem, DocumentItem, TestSetItem } from '../types';
 import { fmtDateTime, fmtInt, fmtTokens, fmtUsd } from '../lib/format';
@@ -9,6 +9,7 @@ import { Select } from './Select';
 interface ConversationsViewProps {
   me: AuthUser;
   companies: Company[];
+  onOpenSource?: (companyId: string, documentId: string, fragmentId?: string) => void;
 }
 
 const PAGE = 25;
@@ -33,7 +34,7 @@ const StatusChip: React.FC<{ c: ConversationListItem }> = ({ c }) =>
     </span>
   );
 
-export const ConversationsView: React.FC<ConversationsViewProps> = ({ me, companies }) => {
+export const ConversationsView: React.FC<ConversationsViewProps> = ({ me, companies, onOpenSource }) => {
   const isSuper = me.role === 'superadmin';
   const [slug, setSlug] = useState<string>(isSuper ? companies[0]?.id ?? '' : me.companyId ?? '');
   const [q, setQ] = useState('');
@@ -42,6 +43,7 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({ me, compan
   const [canal, setCanal] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
+  const [soloAbajo, setSoloAbajo] = useState(false);   // solo conversaciones con alguna respuesta valorada 👎
   const [page, setPage] = useState(0);
   const [data, setData] = useState<ConversationList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,20 +51,20 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({ me, compan
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setDebounced(q), 300); return () => clearTimeout(t); }, [q]);
-  useEffect(() => { setPage(0); }, [debounced, ticket, canal, desde, hasta, slug]);
+  useEffect(() => { setPage(0); }, [debounced, ticket, canal, desde, hasta, slug, soloAbajo]);
 
   const load = useCallback(async () => {
     if (!slug) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await api.getConversations(slug, { q: debounced, ticket: ticket || undefined, canal, desde, hasta, limit: PAGE, offset: page * PAGE }));
+      setData(await api.getConversations(slug, { q: debounced, ticket: ticket || undefined, canal, desde, hasta, valoracion: soloAbajo ? 'abajo' : undefined, limit: PAGE, offset: page * PAGE }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron cargar las conversaciones');
     } finally {
       setLoading(false);
     }
-  }, [slug, debounced, ticket, canal, desde, hasta, page]);
+  }, [slug, debounced, ticket, canal, desde, hasta, soloAbajo, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -115,8 +117,12 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({ me, compan
           <label className="flex items-center gap-2 text-xs text-[color:var(--c-muted)]">Hasta
             <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={field} />
           </label>
-          {(q || ticket || canal || desde || hasta) && (
-            <button onClick={() => { setQ(''); setTicket(''); setCanal(''); setDesde(''); setHasta(''); }} className="text-xs font-semibold text-[#D20A2E] hover:underline">Limpiar filtros</button>
+          <button onClick={() => setSoloAbajo(!soloAbajo)} aria-pressed={soloAbajo} data-testid="conv-filter-down"
+            className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors ${soloAbajo ? 'bg-[color:var(--c-rbg2)] border-[color:var(--c-rline)] text-[color:var(--c-rtx2)]' : 'bg-white border-[color:var(--c-line)] text-[color:var(--c-muted)] hover:text-[color:var(--c-ink)]'}`}>
+            <ThumbsDown className="w-3.5 h-3.5" /> Valoradas 👎
+          </button>
+          {(q || ticket || canal || desde || hasta || soloAbajo) && (
+            <button onClick={() => { setQ(''); setTicket(''); setCanal(''); setDesde(''); setHasta(''); setSoloAbajo(false); }} className="text-xs font-semibold text-[#D20A2E] hover:underline">Limpiar filtros</button>
           )}
           <span className="ml-auto text-xs text-[color:var(--c-muted)]" data-testid="conv-total">
             {loading && <Loader2 className="inline w-3.5 h-3.5 animate-spin mr-1" />}<strong className="text-[color:var(--c-ink)] tabular-nums">{fmtInt(total)}</strong> conversaciones
@@ -148,6 +154,8 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({ me, compan
                       <span className="text-xs font-semibold text-[color:var(--c-ink)]">{c.customerName}</span>
                       <StatusChip c={c} />
                       <span className="text-[11px] text-[color:var(--c-muted)]">{c.channel}</span>
+                      {c.thumbsUp > 0 && <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[color:var(--c-gtx)]"><ThumbsUp className="w-3 h-3" />{c.thumbsUp}</span>}
+                      {c.thumbsDown > 0 && <span data-testid="conv-down" className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[color:var(--c-rtx2)]"><ThumbsDown className="w-3 h-3" />{c.thumbsDown}</span>}
                     </span>
                     <span className="block text-xs text-[color:var(--c-ink)] mt-1 line-clamp-1 group-hover:text-[#D20A2E] transition-colors">{c.firstMessage || '—'}</span>
                     {c.lastMessage && c.lastMessage !== c.firstMessage && <span className="block text-[11px] text-[color:var(--c-muted)] mt-0.5 line-clamp-1">Último: {c.lastMessage}</span>}
@@ -173,14 +181,15 @@ export const ConversationsView: React.FC<ConversationsViewProps> = ({ me, compan
         )}
       </div>
 
-      {openId && <ConversationModal id={openId} slug={slug} onClose={() => setOpenId(null)} />}
+      {openId && <ConversationModal id={openId} slug={slug} onClose={() => setOpenId(null)} onOpenSource={onOpenSource} />}
     </div>
   );
 };
 
-const ConversationModal: React.FC<{ id: string; slug: string; onClose: () => void }> = ({ id, slug, onClose }) => {
+const ConversationModal: React.FC<{ id: string; slug: string; onClose: () => void; onOpenSource?: (companyId: string, documentId: string, fragmentId?: string) => void }> = ({ id, slug, onClose, onOpenSource }) => {
   const [d, setD] = useState<ConversationDetail | null>(null);
   const [adding, setAdding] = useState(false);
+  const [seedQuestion, setSeedQuestion] = useState<string | undefined>(undefined);   // 👎: la pregunta del cliente que originó la respuesta
   const [added, setAdded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -210,8 +219,9 @@ const ConversationModal: React.FC<{ id: string; slug: string; onClose: () => voi
         <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-[color:var(--c-canvas)]">
           {!d && !error && <div className="py-12 flex justify-center text-[color:var(--c-muted)]"><Loader2 className="w-5 h-5 animate-spin" /></div>}
           {error && <p className="text-xs text-[color:var(--c-rtx)]">{error}</p>}
-          {d?.messages.map((m) => {
+          {d?.messages.map((m, idx) => {
             const mine = m.sender === 'user';
+            const preguntaPrevia = [...d.messages.slice(0, idx)].reverse().find((x) => x.sender === 'user')?.message;
             return (
               <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${mine ? 'bg-[#D20A2E] text-white rounded-br-sm' : m.isEscalationNotice ? 'bg-[color:var(--c-abg)] border border-[color:var(--c-aline)] text-[color:var(--c-atx2)] rounded-bl-sm' : 'bg-white border border-[color:var(--c-line)] text-[color:var(--c-ink)] rounded-bl-sm'}`}>
@@ -220,7 +230,24 @@ const ConversationModal: React.FC<{ id: string; slug: string; onClose: () => voi
                     {m.senderName} · {m.timestamp}
                   </p>
                   <p className="whitespace-pre-wrap">{m.message}</p>
-                  {m.ragSources && m.ragSources.length > 0 && <p className="mt-1.5 text-[10px] text-[color:var(--c-muted)]">Fuentes: {m.ragSources.join(', ')}{m.confidenceScore !== undefined ? ` · confianza ${Math.round(m.confidenceScore * 100)}%` : ''}</p>}
+                  {m.sourceDetails && m.sourceDetails.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5" data-testid="conv-sources">
+                      {m.sourceDetails.map((s, i) => onOpenSource && s.documentId ? (
+                        <button key={i} onClick={() => onOpenSource(slug, s.documentId!, s.fragmentId)} title="Abrir el fragmento en la base de conocimiento"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[color:var(--c-soft)] text-[10px] font-medium text-[color:var(--c-ink)] hover:text-[#D20A2E]"><FileText className="w-3 h-3" />{s.documentName}{s.order !== undefined ? ` #${s.order}` : ''}</button>
+                      ) : <span key={i} className="text-[10px] text-[color:var(--c-muted)]">{s.documentName}</span>)}
+                      {m.confidenceScore !== undefined && <span className="text-[10px] text-[color:var(--c-muted)]">confianza {Math.round(m.confidenceScore * 100)}%</span>}
+                    </div>
+                  ) : m.ragSources && m.ragSources.length > 0 && <p className="mt-1.5 text-[10px] text-[color:var(--c-muted)]">Fuentes: {m.ragSources.join(', ')}{m.confidenceScore !== undefined ? ` · confianza ${Math.round(m.confidenceScore * 100)}%` : ''}</p>}
+                  {m.rating && (
+                    <div data-testid={`conv-rating-${m.rating}`} className={`mt-1.5 flex items-start gap-1.5 text-[10px] font-semibold ${m.rating === 'up' ? 'text-[color:var(--c-gtx)]' : 'text-[color:var(--c-rtx2)]'}`}>
+                      {m.rating === 'up' ? <ThumbsUp className="w-3 h-3 mt-px" /> : <ThumbsDown className="w-3 h-3 mt-px" />}
+                      <span>El cliente {m.rating === 'up' ? 'valoró bien' : 'valoró mal'} esta respuesta{m.ratingComment ? `: «${m.ratingComment}»` : ''}
+                        {m.rating === 'down' && preguntaPrevia && (
+                          <button onClick={() => { setSeedQuestion(preguntaPrevia); setAdding(true); }} data-testid="conv-down-to-case" className="ml-2 underline underline-offset-2 hover:text-[#D20A2E]">Crear caso de prueba</button>
+                        )}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -243,23 +270,23 @@ const ConversationModal: React.FC<{ id: string; slug: string; onClose: () => voi
             <button onClick={() => setAdding(true)} data-testid="conv-add-golden" className="px-3.5 py-2 rounded-xl border border-[color:var(--c-line)] bg-white text-xs font-semibold text-[color:var(--c-ink)] flex items-center gap-1.5 hover:border-[color:var(--c-ch350)]"><FlaskConical className="w-3.5 h-3.5 text-[#D20A2E]" /> Agregar al golden set</button>
           </div>
         )}
-        {adding && d && <AddToGoldenModal slug={slug} detail={d} onClose={() => setAdding(false)} onDone={(nombre) => { setAdding(false); setAdded(nombre); }} />}
+        {adding && d && <AddToGoldenModal slug={slug} detail={d} seedQuestion={seedQuestion} onClose={() => { setAdding(false); setSeedQuestion(undefined); }} onDone={(nombre) => { setAdding(false); setSeedQuestion(undefined); setAdded(nombre); }} />}
       </div>
     </div>
   );
 };
 
 /** Convierte una conversación real en un caso de prueba: la pregunta del cliente y, si la hubo, la respuesta correcta que dio una persona. */
-const AddToGoldenModal: React.FC<{ slug: string; detail: ConversationDetail; onClose: () => void; onDone: (setName: string) => void }> = ({ slug, detail, onClose, onDone }) => {
+const AddToGoldenModal: React.FC<{ slug: string; detail: ConversationDetail; seedQuestion?: string; onClose: () => void; onDone: (setName: string) => void }> = ({ slug, detail, seedQuestion, onClose, onDone }) => {
   const msgs = detail.messages;
   const primera = msgs.find((m) => m.sender === 'user')?.message ?? '';
-  const humano = [...msgs].reverse().find((m) => m.sender === 'agent')?.message ?? '';
-  const sinRespuestaHumana = detail.summary.escalated && !humano;
+  const humano = seedQuestion ? '' : [...msgs].reverse().find((m) => m.sender === 'agent')?.message ?? '';   // un 👎 no trae respuesta correcta: se escribe
+  const sinRespuestaHumana = !seedQuestion && detail.summary.escalated && !humano;
   const [sets, setSets] = useState<TestSetItem[] | null>(null);
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [setId, setSetId] = useState('');
   const [nuevo, setNuevo] = useState('Casos reales');
-  const [question, setQuestion] = useState(primera);
+  const [question, setQuestion] = useState(seedQuestion ?? primera);
   const [escalate, setEscalate] = useState(sinRespuestaHumana);
   const [answer, setAnswer] = useState(humano);
   const [doc, setDoc] = useState(detail.messages.find((m) => m.ragSources?.length)?.ragSources?.[0] ?? '');

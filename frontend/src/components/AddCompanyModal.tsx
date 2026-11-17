@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Select } from './Select';
 import { X, Building2, Plus, Sparkles, Check } from 'lucide-react';
-import { Company, ResponseTone } from '../types';
+import { Company, ResponseTone, DEFAULT_SECURITY, DEFAULT_SCHEDULE } from '../types';
 
 interface AddCompanyModalProps {
   onClose: () => void;
@@ -58,7 +58,7 @@ export const AddCompanyModal: React.FC<AddCompanyModalProps> = ({ onClose, onAdd
       botResolutionRate: 0,
       ragThreshold: 0.8,
       aiModel: 'haiku-5-5',
-      allowedDomains: [],
+      allowedDomains: [], security: DEFAULT_SECURITY, schedule: DEFAULT_SCHEDULE, chatbotCreated: true, spendPlan: { mode: 'sin_limite' },
       lastUpdated: 'Recién creada',
       version: 'v1.0.0',
       documents: [],

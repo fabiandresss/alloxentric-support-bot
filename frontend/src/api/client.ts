@@ -36,6 +36,11 @@ import {
   CalibrationRun,
   DocVersion,
   KbQuality,
+  SecurityConfig,
+  Schedule,
+  SecurityOverview,
+  UnansweredReport,
+  ChatMessage,
 } from '../types';
 
 export const API_URL: string =
@@ -132,6 +137,8 @@ export interface CompanyUpdatePayload {
   ragThreshold?: number;
   aiModel?: string;
   allowedDomains?: string[];
+  security?: SecurityConfig;
+  schedule?: Schedule;
   brandColor?: string;
   brandBg?: string;
   logoInitials?: string;
@@ -156,6 +163,7 @@ export const updateSpendPlan = (slug: string, p: { mode: SpendPlan['mode']; mont
 export interface ConversationFilters {
   q?: string;
   ticket?: 'con' | 'sin';
+  valoracion?: 'abajo' | 'arriba'; // abajo = con alguna respuesta valorada 👎
   canal?: string;
   desde?: string;
   hasta?: string;
@@ -242,6 +250,19 @@ export const login = async (email: string, password: string) => {
   return r.user;
 };
 export const logout = () => setToken(null);
+
+// ---------- registro en autoservicio: cuenta -> empresa -> chatbot ----------
+/** Paso 1: crea la cuenta (queda como «registrado», sin empresa) y abre sesión. */
+export const register = async (p: { name: string; email: string; password: string; website?: string }) => {
+  const r = await request<TokenResponse>('/registro/usuario', json('POST', p));
+  setToken(r.accessToken);
+  return r.user;
+};
+/** Paso 2: registra la empresa de la cuenta; la persona pasa a ser su admin (el mismo token sigue valiendo). */
+export const registerCompany = (p: { name: string; industry?: string; siteUrl?: string }) => request<Company>('/registro/empresa', json('POST', p));
+/** Paso 3: crea el chatbot de la empresa (uno solo) con su plan de gasto. */
+export const createChatbot = (slug: string, p: { agentName: string; tone: ResponseTone; customInstructions?: string; brandColor: string; spendPlan: SpendPlan }) =>
+  request<Company>(`/empresas/${encodeURIComponent(slug)}/chatbot`, json('POST', p));
 export const getMe = () => request<AuthUser>('/auth/me');
 export const getUsers = (companyId?: string) =>
   request<AuthUser[]>(`/usuarios${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ''}`);
@@ -331,3 +352,15 @@ export const replaceDocument = (docId: string, file: File) => {
 export const getDocVersions = (docId: string) => request<DocVersion[]>(`/documentos/${docId}/versiones`);
 export const restoreDocVersion = (docId: string, version: number) => request<DocumentItem>(`/documentos/${docId}/versiones/${version}/restaurar`, { method: 'POST' });
 export const getKbQuality = (slug: string) => request<KbQuality>(`/empresas/${slug}/kb/calidad`);
+
+// ---------- valoración, resumen del ticket, seguridad de la IA y preguntas sin respuesta ----------
+/** El cliente valora una respuesta del bot (null quita la valoración). */
+export const rateMessage = (slug: string, conversationId: string, messageId: string, rating: 'up' | 'down' | null, comment?: string) =>
+  request<ChatMessage>(
+    `/publico/${encodeURIComponent(slug)}/conversaciones/${encodeURIComponent(conversationId)}/mensajes/${encodeURIComponent(messageId)}/valoracion`,
+    json('PUT', { rating, comment: comment || null }),
+  );
+export const regenerateTicketSummary = (ticketId: string) => request<Ticket>(`/tickets/${ticketId}/resumen`, { method: 'POST' });
+export const getSecurityEvents = (slug: string, days: number, type?: string) =>
+  request<SecurityOverview>(`/empresas/${slug}/seguridad/eventos?dias=${days}${type ? `&tipo=${encodeURIComponent(type)}` : ''}`);
+export const getUnanswered = (slug: string, days: number) => request<UnansweredReport>(`/empresas/${slug}/kb/vacios?dias=${days}`);

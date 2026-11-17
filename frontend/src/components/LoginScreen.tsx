@@ -128,7 +128,7 @@ export const LoginScreen: React.FC<{ onLogin: (u: AuthUser) => void }> = ({ onLo
           >
             {busy ? (<><Loader2 className="w-4 h-4 animate-spin" /> Ingresando…</>) : (<>Ingresar <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></>)}
           </button>
-          <p className="text-center text-[11px] text-[color:var(--c-faint)]">Acceso solo para equipos de las empresas del ecosistema Alloxentric.</p>
+          <p className="text-center text-xs text-[color:var(--c-muted)]">¿Primera vez? <a href="/registro" data-testid="login-register" className="font-semibold text-[#D20A2E] hover:underline">Crea tu cuenta y tu chatbot</a></p>
         </motion.form>
       </main>
     </div>

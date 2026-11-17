@@ -1,20 +1,22 @@
 import { Role } from '../types';
 
-export type View = 'console' | 'agents' | 'widget' | 'analytics' | 'finops' | 'conversations' | 'kb' | 'testing' | 'users';
+export type View = 'console' | 'agents' | 'widget' | 'analytics' | 'finops' | 'conversations' | 'kb' | 'testing' | 'security' | 'users';
 
 export const ROLE_LABELS: Record<Role, string> = {
   superadmin: 'Superadmin',
   admin_empresa: 'Admin de empresa',
   encargado_tickets: 'Encargado de tickets',
   encargado_agente: 'Encargado del agente IA',
+  registrado: 'Cuenta sin empresa',
 };
 
 /** Vistas visibles por rol. Espejo de la matriz de permisos del backend (que es la que manda). */
 const VIEWS: Record<Role, View[]> = {
-  superadmin: ['console', 'conversations', 'agents', 'kb', 'testing', 'widget', 'analytics', 'finops', 'users'],
-  admin_empresa: ['console', 'conversations', 'agents', 'kb', 'testing', 'widget', 'analytics', 'finops', 'users'],
+  superadmin: ['console', 'conversations', 'agents', 'kb', 'testing', 'security', 'widget', 'analytics', 'finops', 'users'],
+  admin_empresa: ['console', 'conversations', 'agents', 'kb', 'testing', 'security', 'widget', 'analytics', 'finops', 'users'],
   encargado_tickets: ['console', 'analytics'],
-  encargado_agente: ['conversations', 'agents', 'kb', 'testing', 'widget', 'analytics'],
+  encargado_agente: ['conversations', 'agents', 'kb', 'testing', 'security', 'widget', 'analytics'],
+  registrado: [],   // solo puede registrar su empresa (ver Onboarding)
 };
 
 export const allowedViews = (role: Role): View[] => VIEWS[role];

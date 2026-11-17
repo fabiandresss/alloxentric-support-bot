@@ -7,11 +7,15 @@ import { fmtDate, fmtInt, fmtTokens } from '../lib/format';
 const fmtBytes = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 import { Select } from './Select';
 import { Modal } from './Modal';
+import { UnansweredPanel } from './UnansweredPanel';
 
 interface KnowledgeBaseViewProps {
   me: AuthUser;
   companies: Company[];
   onToast: (type: 'success' | 'warning' | 'info', title: string, description?: string) => void;
+  /** Abrir un fragmento citado por una respuesta (desde un ticket o una conversación). */
+  focus?: { companyId: string; documentId: string; fragmentId?: string } | null;
+  onFocusConsumed?: () => void;
 }
 
 const card = 'bg-white border border-[color:var(--c-line)] rounded-2xl card-glow';
@@ -42,7 +46,7 @@ const Highlight: React.FC<{ text: string; q: string }> = ({ text, q }) => {
   return <>{partes.map((p, i) => (p.toLowerCase() === term.toLowerCase() ? <mark key={i} className="bg-[#FDE68A] text-[#1F1B1A] rounded px-0.5">{p}</mark> : <React.Fragment key={i}>{p}</React.Fragment>))}</>;
 };
 
-export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, companies, onToast }) => {
+export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, companies, onToast, focus, onFocusConsumed }) => {
   const isSuper = me.role === 'superadmin';
   const [slug, setSlug] = useState<string>(isSuper ? companies[0]?.id ?? '' : me.companyId ?? '');
   const [summary, setSummary] = useState<KbSummary | null>(null);
@@ -66,7 +70,28 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
   const [versionsDoc, setVersionsDoc] = useState<KbDocument | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setDebounced(q), 300); return () => clearTimeout(t); }, [q]);
-  useEffect(() => { setDocId(''); setQ(''); setDocQ(''); setEstado(''); }, [slug]);
+  const [hl, setHl] = useState<string | null>(null); // fragmento a resaltar (viene de una fuente citada)
+  const focusRef = useRef<typeof focus>(null);
+  useEffect(() => { setDocId(focusRef.current?.documentId ?? ''); setQ(''); setDocQ(''); setEstado(''); }, [slug]);
+  useEffect(() => {
+    if (!focus) return;
+    focusRef.current = focus;
+    setHl(focus.fragmentId ?? null);
+    setQ('');
+    if (isSuper && focus.companyId !== slug) setSlug(focus.companyId); else setDocId(focus.documentId);
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
+  // con el fragmento ya en pantalla: se desplaza hasta él; si aún no se cargó, se piden más
+  useEffect(() => {
+    if (!hl || loadingChunks) return;
+    if (chunks.some((c) => c.id === hl)) {
+      setTimeout(() => document.querySelector(`[data-fragment-id="${hl}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    } else if (chunks.length > 0 && chunks.length < total) {
+      loadChunks(true, chunks.length);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hl, chunks, loadingChunks]);
 
   const loadBase = useCallback(async (silent = false) => {
     if (!slug) return;
@@ -213,6 +238,8 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
             </section>
           )}
 
+          <UnansweredPanel slug={slug} onSearchDoc={(name) => setDocQ(name)} />
+
           {/* Documentos */}
           <section className={`${card} overflow-hidden animate-fade-up`} aria-label="Documentos ingestados">
             <div className="px-5 py-4 border-b border-[color:var(--c-line)] flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -304,7 +331,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ me, compan
             ) : (
               <ul className="divide-y divide-[color:var(--c-line)]" data-testid="kb-chunks">
                 {chunks.map((c, i) => (
-                  <li key={c.id} style={{ animationDelay: `${Math.min(i, 10) * 20}ms` }} className="px-5 py-4 animate-fade-up">
+                  <li key={c.id} data-fragment-id={c.id} style={{ animationDelay: `${Math.min(i, 10) * 20}ms` }} className={`px-5 py-4 animate-fade-up ${hl === c.id ? 'bg-[color:var(--c-ch50)] ring-2 ring-inset ring-[#D20A2E]' : ''}`}>
                     <div className="flex items-center gap-2 flex-wrap text-[11px] mb-1.5">
                       <span className="font-semibold text-[#D20A2E] bg-[color:var(--c-ch100)] rounded-md px-2 py-0.5">#{c.order}</span>
                       <button onClick={() => setDocId(c.documentId)} className="font-semibold text-[color:var(--c-ink)] hover:text-[#D20A2E] truncate max-w-[18rem]" title={c.documentName}>{c.documentName}</button>

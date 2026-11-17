@@ -28,6 +28,7 @@ interface CorestreamConsoleProps {
   selectedTenantFilter: string;
   searchQuery: string;
   onResetFilters: () => void;
+  onOpenSource?: (companyId: string, documentId: string, fragmentId?: string) => void;
 }
 
 export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
@@ -42,6 +43,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
   selectedTenantFilter,
   searchQuery,
   onResetFilters,
+  onOpenSource,
 }) => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'urgente' | 'pendiente' | 'esperando_cliente' | 'cerrado' | 'escalado'>('all');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -282,6 +284,7 @@ export const CorestreamConsole: React.FC<CorestreamConsoleProps> = ({
           agents={agents.filter((a) => a.companyId === selectedTicket.companyId)}
           currentUserName={currentUserName}
           canManageEscalated={canManageEscalated}
+          onOpenSource={onOpenSource}
           onClose={() => setSelectedTicket(null)}
           onStatusChange={(id, newStatus) => {
             onUpdateTicketStatus(id, newStatus);

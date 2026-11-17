@@ -13,9 +13,20 @@ import {
   ShieldAlert, 
   ArrowUpRight,
   Copy,
-  Check
+  Check,
+  Loader2,
+  RefreshCw,
+  ThumbsDown,
+  ThumbsUp
 } from 'lucide-react';
-import { Ticket, ChatMessage, AssignableAgent } from '../types';
+import { Ticket, ChatMessage, AssignableAgent, TicketSummary } from '../types';
+import { regenerateTicketSummary } from '../api/client';
+
+const URGENCIA = {
+  alta: { label: 'Urgencia alta', cls: 'bg-[color:var(--c-rbg2)] text-[color:var(--c-rtx2)] border-[color:var(--c-rline)]' },
+  media: { label: 'Urgencia media', cls: 'bg-[color:var(--c-abg2)] text-[color:var(--c-atx2)] border-[color:var(--c-aline)]' },
+  baja: { label: 'Urgencia baja', cls: 'bg-[color:var(--c-gbg2)] text-[color:var(--c-gtx)] border-[color:var(--c-gline)]' },
+} as const;
 
 interface TicketDetailModalProps {
   ticket: Ticket;
@@ -26,6 +37,8 @@ interface TicketDetailModalProps {
   onStatusChange: (ticketId: string, newStatus: Ticket['status']) => void;
   onSendMessage: (ticketId: string, text: string) => void;
   onReassign: (ticketId: string, agentId: string | null, agentName: string) => void;
+  /** Abre el fragmento citado en la base de conocimiento (solo si el rol tiene esa vista). */
+  onOpenSource?: (companyId: string, documentId: string, fragmentId?: string) => void;
 }
 
 export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
@@ -37,8 +50,24 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   onStatusChange,
   onSendMessage,
   onReassign,
+  onOpenSource,
 }) => {
   const [replyText, setReplyText] = useState(ticket.aiSuggestion.draftResponse);
+  const [summary, setSummary] = useState<TicketSummary | undefined>(ticket.aiSummary);
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const refreshSummary = async () => {
+    setSummaryBusy(true);
+    setSummaryError(null);
+    try {
+      setSummary((await regenerateTicketSummary(ticket.id)).aiSummary);
+    } catch (e) {
+      setSummaryError(e instanceof Error ? e.message : 'No se pudo generar el resumen');
+    } finally {
+      setSummaryBusy(false);
+    }
+  };
   const [isCopiedSuggestion, setIsCopiedSuggestion] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
 
@@ -257,11 +286,29 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                         </div>
                         <p>{msg.message}</p>
 
-                        {/* RAG Source cite if bot message */}
-                        {msg.ragSources && msg.ragSources.length > 0 && (
+                        {/* Fuentes citadas: con su fragmento se pueden abrir en la base de conocimiento */}
+                        {msg.sourceDetails && msg.sourceDetails.length > 0 ? (
+                          <div className="mt-2 pt-1.5 border-t border-[color:var(--c-line)] space-y-1" data-testid="msg-sources">
+                            {msg.sourceDetails.map((d, i) => (
+                              <div key={i} className="text-[10px] flex items-start gap-1">
+                                <FileText className="w-3 h-3 mt-0.5 shrink-0 text-[#B00825]" />
+                                {onOpenSource && d.documentId ? (
+                                  <button onClick={() => onOpenSource(ticket.companyId, d.documentId!, d.fragmentId)} title="Abrir el fragmento en la base de conocimiento"
+                                    className="text-left font-mono text-[#B00825] hover:underline">{d.documentName}{d.order !== undefined ? ` #${d.order}` : ''}</button>
+                                ) : <span className="font-mono text-[#B00825]">{d.documentName}{d.order !== undefined ? ` #${d.order}` : ''}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : msg.ragSources && msg.ragSources.length > 0 && (
                           <div className="mt-2 pt-1.5 border-t border-[color:var(--c-line)] text-[10px] text-[#B00825] flex items-center gap-1 font-mono">
                             <FileText className="w-3 h-3" />
                             <span>Fuente: {msg.ragSources[0]}</span>
+                          </div>
+                        )}
+                        {msg.rating && (
+                          <div data-testid="msg-rating" className={`mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold ${msg.rating === 'up' ? 'text-[color:var(--c-gtx)]' : 'text-[color:var(--c-rtx2)]'}`}>
+                            {msg.rating === 'up' ? <ThumbsUp className="w-3 h-3" /> : <ThumbsDown className="w-3 h-3" />}
+                            El cliente {msg.rating === 'up' ? 'valoró bien' : 'valoró mal'} esta respuesta{msg.ratingComment ? `: «${msg.ratingComment}»` : ''}
                           </div>
                         )}
                       </div>
@@ -281,6 +328,33 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
           {/* Right Column: AI Suggestion & Human Reply Box (5 cols) */}
           <div className="lg:col-span-5 p-6 bg-[color:var(--c-canvas)] flex flex-col justify-between overflow-y-auto">
             <div className="space-y-4">
+              {/* Resumen con IA: qué pasó, por qué se derivó y qué urgencia parece */}
+              <div className="bg-white rounded-xl border border-[color:var(--c-line)] p-4 shadow-sm" data-testid="ticket-summary">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[color:var(--c-ink)]">
+                    <Sparkles className="w-3.5 h-3.5 text-[#D20A2E]" /> Resumen del caso
+                    {summary && <span className="text-[9px] font-semibold uppercase tracking-wide text-[color:var(--c-faint)]">{summary.source === 'ia' ? 'IA' : 'automático'}</span>}
+                  </span>
+                  <button onClick={refreshSummary} disabled={summaryBusy} data-testid="summary-refresh" title={summary ? 'Volver a generar el resumen' : 'Generar el resumen'}
+                    className="px-2 py-1 rounded-lg border border-[color:var(--c-line)] text-[11px] font-semibold text-[color:var(--c-muted)] hover:text-[#D20A2E] flex items-center gap-1 disabled:opacity-50">
+                    {summaryBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} {summary ? 'Actualizar' : 'Generar'}
+                  </button>
+                </div>
+                {summary ? (
+                  <>
+                    <p className="text-xs text-[color:var(--c-ink)] leading-relaxed">{summary.summary}</p>
+                    {summary.reason && <p className="mt-1.5 text-[11px] text-[color:var(--c-muted)]"><strong className="text-[color:var(--c-ink)]">Por qué una persona:</strong> {summary.reason}</p>}
+                    <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                      <span data-testid="summary-urgency" className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${URGENCIA[summary.urgency].cls}`}>{URGENCIA[summary.urgency].label}</span>
+                      {summary.urgency === 'alta' && ticket.status === 'pendiente' && (
+                        <button onClick={() => onStatusChange(ticket.id, 'urgente')} className="text-[11px] font-semibold text-[#D20A2E] hover:underline">Marcar como urgente</button>
+                      )}
+                    </div>
+                  </>
+                ) : <p className="text-xs text-[color:var(--c-muted)]">Este caso aún no tiene resumen. Genéralo para ver en segundos qué pasó y qué urgencia parece.</p>}
+                {summaryError && <p className="mt-2 text-[11px] text-[color:var(--c-rtx)]">{summaryError}</p>}
+              </div>
+
               {/* AI Suggestion Card */}
               <div className="bg-white rounded-xl border border-[color:var(--c-ch150)] p-4 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#E8405F]/10 to-transparent pointer-events-none rounded-bl-full"></div>

@@ -40,9 +40,45 @@ export interface Company {
   ragThreshold: number; // 0.1 to 1.0
   aiModel: string; // id del catálogo (GET /modelos-ia), p. ej. "haiku-5-5"
   allowedDomains: string[]; // sitios donde puede ir el widget; vacío = cualquiera
+  chatbotCreated: boolean; // false = la empresa se registró y falta crear su chatbot (uno por empresa)
+  spendPlan: SpendPlan; // gasto del chatbot: sin límite, o con tope mensual (y diario) en USD
+  security: SecurityConfig;
+  schedule: Schedule;
   lastUpdated: string;
   version: string;
   apiKey?: string; // solo viene al crear la empresa o al regenerar la clave
+}
+
+/** Guardarraíles de la IA de la empresa (backend: services/seguridad.py). */
+export interface SecurityConfig {
+  pii: boolean; // enmascarar RUT, tarjetas, correos, teléfonos y claves antes del modelo y de guardar
+  injection: boolean; // bloquear intentos de inyección de prompt y jailbreak
+  forbiddenTopics: string[];
+  publicSources: 'extracto' | 'nombre' | 'ninguna'; // qué ve el cliente de las fuentes de una respuesta
+}
+
+/** Horario de atención humana: days = día (lun…dom) -> [desde, hasta] en HH:MM; un día ausente no tiene atención. */
+export interface Schedule {
+  enabled: boolean;
+  days: Record<string, string[]>;
+  outOfHoursMessage: string;
+}
+
+export interface HumanSupport {
+  enabled: boolean;
+  open: boolean;
+  schedule?: string | null;
+  message?: string | null;
+}
+
+/** De dónde salió una respuesta. El equipo recibe ids (abrir el fragmento); el cliente, solo lo que la empresa permite. */
+export interface SourceDetail {
+  documentId?: string;
+  documentName: string;
+  fragmentId?: string;
+  order?: number;
+  excerpt?: string;
+  confidence?: number;
 }
 
 export interface ChatMessage {
@@ -53,7 +89,19 @@ export interface ChatMessage {
   timestamp: string;
   isEscalationNotice?: boolean;
   ragSources?: string[];
+  sourceDetails?: SourceDetail[];
   confidenceScore?: number;
+  rating?: 'up' | 'down'; // valoración del cliente a la respuesta del bot
+  ratingComment?: string;
+}
+
+/** Resumen con IA del ticket para el agente humano. */
+export interface TicketSummary {
+  summary: string;
+  reason: string;
+  urgency: 'baja' | 'media' | 'alta';
+  source: 'ia' | 'reglas';
+  generatedAt?: string;
 }
 
 export interface AiSuggestion {
@@ -80,6 +128,7 @@ export interface Ticket {
   customerChannel: 'Web Chat' | 'WhatsApp API' | 'Portal Clientes';
   transcript: ChatMessage[];
   aiSuggestion: AiSuggestion;
+  aiSummary?: TicketSummary;
   assignedAgent?: string; // nombre para mostrar
   assignedAgentId?: string; // id del usuario asignado (GET /tickets/agentes)
   closeReason?: 'confirmado_cliente' | 'sin_respuesta' | 'gestion_manual' | 'migrado';
@@ -122,6 +171,14 @@ export interface AnalyticsCompany {
   botRate: number;
   escalated: number;
   escalationRate: number;
+  satisfaction?: number | null; // % de valoraciones positivas
+}
+export interface Satisfaction {
+  rated: number;
+  up: number;
+  down: number;
+  rate?: number | null; // % positivas
+  coverage?: number | null; // % de respuestas del bot que fueron valoradas
 }
 export interface Analytics {
   days: number;
@@ -132,6 +189,7 @@ export interface Analytics {
   escalationRate: number;
   conversationsDelta?: number | null; // % vs el periodo anterior; null si no hay base
   avgHumanResolution: string;
+  satisfaction: Satisfaction;
   daily: AnalyticsDay[];
   companies: AnalyticsCompany[];
 }
@@ -153,6 +211,7 @@ export interface PublicAgent {
   brandColor: string;
   brandBg: string;
   agentStatus: AgentStatus;
+  humanSupport?: HumanSupport | null;
 }
 
 export interface ChatResponse {
@@ -169,7 +228,7 @@ export interface ChunkOut {
 }
 
 // ---- Autenticación y roles (RF-28) ----
-export type Role = 'superadmin' | 'admin_empresa' | 'encargado_tickets' | 'encargado_agente';
+export type Role = 'superadmin' | 'admin_empresa' | 'encargado_tickets' | 'encargado_agente' | 'registrado'; // registrado = cuenta creada que aún no registra su empresa
 
 export interface AuthUser {
   id: string;
@@ -269,6 +328,41 @@ export interface ConversationListItem {
   firstMessage: string;
   lastMessage: string;
   costUsd: number;
+  thumbsUp: number;
+  thumbsDown: number;
+}
+
+// ---------- Seguridad de la IA y preguntas sin respuesta ----------
+export interface SecurityEvent {
+  id: string;
+  type: string; // inyeccion | tema_prohibido | pii | fuga_salida | salida_saneada | fragmento_sospechoso | limite_conversacion
+  severity: 'baja' | 'media' | 'alta';
+  detail: string; // ya enmascarado
+  signals: string[];
+  conversationId?: string;
+  createdAt: string;
+}
+export interface SecurityOverview {
+  days: number;
+  total: number;
+  high: number;
+  byType: { type: string; count: number }[];
+  events: SecurityEvent[];
+}
+export interface UnansweredGroup {
+  topic: string;
+  count: number;
+  lastAt: string;
+  reason: 'sin_informacion' | 'modelo_no_sabe' | 'baja_valoracion';
+  closestDocument?: string;
+  closestConfidence?: number;
+  suggestion: string;
+  questions: { question: string; at: string; conversationId: string }[];
+}
+export interface UnansweredReport {
+  days: number;
+  totalQuestions: number;
+  groups: UnansweredGroup[];
 }
 
 export interface ConversationList {
@@ -513,3 +607,6 @@ export interface KbQuality {
   documentsChecked: number;
   fragmentsChecked: number;
 }
+
+export const DEFAULT_SECURITY: SecurityConfig = { pii: true, injection: true, forbiddenTopics: [], publicSources: 'extracto' };
+export const DEFAULT_SCHEDULE: Schedule = { enabled: false, days: {}, outOfHoursMessage: '' };

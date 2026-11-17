@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Inbox, Building2, MessageSquare, MessagesSquare, BarChart3, Wallet, Users, LibraryBig, FlaskConical, type LucideIcon } from 'lucide-react';
+import { Inbox, Building2, MessageSquare, MessagesSquare, BarChart3, Wallet, Users, LibraryBig, FlaskConical, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { View } from '../auth/permissions';
 
 interface SidebarProps {
@@ -18,6 +18,7 @@ const ITEMS: { view: View; label: string; icon: LucideIcon; testId?: string }[] 
   { view: 'agents', label: 'Empresas y agentes', icon: Building2 },
   { view: 'kb', label: 'Base de conocimiento', icon: LibraryBig, testId: 'nav-kb' },
   { view: 'testing', label: 'Pruebas del agente', icon: FlaskConical, testId: 'nav-testing' },
+  { view: 'security', label: 'Seguridad de la IA', icon: ShieldCheck, testId: 'nav-security' },
   { view: 'widget', label: 'Vista previa del widget', icon: MessageSquare },
   { view: 'analytics', label: 'Analítica', icon: BarChart3 },
   { view: 'finops', label: 'Consumo y costos', icon: Wallet, testId: 'nav-finops' },

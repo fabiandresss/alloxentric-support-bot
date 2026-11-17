@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, Bot, User, Headphones, X, AlertTriangle, CheckCircle2, Loader2, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
-import { ChatMessage, PublicAgent, TicketStatus } from '../types';
-import { answerSurvey, getPublicAgent, getPublicConversation, sendPublicChat } from '../api/client';
+import { Send, Bot, User, Headphones, X, AlertTriangle, CheckCircle2, Loader2, ThumbsUp, ThumbsDown, RotateCcw, ChevronDown, FileText, Clock } from 'lucide-react';
+import { ChatMessage, PublicAgent, SourceDetail, TicketStatus } from '../types';
+import { answerSurvey, getPublicAgent, getPublicConversation, rateMessage, sendPublicChat } from '../api/client';
 
 const POLL_MS = 5000; // cada cuánto se consulta si el agente humano respondió
 const storeKey = (slug: string) => `alloxentric_chat_${slug}`;
@@ -41,6 +41,8 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const [commentFor, setCommentFor] = useState<string | null>(null); // respuesta a la que se le está dejando un comentario 👎
+  const [commentText, setCommentText] = useState('');
 
   useEffect(() => {
     getPublicAgent(slug)
@@ -141,6 +143,20 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
     }
   };
 
+  // 👍/👎 a una respuesta del bot (volver a tocar la misma la quita). Un 👎 abre un campo opcional «¿qué faltó?».
+  const rate = async (m: ChatMessage, rating: 'up' | 'down', comment?: string) => {
+    if (!conversationId) return;
+    const quitar = m.rating === rating && comment === undefined;
+    try {
+      const upd = await rateMessage(slug, conversationId, m.id, quitar ? null : rating, comment);
+      setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, rating: upd.rating, ratingComment: upd.ratingComment } : x)));
+      setCommentFor(!quitar && rating === 'down' && comment === undefined ? m.id : null);
+      setCommentText('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const t = text.trim();
@@ -191,6 +207,18 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
         )}
       </header>
 
+      {agent.humanSupport?.enabled && (
+        <div data-testid="human-support" className={`px-4 py-2 text-[11px] flex items-center gap-2 border-b ${agent.humanSupport.open
+          ? 'bg-[color:var(--c-gbg)] border-[color:var(--c-gline)] text-[color:var(--c-gtx)]' : 'bg-[color:var(--c-abg)] border-[color:var(--c-aline)] text-[color:var(--c-atx2)]'}`}>
+          <Clock className="w-3.5 h-3.5 shrink-0" />
+          <span className="min-w-0">
+            <b>{agent.humanSupport.open ? 'Atención humana disponible ahora' : 'Fuera del horario de atención humana'}</b>
+            {agent.humanSupport.schedule ? <> · {agent.humanSupport.schedule}</> : null}
+            {!agent.humanSupport.open && agent.humanSupport.message ? <span className="block opacity-90">{agent.humanSupport.message}</span> : null}
+          </span>
+        </div>
+      )}
+
       <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-[color:var(--c-canvas)]">
         <Bubble bot name={agent.agentName} color={agent.brandColor}>
           {disponible
@@ -205,7 +233,17 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
             name={m.senderName}
             color={agent.brandColor}
             source={m.ragSources?.[0]}
+            details={m.sourceDetails}
             notice={m.isEscalationNotice}
+            feedback={m.sender === 'bot' && !m.isEscalationNotice && conversationId ? {
+              rating: m.rating,
+              onRate: (r) => rate(m, r),
+              commenting: commentFor === m.id,
+              comment: commentText,
+              onComment: setCommentText,
+              onSend: () => rate(m, 'down', commentText.trim()),
+              onSkip: () => setCommentFor(null),
+            } : undefined}
           >
             {m.message}
           </Bubble>
@@ -300,15 +338,51 @@ export const PublicChat: React.FC<{ slug: string; embed: boolean }> = ({ slug, e
   );
 };
 
+interface Feedback {
+  rating?: 'up' | 'down';
+  onRate: (r: 'up' | 'down') => void;
+  commenting: boolean;
+  comment: string;
+  onComment: (t: string) => void;
+  onSend: () => void;
+  onSkip: () => void;
+}
+
+/** Fuentes de la respuesta: con extracto (la empresa lo permite) se despliegan; solo con nombre se muestra una línea. */
+const Sources: React.FC<{ details: SourceDetail[]; color: string }> = ({ details, color }) => {
+  const [open, setOpen] = useState(false);
+  const conExtracto = details.some((d) => d.excerpt);
+  if (!conExtracto) return <p className="text-[10px] text-[color:var(--c-muted)] mt-1">Fuente: {details.map((d) => d.documentName).join(', ')}</p>;
+  return (
+    <div className="mt-1" data-testid="sources">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="text-[10px] font-semibold text-[color:var(--c-muted)] hover:text-[color:var(--c-ink)] flex items-center gap-1">
+        <FileText className="w-3 h-3" /> Fuentes ({details.length}) <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul className="mt-1.5 space-y-1.5">
+          {details.map((d, i) => (
+            <li key={i} className="text-[11px] rounded-lg bg-white border border-[color:var(--c-line)] p-2 text-left" style={{ borderLeft: `3px solid ${color}` }}>
+              <p className="font-semibold text-[color:var(--c-ink)] truncate">{d.documentName}</p>
+              {d.excerpt && <p className="mt-0.5 text-[color:var(--c-muted)] leading-snug">«{d.excerpt}{d.excerpt.length >= 240 ? '…' : ''}»</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 const Bubble: React.FC<{
   bot?: boolean;
   agent?: boolean;
   name: string;
   color: string;
   source?: string;
+  details?: SourceDetail[];
+  feedback?: Feedback;
   notice?: boolean;
   children: React.ReactNode;
-}> = ({ bot, agent, name, color, source, notice, children }) => (
+}> = ({ bot, agent, name, color, source, details, feedback, notice, children }) => (
   <div className={`flex gap-2 ${bot ? '' : 'flex-row-reverse'}`}>
     <div
       className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white"
@@ -326,7 +400,30 @@ const Bubble: React.FC<{
       >
         {children}
       </div>
-      {source && <p className="text-[10px] text-[color:var(--c-muted)] mt-1">Fuente: {source}</p>}
+      {details?.length ? <Sources details={details} color={color} /> : source && <p className="text-[10px] text-[color:var(--c-muted)] mt-1">Fuente: {source}</p>}
+      {feedback && (
+        <div className="mt-1.5" data-testid="feedback">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-[color:var(--c-faint)] mr-0.5">¿Te sirvió?</span>
+            <button onClick={() => feedback.onRate('up')} aria-label="Me sirvió" aria-pressed={feedback.rating === 'up'} data-testid="rate-up"
+              className={`p-1 rounded-md transition-colors ${feedback.rating === 'up' ? 'bg-[color:var(--c-gbg2)] text-[color:var(--c-gtx)]' : 'text-[color:var(--c-faint)] hover:text-[color:var(--c-ink)] hover:bg-[color:var(--c-soft)]'}`}>
+              <ThumbsUp className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => feedback.onRate('down')} aria-label="No me sirvió" aria-pressed={feedback.rating === 'down'} data-testid="rate-down"
+              className={`p-1 rounded-md transition-colors ${feedback.rating === 'down' ? 'bg-[color:var(--c-rbg2)] text-[color:var(--c-rtx2)]' : 'text-[color:var(--c-faint)] hover:text-[color:var(--c-ink)] hover:bg-[color:var(--c-soft)]'}`}>
+              <ThumbsDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {feedback.commenting && (
+            <form onSubmit={(e) => { e.preventDefault(); feedback.onSend(); }} className="mt-1.5 flex gap-1.5" data-testid="rate-comment">
+              <input value={feedback.comment} onChange={(e) => feedback.onComment(e.target.value)} maxLength={500} placeholder="¿Qué faltó? (opcional)" aria-label="Comentario"
+                className="flex-1 min-w-0 px-2.5 py-1.5 text-[11px] rounded-lg border border-[color:var(--c-line)] focus:outline-none focus:border-[#D20A2E]" />
+              <button type="submit" className="px-2.5 rounded-lg text-[11px] font-semibold text-white" style={{ backgroundColor: color }}>Enviar</button>
+              <button type="button" onClick={feedback.onSkip} className="px-2 text-[11px] text-[color:var(--c-muted)]">Omitir</button>
+            </form>
+          )}
+        </div>
+      )}
     </div>
   </div>
 );

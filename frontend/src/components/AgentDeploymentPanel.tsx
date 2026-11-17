@@ -4,8 +4,11 @@ import {
   FileText, 
   Settings, 
   Bot, 
-  Play
+  Play,
+  Wallet,
 } from 'lucide-react';
+import { planTexto } from './PlanPicker';
+import { CONTACT_EMAIL } from './Onboarding';
 import { Company } from '../types';
 import { AgentConfigModal } from './AgentConfigModal';
 import { AddCompanyModal } from './AddCompanyModal';
@@ -16,6 +19,7 @@ interface AgentDeploymentPanelProps {
   onUpdateCompany: (company: Company) => void;
   onAddCompany: (company: Company) => void;
   canCreateCompany?: boolean;
+  canEditSecurity?: boolean;
   onOpenWidgetPreview?: (companyId: string) => void;
 }
 
@@ -24,6 +28,7 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
   onUpdateCompany,
   onAddCompany,
   canCreateCompany = false,
+  canEditSecurity = false,
   onOpenWidgetPreview,
 }) => {
   const [selectedCompanyToConfig, setSelectedCompanyToConfig] = useState<Company | null>(null);
@@ -84,6 +89,12 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
         </button>}
       </div>
 
+      {!canCreateCompany && (
+        <p className="text-[11px] text-[color:var(--c-muted)] -mt-3" data-testid="one-bot-note">
+          Cada empresa tiene un solo chatbot. ¿Necesitas otro? <a href={`mailto:${CONTACT_EMAIL}?subject=Otro chatbot`} className="font-semibold text-[#D20A2E] hover:underline">Contacta a Alloxentric</a>.
+        </p>
+      )}
+
       {/* Grid of Company Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {companies.map((company) => (
@@ -112,6 +123,12 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
                 </div>
 
                 {getStatusBadge(company.agentStatus)}
+              </div>
+
+              {/* Plan de gasto del chatbot: se define al crearlo y se cambia en «Consumo y costos» */}
+              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[color:var(--c-muted)]" data-testid={`plan-chip-${company.id}`}>
+                <Wallet className="w-3.5 h-3.5 text-[#D20A2E]" />
+                <span>Gasto: <strong className="text-[color:var(--c-ink)] font-semibold">{planTexto(company.spendPlan)}</strong>{company.spendPlan?.dailyLimitUsd ? ` · tope diario US$ ${company.spendPlan.dailyLimitUsd}` : ''}</span>
               </div>
 
               {/* Empty state if company has 0 documents */}
@@ -217,6 +234,7 @@ export const AgentDeploymentPanel: React.FC<AgentDeploymentPanelProps> = ({
       {selectedCompanyToConfig && (
         <AgentConfigModal
           company={selectedCompanyToConfig}
+          canEditSecurity={canEditSecurity}
           onClose={() => setSelectedCompanyToConfig(null)}
           onTestAgent={(c) => {
             if (onOpenWidgetPreview) {

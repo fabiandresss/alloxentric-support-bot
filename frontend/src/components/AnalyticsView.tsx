@@ -7,6 +7,7 @@ import {
   Clock,
   Building2,
   PieChart as PieIcon,
+  ThumbsUp,
   Loader2
 } from 'lucide-react';
 import { Analytics } from '../types';
@@ -99,7 +100,7 @@ export const AnalyticsView: React.FC = () => {
       </div>
 
       {/* Cross-Company High Level Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* 1. Conversaciones totales */}
         <div className="bg-white rounded-xl border border-[color:var(--c-line)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center justify-between">
@@ -166,6 +167,21 @@ export const AnalyticsView: React.FC = () => {
             </span>
             <span className="text-xs text-[color:var(--c-muted)]">(atención humana)</span>
           </div>
+        </div>
+
+        {/* Satisfacción: 👍/👎 de los clientes a las respuestas del bot */}
+        <div data-testid="satisfaction-card" className="bg-white rounded-xl border border-[color:var(--c-line)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-[color:var(--c-muted)]">Satisfacción del cliente</span>
+            <div className="w-8 h-8 rounded-lg bg-[color:var(--c-gbg)] flex items-center justify-center text-[#22C55E]">
+              <ThumbsUp className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-[color:var(--c-ink)] tabular-nums">{data.satisfaction.rate != null ? `${data.satisfaction.rate}%` : '—'}</span>
+            <span className="text-xs text-[color:var(--c-muted)]">{data.satisfaction.rated > 0 ? `${data.satisfaction.up} 👍 · ${data.satisfaction.down} 👎` : 'sin valoraciones'}</span>
+          </div>
+          {data.satisfaction.coverage != null && <p className="text-[11px] text-[color:var(--c-muted)] mt-1">{data.satisfaction.coverage}% de las respuestas fue valorada</p>}
         </div>
 
         {/* 4. Empresa con más volumen */}

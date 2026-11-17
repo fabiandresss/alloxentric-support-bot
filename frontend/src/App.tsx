@@ -8,6 +8,7 @@ import { AnalyticsView } from './components/AnalyticsView';
 import { FinOpsView } from './components/FinOpsView';
 import { ConversationsView } from './components/ConversationsView';
 import { KnowledgeBaseView } from './components/KnowledgeBaseView';
+import { SecurityView } from './components/SecurityView';
 import { TestingView } from './components/TestingView';
 import { useNotifications } from './components/NotificationBell';
 import { ToastContainer, ToastMessage } from './components/Toast';
@@ -15,6 +16,7 @@ import { Logo } from './components/Logo';
 import * as api from './api/client';
 import { LoginScreen } from './components/LoginScreen';
 import { UsersView } from './components/UsersView';
+import { ChatbotStep, CompanyStep } from './components/Onboarding';
 import { allowedViews, canViewTickets, canCreateCompanies, View } from './auth/permissions';
 import { AuthUser, AssignableAgent, Company, Ticket, SystemMetrics } from './types';
 
@@ -42,6 +44,8 @@ export default function App() {
 
   if (!authChecked) return <div className="min-h-screen flex items-center justify-center text-xs text-[color:var(--c-muted)]">Cargando…</div>;
   if (!user) return <LoginScreen onLogin={setUser} />;
+  // cuenta recién registrada que aún no tiene empresa: solo puede registrarla (luego el panel le pide crear su chatbot)
+  if (user.role === 'registrado') return <CompanyStep onDone={() => api.getMe().then(setUser).catch(() => api.logout())} onLogout={() => { api.logout(); setUser(null); }} />;
   return <Dashboard user={user} onLogout={() => { api.logout(); setUser(null); }} />;
 }
 
@@ -168,6 +172,9 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
         ragThreshold: updatedCompany.ragThreshold,
         aiModel: updatedCompany.aiModel,
         allowedDomains: updatedCompany.allowedDomains,
+        schedule: updatedCompany.schedule,
+        // las defensas de la IA solo las cambia el admin (el backend responde 403 al resto)
+        ...(editaEmpresa ? { security: updatedCompany.security } : {}),
       });
       setCompanies((prev) => prev.map((c) => (c.id === saved.id ? saved : c)));
       addToast(
@@ -207,6 +214,12 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   const notifSlug = user.role === 'encargado_tickets' ? null : user.companyId ?? (selectedTenantFilter !== 'all' ? selectedTenantFilter : null);
   const notifs = useNotifications(notifSlug);
   const [testingFocus, setTestingFocus] = useState<string | null>(null);
+  // abrir en la base de conocimiento el fragmento que citó una respuesta (desde un ticket o una conversación)
+  const [kbFocus, setKbFocus] = useState<{ companyId: string; documentId: string; fragmentId?: string } | null>(null);
+  const openSource = (companyId: string, documentId: string, fragmentId?: string) => {
+    setKbFocus({ companyId, documentId, fragmentId });
+    setCurrentView('kb');
+  };
   const badges = notifs.items.reduce<Partial<Record<View, number>>>((acc, n) => {
     const v = (n.view === 'finops' || n.view === 'testing' ? n.view : null) as View | null;
     if (v && !n.seen && views.includes(v)) acc[v] = (acc[v] ?? 0) + 1;
@@ -220,6 +233,9 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
       if (v === 'testing' && n.ref) setTestingFocus(n.ref);
     }
   };
+
+  // empresa registrada por su dueño que aún no crea su chatbot (uno por empresa): el panel espera ese paso
+  const crearChatbot = user.role === 'admin_empresa' && !loading && companies.length === 1 && !companies[0].chatbotCreated ? companies[0] : null;
 
   const pendingTicketsCount = tickets.filter(
     (t) => t.status === 'pendiente' || t.status === 'urgente'
@@ -294,6 +310,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
               onUpdateTicketStatus={handleUpdateTicketStatus}
               onSendAgentReply={handleSendAgentReply}
               onReassignAgent={handleReassignAgent}
+              onOpenSource={views.includes('kb') ? openSource : undefined}
               selectedTenantFilter={selectedTenantFilter}
               searchQuery={searchQuery}
               onResetFilters={() => {
@@ -309,6 +326,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
               onUpdateCompany={handleUpdateCompany}
               onAddCompany={handleAddCompany}
               canCreateCompany={canCreateCompanies(user.role)}
+              canEditSecurity={user.role === 'superadmin' || user.role === 'admin_empresa'}
               onOpenWidgetPreview={(companyId) => {
                 setPreviewCompanyId(companyId);
                 setCurrentView('widget');
@@ -350,14 +368,28 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
 
           {!loading && currentView === 'finops' && <FinOpsView me={user} companies={companies} onToast={addToast} />}
 
-          {!loading && currentView === 'conversations' && <ConversationsView me={user} companies={companies} />}
+          {!loading && currentView === 'conversations' && <ConversationsView me={user} companies={companies} onOpenSource={openSource} />}
 
-          {!loading && currentView === 'kb' && <KnowledgeBaseView me={user} companies={companies} onToast={addToast} />}
+          {!loading && currentView === 'kb' && <KnowledgeBaseView me={user} companies={companies} onToast={addToast} focus={kbFocus} onFocusConsumed={() => setKbFocus(null)} />}
+
+          {!loading && currentView === 'security' && <SecurityView me={user} companies={companies} />}
 
           {!loading && currentView === 'testing' && <TestingView me={user} companies={companies} onToast={addToast} focusRunId={testingFocus} onFocusConsumed={() => setTestingFocus(null)} />}
           </div>
         </main>
       </div>
+
+      {crearChatbot && (
+        <ChatbotStep
+          company={crearChatbot}
+          onLogout={onLogout}
+          onCreated={(c) => {
+            setCompanies((prev) => prev.map((x) => (x.id === c.id ? c : x)));
+            setCurrentView('agents');
+            addToast('success', `¡Listo! ${c.agentName} fue creado`, 'Ahora sube tu documentación y publícalo desde «Configurar agente».');
+          }}
+        />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
